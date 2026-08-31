@@ -1,0 +1,984 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MALE UAV Aero Piston Engine — Digital Twin Ground Control Station</title>
+<meta name="description" content="AI-Enabled Real-Time Digital Twin System for Health Monitoring, Fault Prediction, and Mission Reliability of MALE UAV Aero Piston Engines">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+/* ── Reset & Variables ──────────────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:         #03070d;
+  --s1:         #07101c;
+  --s2:         #0c192c;
+  --s3:         #11233d;
+  --border:     rgba(0,195,255,0.14);
+  --border-hi:  rgba(0,195,255,0.35);
+  --accent:     #00c3ff;
+  --accent-glow:rgba(0,195,255,0.22);
+  --green:      #00f084;
+  --green-glow: rgba(0,240,132,0.18);
+  --red:        #ff3b5c;
+  --red-glow:   rgba(255,59,92,0.22);
+  --yellow:     #ffc800;
+  --yellow-glow:rgba(255,200,0,0.18);
+  --orange:     #ff8000;
+  --purple:     #a86bff;
+  --text:       #8cb5d9;
+  --text-hi:    #e2f1fc;
+  --text-dim:   #2e4966;
+  --mono:       'Share Tech Mono',monospace;
+  --sans:       'Rajdhani',sans-serif;
+  --orb:        'Orbitron',sans-serif;
+}
+html,body{min-height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);overflow-x:hidden}
+
+/* CRT scanlines effect */
+body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.03) 2px,rgba(0,0,0,.03) 4px);pointer-events:none;z-index:9999}
+::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:var(--s1)}::-webkit-scrollbar-thumb{background:var(--border-hi);border-radius:2px}
+
+/* ── Overlay ────────────────────────────────────────────────────────────── */
+#overlay{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9000;transition:opacity .5s}
+#overlay.hidden{opacity:0;pointer-events:none}
+.spinner{width:56px;height:56px;border:3px solid var(--s3);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;margin-bottom:20px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+header{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;background:rgba(7,16,28,.96);border-bottom:1px solid var(--border);backdrop-filter:blur(14px);position:sticky;top:0;z-index:100;gap:12px}
+.logo-box{display:flex;align-items:center;gap:12px}
+.logo-hex{width:32px;height:32px;background:linear-gradient(135deg,var(--accent),#0055ff);clip-path:polygon(50% 0%,93% 25%,93% 75%,50% 100%,7% 75%,7% 25%);animation:glow 3s infinite alternate}
+@keyframes glow{from{filter:brightness(1)}to{filter:brightness(1.4) drop-shadow(0 0 8px var(--accent))}}
+.logo-title{font-family:var(--orb);font-size:.95rem;font-weight:900;letter-spacing:2.5px;color:var(--accent)}
+.logo-sub{font-size:.62rem;letter-spacing:2px;color:var(--text-dim);font-family:var(--mono)}
+
+.nav-pills{display:flex;align-items:center;gap:12px;flex:1;justify-content:center}
+.pill{display:flex;align-items:center;gap:6px;padding:5px 12px;border:1px solid var(--border);border-radius:4px;background:var(--s2);font-family:var(--mono);font-size:.7rem}
+.pill span{color:var(--text-hi);font-weight:600}
+
+.hdr-controls{display:flex;align-items:center;gap:10px}
+.conn-pill{display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:4px;border:1px solid var(--border);font-family:var(--mono);font-size:.68rem}
+.conn-dot{width:7px;height:7px;border-radius:50%;background:var(--text-dim)}
+.conn-dot.live{background:var(--green);box-shadow:0 0 8px var(--green);animation:blink 1.8s infinite}
+.conn-dot.err{background:var(--red);box-shadow:0 0 8px var(--red)}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}
+
+.btn{padding:5px 14px;border:1px solid var(--border);border-radius:4px;background:var(--s2);color:var(--text-hi);font-family:var(--mono);font-size:.7rem;cursor:pointer;letter-spacing:1px;transition:all .2s}
+.btn:hover{border-color:var(--accent);background:var(--accent-glow);color:#fff}
+.btn-pri{border-color:var(--accent);color:var(--accent);background:rgba(0,195,255,.08)}
+.btn-pri:hover{background:var(--accent);color:#000}
+.btn-red{border-color:var(--red);color:var(--red)}
+.btn-red:hover{background:var(--red);color:#fff}
+
+/* ── Main Container ─────────────────────────────────────────────────────── */
+main{padding:14px 18px;max-width:1760px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+
+/* ── Card Base ──────────────────────────────────────────────────────────── */
+.card{background:var(--s1);border:1px solid var(--border);border-radius:8px;position:relative;overflow:hidden}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:.35}
+.card-hdr{display:flex;justify-content:space-between;align-items:center;padding:10px 14px 6px;border-bottom:1px solid rgba(0,195,255,.07)}
+.card-title{font-size:.65rem;font-weight:700;letter-spacing:2.5px;color:var(--text-dim);font-family:var(--mono)}
+.card-body{padding:14px}
+
+/* ── Top Master Deck: Synoptic + Health Gauge + RUL Prognostics ─────────── */
+.master-deck{display:grid;grid-template-columns:440px 240px 1fr;gap:14px}
+
+/* 1. Virtual Engine Synoptic Schematic */
+.synoptic-view{display:flex;flex-direction:column;gap:10px}
+.synoptic-svg{width:100%;height:180px;background:var(--s2);border-radius:6px;border:1px solid rgba(0,195,255,.08)}
+.cyl-temp-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.cyl-card{background:var(--s2);border:1px solid var(--border);border-radius:4px;padding:6px 8px;text-align:center}
+.cyl-title{font-size:.58rem;font-family:var(--mono);color:var(--text-dim)}
+.cyl-cht{font-size:.9rem;font-weight:700;font-family:var(--mono);color:var(--accent)}
+.cyl-egt{font-size:.72rem;font-family:var(--mono);color:var(--yellow)}
+
+/* 2. Health Index Gauge */
+.gauge-card-inner{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.gauge-svg-wrap{width:180px;height:110px;position:relative}
+.gauge-svg{width:180px;height:110px}
+.sub-meter-list{width:100%;display:flex;flex-direction:column;gap:4px;margin-top:10px}
+.sub-meter{display:flex;justify-content:space-between;align-items:center;font-size:.62rem;font-family:var(--mono)}
+.sub-meter-bar{width:70px;height:3px;background:var(--s3);border-radius:2px;overflow:hidden}
+.sub-meter-fill{height:100%;background:var(--green);border-radius:2px;transition:width .4s}
+
+/* 3. AI Prognostics & RUL Hero */
+.rul-hero-box{display:grid;grid-template-columns:220px 1fr;gap:16px;align-items:center}
+.rul-readout{display:flex;flex-direction:column}
+.rul-title{font-size:.62rem;letter-spacing:2px;color:var(--text-dim);font-family:var(--mono)}
+.rul-num{font-family:var(--orb);font-size:3.6rem;font-weight:900;line-height:1;color:var(--green);transition:color .4s}
+.rul-num.warn{color:var(--yellow)}
+.rul-num.crit{color:var(--red);animation:flicker .7s infinite}
+@keyframes flicker{0%,100%{opacity:1}50%{opacity:.45}}
+.rul-unit{font-size:.72rem;color:var(--text-dim);letter-spacing:1.5px;margin-top:4px;font-family:var(--mono)}
+.rul-ci{font-size:.65rem;font-family:var(--mono);color:var(--accent);margin-top:4px}
+.rul-chart-wrap{height:150px;position:relative}
+
+/* ── Secondary Deck: 14-Channel Sensor Telemetry Strip ─────────────────── */
+.sensor-strip-14{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
+.s-card{background:var(--s1);border:1px solid var(--border);border-radius:6px;padding:10px 12px;display:flex;flex-direction:column;justify-content:space-between}
+.s-lbl{font-size:.56rem;letter-spacing:2px;color:var(--text-dim);font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.s-val{font-size:1.35rem;font-weight:700;font-family:var(--mono);color:var(--accent);line-height:1.1;margin:4px 0}
+.s-sub{display:flex;justify-content:space-between;font-size:.58rem;font-family:var(--mono);color:var(--text-dim)}
+.s-spark{height:24px;width:100%;margin-top:6px}
+.s-card.warn-border{border-color:var(--yellow);background:rgba(255,200,0,.03)}
+.s-card.warn-border .s-val{color:var(--yellow)}
+.s-card.crit-border{border-color:var(--red);background:rgba(255,59,92,.05)}
+.s-card.crit-border .s-val{color:var(--red)}
+
+/* ── Middle Deck: Thermodynamic PV Diagram + XAI Engine + ATA Advisory ─── */
+.middle-deck{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+
+.perf-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.perf-stat{background:var(--s2);padding:8px;border-radius:4px;border:1px solid rgba(0,195,255,.07)}
+.perf-lbl{font-size:.58rem;color:var(--text-dim);font-family:var(--mono)}
+.perf-val{font-size:1.1rem;font-weight:700;font-family:var(--mono);color:var(--text-hi)}
+
+/* XAI attribution bars */
+.xai-narrative{background:var(--s2);border-left:2px solid var(--purple);padding:8px 10px;border-radius:4px;font-size:.68rem;font-family:var(--mono);line-height:1.4;margin-bottom:10px}
+.xai-bar-list{display:flex;flex-direction:column;gap:5px}
+.xai-bar-item{display:flex;align-items:center;gap:8px;font-size:.62rem;font-family:var(--mono)}
+.xai-bar-lbl{width:80px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.xai-bar-track{flex:1;height:5px;background:var(--s3);border-radius:3px;overflow:hidden}
+.xai-bar-fill{height:100%;background:linear-gradient(90deg,var(--purple),var(--accent));border-radius:3px}
+.xai-bar-pct{width:35px;text-align:right;color:var(--accent)}
+
+/* ATA maintenance card */
+.ata-card{background:var(--s2);border:1px solid var(--border);border-left:3px solid var(--green);border-radius:4px;padding:10px;margin-bottom:8px}
+.ata-card.CRITICAL{border-left-color:var(--red);background:rgba(255,59,92,.06)}
+.ata-card.WARNING{border-left-color:var(--yellow);background:rgba(255,200,0,.04)}
+.ata-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.ata-id{font-size:.65rem;font-weight:700;font-family:var(--mono);color:var(--accent)}
+.ata-urgency{font-size:.6rem;font-family:var(--mono);padding:2px 6px;border-radius:3px;background:var(--s3)}
+.ata-title{font-size:.75rem;font-weight:600;color:var(--text-hi);margin-bottom:4px}
+.ata-action{font-size:.68rem;color:var(--text);line-height:1.3;margin-bottom:6px}
+.ata-steps{list-style:none;font-size:.62rem;font-family:var(--mono);color:var(--text-dim);padding-left:4px}
+
+/* ── Bottom Deck: CAN Bus Monitor + Fault Injector + Mission Modes ─────── */
+.bottom-deck{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+
+/* CAN sniffer table */
+.can-table-wrap{max-height:160px;overflow-y:auto}
+.can-table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:.62rem}
+.can-table th{text-align:left;color:var(--text-dim);padding:4px 6px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--s1)}
+.can-table td{padding:3px 6px;border-bottom:1px solid rgba(0,195,255,.05);white-space:nowrap}
+.can-table tr:hover{background:var(--s2)}
+.can-id{color:var(--purple);font-weight:600}
+.can-hex{color:var(--accent)}
+
+/* Fault Injection deck */
+.fault-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.fault-btn{padding:8px 10px;border:1px solid var(--border);border-radius:4px;background:var(--s2);color:var(--text-hi);font-family:var(--mono);font-size:.65rem;cursor:pointer;text-align:center;transition:all .2s}
+.fault-btn:hover{border-color:var(--red);background:var(--red-glow);color:#fff}
+.fault-btn.active{border-color:var(--red);background:var(--red);color:#fff;box-shadow:0 0 10px var(--red)}
+
+.mission-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.m-pill{padding:6px 14px;border:1px solid var(--border);border-radius:4px;background:var(--s2);color:var(--text-dim);font-family:var(--mono);font-size:.68rem;cursor:pointer;transition:all .2s}
+.m-pill:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-glow)}
+.m-pill.active{border-color:var(--accent);color:#000;background:var(--accent);font-weight:700}
+
+/* Speed / Replay Controls */
+.speed-deck{display:flex;align-items:center;gap:8px;margin-top:8px}
+.speed-btn{padding:3px 8px;border:1px solid var(--border);border-radius:3px;background:var(--s2);color:var(--text-dim);font-family:var(--mono);font-size:.65rem;cursor:pointer}
+.speed-btn.active{border-color:var(--green);color:var(--green);background:var(--green-glow)}
+
+/* ── Responsive ─────────────────────────────────────────────────────────── */
+@media(max-width:1300px){
+  .master-deck{grid-template-columns:1fr 1fr;grid-template-rows:auto}
+  .sensor-strip-14{grid-template-columns:repeat(4,1fr)}
+  .middle-deck{grid-template-columns:1fr}
+  .bottom-deck{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- Startup Loading Overlay -->
+<div id="overlay">
+  <div class="spinner"></div>
+  <div style="font-family:var(--orb);font-size:1.1rem;letter-spacing:3px;color:var(--accent);margin-bottom:8px">MALE UAV PROPULSION DIGITAL TWIN</div>
+  <div style="font-family:var(--mono);font-size:.75rem;letter-spacing:2px;color:var(--text-dim)" id="ov-msg">ESTABLISHING SYNCHRONIZED TELEMETRY LINK...</div>
+</div>
+
+<!-- Header -->
+<header>
+  <div class="logo-box">
+    <div class="logo-hex"></div>
+    <div>
+      <div class="logo-title">AERO TWIN GCS</div>
+      <div class="logo-sub">DEFENSE-GRADE PROPULSION MONITOR · MALE UAV</div>
+    </div>
+  </div>
+
+  <div class="nav-pills">
+    <div class="pill">TAIL <span id="h-tail">UAV-07</span></div>
+    <div class="pill">ENGINE <span id="h-eng">ROTAX 914-T</span></div>
+    <div class="pill">CYCLE <span id="h-cycle">----</span></div>
+    <div class="pill">MISSION <span id="h-mode">NORMAL</span></div>
+    <div class="pill">ALT <span id="h-alt">3,000 FT</span></div>
+    <div class="pill">ELAPSED <span id="h-time">00:00:00</span></div>
+  </div>
+
+  <div class="hdr-controls">
+    <div class="conn-pill">
+      <div class="conn-dot" id="conn-dot"></div>
+      <span id="conn-text">OFFLINE</span>
+    </div>
+    <button class="btn btn-pri" onclick="downloadMissionDossier()">⬇ DOSSIER</button>
+  </div>
+</header>
+
+<main>
+
+  <!-- 1. Master Deck: Synoptic + Health Gauge + RUL Prognostics -->
+  <div class="master-deck">
+
+    <!-- Virtual Engine Synoptic Schematic -->
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-title">VIRTUAL ENGINE SYNOPTIC SCHEMATIC</span>
+        <span class="pill" id="firing-stat" style="font-size:.6rem">4-CYL 4-STROKE SYNC</span>
+      </div>
+      <div class="card-body synoptic-view">
+        <svg class="synoptic-svg" viewBox="0 0 400 180">
+          <!-- Engine Block Outline -->
+          <rect x="50" y="40" width="300" height="100" rx="8" fill="#0c192c" stroke="rgba(0,195,255,0.25)" stroke-width="1.5"/>
+          <line x1="200" y1="40" x2="200" y2="140" stroke="rgba(0,195,255,0.12)" stroke-dasharray="4"/>
+          
+          <!-- Cylinders 1-4 -->
+          <g id="cyl-group">
+            <!-- Cyl 1 -->
+            <rect id="cyl-1-box" x="70" y="55" width="55" height="70" rx="4" fill="#11233d" stroke="#00c3ff" stroke-width="1"/>
+            <text x="97" y="72" text-anchor="middle" fill="#8cb5d9" font-family="'Share Tech Mono'" font-size="9">CYL 1</text>
+            <circle id="flame-1" cx="97" cy="100" r="10" fill="#00e87a" opacity="0.8"/>
+
+            <!-- Cyl 2 -->
+            <rect id="cyl-2-box" x="135" y="55" width="55" height="70" rx="4" fill="#11233d" stroke="#00c3ff" stroke-width="1"/>
+            <text x="162" y="72" text-anchor="middle" fill="#8cb5d9" font-family="'Share Tech Mono'" font-size="9">CYL 2</text>
+            <circle id="flame-2" cx="162" cy="100" r="10" fill="#00e87a" opacity="0.8"/>
+
+            <!-- Cyl 3 -->
+            <rect id="cyl-3-box" x="210" y="55" width="55" height="70" rx="4" fill="#11233d" stroke="#00c3ff" stroke-width="1"/>
+            <text x="237" y="72" text-anchor="middle" fill="#8cb5d9" font-family="'Share Tech Mono'" font-size="9">CYL 3</text>
+            <circle id="flame-3" cx="237" cy="100" r="10" fill="#00e87a" opacity="0.8"/>
+
+            <!-- Cyl 4 -->
+            <rect id="cyl-4-box" x="275" y="55" width="55" height="70" rx="4" fill="#11233d" stroke="#00c3ff" stroke-width="1"/>
+            <text x="302" y="72" text-anchor="middle" fill="#8cb5d9" font-family="'Share Tech Mono'" font-size="9">CYL 4</text>
+            <circle id="flame-4" cx="302" cy="100" r="10" fill="#00e87a" opacity="0.8"/>
+          </g>
+
+          <!-- Propeller & Gearbox -->
+          <rect x="350" y="75" width="16" height="30" fill="#07101c" stroke="#00c3ff"/>
+          <line x1="366" y1="20" x2="366" y2="160" stroke="#00f084" stroke-width="3" stroke-linecap="round"/>
+
+          <!-- Fuel & Oil Rails -->
+          <line x1="70" y1="46" x2="330" y2="46" stroke="#ffc800" stroke-width="2" stroke-dasharray="6 3"/>
+          <text x="45" y="32" fill="#ffc800" font-family="'Share Tech Mono'" font-size="8">FUEL RAIL (3.0 BAR)</text>
+          
+          <line x1="70" y1="134" x2="330" y2="134" stroke="#a86bff" stroke-width="2"/>
+          <text x="45" y="154" fill="#a86bff" font-family="'Share Tech Mono'" font-size="8">OIL GALLERY (55 PSI)</text>
+        </svg>
+
+        <!-- 4 Cylinder Telemetry Grid -->
+        <div class="cyl-temp-grid">
+          <div class="cyl-card">
+            <div class="cyl-title">CYL 1</div>
+            <div class="cyl-cht" id="cyl1-cht">---°F</div>
+            <div class="cyl-egt" id="cyl1-egt">---°F</div>
+          </div>
+          <div class="cyl-card">
+            <div class="cyl-title">CYL 2</div>
+            <div class="cyl-cht" id="cyl2-cht">---°F</div>
+            <div class="cyl-egt" id="cyl2-egt">---°F</div>
+          </div>
+          <div class="cyl-card">
+            <div class="cyl-title">CYL 3</div>
+            <div class="cyl-cht" id="cyl3-cht">---°F</div>
+            <div class="cyl-egt" id="cyl3-egt">---°F</div>
+          </div>
+          <div class="cyl-card">
+            <div class="cyl-title">CYL 4</div>
+            <div class="cyl-cht" id="cyl4-cht">---°F</div>
+            <div class="cyl-egt" id="cyl4-egt">---°F</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Engine Health Index Gauge -->
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-title">ENGINE HEALTH INDEX</span>
+        <span class="pill" id="hi-condition" style="font-size:.6rem">INITIALIZING</span>
+      </div>
+      <div class="card-body gauge-card-inner">
+        <div class="gauge-svg-wrap">
+          <svg class="gauge-svg" viewBox="0 0 180 110">
+            <!-- Background Arc -->
+            <path d="M 20,95 A 70,70 0 0,1 160,95" fill="none" stroke="#11233d" stroke-width="12" stroke-linecap="round"/>
+            <!-- Animated Value Arc -->
+            <path id="gauge-arc" d="M 20,95 A 70,70 0 0,1 160,95" fill="none" stroke="#00f084" stroke-width="12" stroke-linecap="round" stroke-dasharray="0 220" style="transition:stroke-dasharray .6s ease, stroke .4s"/>
+            <text id="gauge-val" x="90" y="80" text-anchor="middle" fill="#e2f1fc" font-family="'Orbitron'" font-size="28" font-weight="900">--</text>
+            <text x="90" y="98" text-anchor="middle" fill="#2e4966" font-family="'Share Tech Mono'" font-size="9" letter-spacing="1">INDEX / 100</text>
+          </svg>
+        </div>
+
+        <!-- Subsystem Meters -->
+        <div class="sub-meter-list">
+          <div class="sub-meter"><span>THERMAL</span><div class="sub-meter-bar"><div class="sub-meter-fill" id="sm-therm" style="width:80%"></div></div><span id="sm-therm-val">80%</span></div>
+          <div class="sub-meter"><span>LUBRICATION</span><div class="sub-meter-bar"><div class="sub-meter-fill" id="sm-lub" style="width:85%"></div></div><span id="sm-lub-val">85%</span></div>
+          <div class="sub-meter"><span>MECHANICAL</span><div class="sub-meter-bar"><div class="sub-meter-fill" id="sm-mech" style="width:90%"></div></div><span id="sm-mech-val">90%</span></div>
+          <div class="sub-meter"><span>ELECTRICAL</span><div class="sub-meter-bar"><div class="sub-meter-fill" id="sm-elec" style="width:95%"></div></div><span id="sm-elec-val">95%</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI RUL Prognostics Hero -->
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-title">AI PROGNOSTICS · REMAINING USEFUL LIFE (RUL)</span>
+        <div class="pill" id="alert-tag">NOMINAL</div>
+      </div>
+      <div class="card-body">
+        <div class="rul-hero-box">
+          <div class="rul-readout">
+            <div class="rul-title">PREDICTED RUL</div>
+            <div class="rul-num" id="rul-num">BUFF</div>
+            <div class="rul-unit">FLIGHT CYCLES</div>
+            <div class="rul-ci" id="rul-ci">95% CI: [--, --]</div>
+          </div>
+          <div class="rul-chart-wrap">
+            <canvas id="chart-rul-trend"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 2. Secondary Deck: Full 14-Channel Sensor Strip -->
+  <div class="sensor-strip-14">
+    <div class="s-card" id="card-rpm">
+      <div class="s-lbl">ENGINE SPEED</div>
+      <div class="s-val" id="val-rpm">---</div>
+      <div class="s-sub"><span>RPM</span><span id="stat-rpm">NORM</span></div>
+      <canvas class="s-spark" id="sp-rpm"></canvas>
+    </div>
+    <div class="s-card" id="card-cht">
+      <div class="s-lbl">CYL HEAD TEMP</div>
+      <div class="s-val" id="val-cht">---</div>
+      <div class="s-sub"><span>°F AVG</span><span id="stat-cht">NORM</span></div>
+      <canvas class="s-spark" id="sp-cht"></canvas>
+    </div>
+    <div class="s-card" id="card-egt">
+      <div class="s-lbl">EXHAUST TEMP</div>
+      <div class="s-val" id="val-egt">---</div>
+      <div class="s-sub"><span>°F AVG</span><span id="stat-egt">NORM</span></div>
+      <canvas class="s-spark" id="sp-egt"></canvas>
+    </div>
+    <div class="s-card" id="card-oil-p">
+      <div class="s-lbl">OIL PRESSURE</div>
+      <div class="s-val" id="val-oil-p">---</div>
+      <div class="s-sub"><span>PSI</span><span id="stat-oil-p">NORM</span></div>
+      <canvas class="s-spark" id="sp-oil-p"></canvas>
+    </div>
+    <div class="s-card" id="card-oil-t">
+      <div class="s-lbl">OIL TEMP</div>
+      <div class="s-val" id="val-oil-t">---</div>
+      <div class="s-sub"><span>°F</span><span id="stat-oil-t">NORM</span></div>
+      <canvas class="s-spark" id="sp-oil-t"></canvas>
+    </div>
+    <div class="s-card" id="card-fuel">
+      <div class="s-lbl">FUEL FLOW</div>
+      <div class="s-val" id="val-fuel">---</div>
+      <div class="s-sub"><span>L/HR</span><span id="stat-fuel">NORM</span></div>
+      <canvas class="s-spark" id="sp-fuel"></canvas>
+    </div>
+    <div class="s-card" id="card-rail-p">
+      <div class="s-lbl">RAIL PRESSURE</div>
+      <div class="s-val" id="val-rail-p">---</div>
+      <div class="s-sub"><span>BAR</span><span id="stat-rail-p">NORM</span></div>
+      <canvas class="s-spark" id="sp-rail-p"></canvas>
+    </div>
+
+    <!-- Row 2 of 14 Sensors -->
+    <div class="s-card" id="card-vib">
+      <div class="s-lbl">VIBRATION RMS</div>
+      <div class="s-val" id="val-vib">---</div>
+      <div class="s-sub"><span>g RMS</span><span id="stat-vib">NORM</span></div>
+      <canvas class="s-spark" id="sp-vib"></canvas>
+    </div>
+    <div class="s-card" id="card-kurt">
+      <div class="s-lbl">VIB KURTOSIS</div>
+      <div class="s-val" id="val-kurt">---</div>
+      <div class="s-sub"><span>CREST</span><span id="stat-kurt">NORM</span></div>
+      <canvas class="s-spark" id="sp-kurt"></canvas>
+    </div>
+    <div class="s-card" id="card-batt">
+      <div class="s-lbl">BUS VOLTAGE</div>
+      <div class="s-val" id="val-batt">---</div>
+      <div class="s-sub"><span>V DC</span><span id="stat-batt">NORM</span></div>
+      <canvas class="s-spark" id="sp-batt"></canvas>
+    </div>
+    <div class="s-card" id="card-current">
+      <div class="s-lbl">BUS CURRENT</div>
+      <div class="s-val" id="val-current">---</div>
+      <div class="s-sub"><span>AMPS</span><span id="stat-current">NORM</span></div>
+      <canvas class="s-spark" id="sp-current"></canvas>
+    </div>
+    <div class="s-card" id="card-inj">
+      <div class="s-lbl">INJ TIMING</div>
+      <div class="s-val" id="val-inj">---</div>
+      <div class="s-sub"><span>°BTDC</span><span id="stat-inj">NORM</span></div>
+      <canvas class="s-spark" id="sp-inj"></canvas>
+    </div>
+    <div class="s-card" id="card-map">
+      <div class="s-lbl">MANIFOLD MAP</div>
+      <div class="s-val" id="val-map">---</div>
+      <div class="s-sub"><span>kPa</span><span id="stat-map">NORM</span></div>
+      <canvas class="s-spark" id="sp-map"></canvas>
+    </div>
+    <div class="s-card" id="card-true-rul">
+      <div class="s-lbl">GROUND TRUTH RUL</div>
+      <div class="s-val" id="val-true-rul">---</div>
+      <div class="s-sub"><span>CYCLES</span><span>TRUE</span></div>
+      <canvas class="s-spark" id="sp-true-rul"></canvas>
+    </div>
+  </div>
+
+  <!-- 3. Middle Deck: Thermodynamic P-V Cycle + XAI Root Cause + ATA Advisory -->
+  <div class="middle-deck">
+
+    <!-- Thermodynamic & Performance Suite -->
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-title">THERMODYNAMIC P-V CYCLE & PERFORMANCE</span>
+        <span class="pill" id="otto-eff">η: --%</span>
+      </div>
+      <div class="card-body">
+        <div style="height:140px;position:relative">
+          <canvas id="chart-pv"></canvas>
+        </div>
+        <div class="perf-grid">
+          <div class="perf-stat"><div class="perf-lbl">BRAKE POWER</div><div class="perf-val" id="val-hp">-- BHP</div></div>
+          <div class="perf-stat"><div class="perf-lbl">BSFC ECONOMY</div><div class="perf-val" id="val-bsfc">-- g/kWh</div></div>
+          <div class="perf-stat"><div class="perf-lbl">BMEP PRESSURE</div><div class="perf-val" id="val-bmep">-- bar</div></div>
+          <div class="perf-stat"><div class="perf-lbl">VOLUMETRIC EFF</div><div class="perf-val" id="val-voleff">-- %</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Explainable AI (XAI) Root Cause Diagnosis -->
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-title">EXPLAINABLE AI (XAI) ROOT CAUSE ATTRIBUTION</span>
+        <span class="pill" id="xai-anomaly-tag">NO ANOMALY</span>
+      </div>
+      <div class="card-body">
+        <div class="xai-narrative" id="xai-narrative">
+          All monitored engine parameters remain within learned 3-sigma multi-sensor multivariate envelope.
+        </div>
+        <div class="xai-bar-list" id="xai-bars">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Autonomous ATA-Spec Maintenance Advisory -->
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-title">ATA-100 AUTONOMOUS MAINTENANCE ADVISORY</span>
+        <span class="pill" id="maint-count">0 WORK ORDERS</span>
+      </div>
+      <div class="card-body" id="advisory-container" style="max-height:260px;overflow-y:auto">
+        <div class="ata-card">
+          <div class="ata-hdr">
+            <span class="ata-id">ATA 05-00-00</span>
+            <span class="ata-urgency" style="color:var(--green)">DISPATCH READY</span>
+          </div>
+          <div class="ata-title">Propulsion System Nominal — Ready for Dispatch</div>
+          <div class="ata-action">All subsystems within certified airworthiness limits. Proceed with standard pre-flight checklist.</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 4. Bottom Deck: CAN Bus Monitor + Fault Injector & Mission Modes -->
+  <div class="bottom-deck">
+
+    <!-- CAN Bus / SAE J1939 Frame Monitor -->
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-title">CAN BUS / SAE J1939 REAL-TIME FRAME MONITOR</span>
+        <span class="pill">250 KBPS · 29-BIT ID</span>
+      </div>
+      <div class="card-body can-table-wrap">
+        <table class="can-table">
+          <thead>
+            <tr>
+              <th>CAN ID</th>
+              <th>PGN</th>
+              <th>MESSAGE NAME</th>
+              <th>HEX PAYLOAD</th>
+              <th>DECODED PHYSICAL DATA</th>
+            </tr>
+          </thead>
+          <tbody id="can-tbody">
+            <tr><td colspan="5" style="text-align:center;color:var(--text-dim)">Listening for CAN messages...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Interactive Fault Injector & Mission Replay Controls -->
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-title">INTERACTIVE FAULT INJECTOR & MISSION CONTROLS</span>
+        <div class="speed-deck">
+          <span style="font-size:.62rem;font-family:var(--mono);color:var(--text-dim)">SPEED:</span>
+          <button class="speed-btn active" onclick="setSpeed(1.0, this)">1X</button>
+          <button class="speed-btn" onclick="setSpeed(2.0, this)">2X</button>
+          <button class="speed-btn" onclick="setSpeed(5.0, this)">5X</button>
+          <button class="speed-btn" onclick="setSpeed(10.0, this)">10X</button>
+          <button class="speed-btn btn-red" id="pause-btn" onclick="togglePause()">PAUSE</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div style="font-size:.6rem;font-family:var(--mono);color:var(--text-dim);margin-bottom:6px">LIVE INJECTABLE FAILURE MODES:</div>
+        <div class="fault-grid">
+          <button class="fault-btn" data-fault="misfire" onclick="toggleFault(this)">IGNITION MISFIRE</button>
+          <button class="fault-btn" data-fault="injector_clog" onclick="toggleFault(this)">INJECTOR CLOG</button>
+          <button class="fault-btn" data-fault="cooling_degradation" onclick="toggleFault(this)">COOLING DEGRADE</button>
+          <button class="fault-btn" data-fault="oil_leak" onclick="toggleFault(this)">OIL PRESS LEAK</button>
+          <button class="fault-btn" data-fault="sensor_drift" onclick="toggleFault(this)">SENSOR DRIFT</button>
+          <button class="fault-btn" data-fault="bearing_wear" onclick="toggleFault(this)">BEARING WEAR</button>
+          <button class="fault-btn" data-fault="combustion_instability" onclick="toggleFault(this)">COMBUSTION FLAME</button>
+          <button class="fault-btn btn-pri" onclick="clearAllFaults()">CLEAR ALL FAULTS</button>
+        </div>
+
+        <div style="font-size:.6rem;font-family:var(--mono);color:var(--text-dim);margin-top:10px;margin-bottom:4px">MISSION FLIGHT PROFILE:</div>
+        <div class="mission-row">
+          <button class="m-pill active" data-profile="NORMAL" onclick="setProfile(this)">NORMAL ISR</button>
+          <button class="m-pill" data-profile="HIGH_ALTITUDE" onclick="setProfile(this)">HIGH ALTITUDE (18k FT)</button>
+          <button class="m-pill" data-profile="HOT_WEATHER" onclick="setProfile(this)">HOT WEATHER (45°C)</button>
+          <button class="m-pill" data-profile="ENDURANCE" onclick="setProfile(this)">MAX ENDURANCE</button>
+          <button class="m-pill" data-profile="RAPID_THROTTLE" onclick="setProfile(this)">RAPID THROTTLE</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</main>
+
+<script>
+/* ── State & Constants ──────────────────────────────────────────────────────── */
+let ws = null, reconnectTimer = null, sessionStart = null;
+let isPaused = false, currentSpeed = 1.0, activeFaults = new Set();
+let sessionLog = [];
+
+/* ── Sparklines Management ─────────────────────────────────────────────────── */
+const sparkHistory = {};
+const SENSOR_KEYS = ['rpm','cht','egt','oil-p','oil-t','fuel','rail-p','vib','kurt','batt','current','inj','map','true-rul'];
+SENSOR_KEYS.forEach(k => sparkHistory[k] = []);
+
+function pushSpark(k, v){
+  if(!sparkHistory[k]) sparkHistory[k] = [];
+  sparkHistory[k].push(v);
+  if(sparkHistory[k].length > 40) sparkHistory[k].shift();
+}
+
+function drawSparkline(canvasId, data, color){
+  const cvs = document.getElementById(canvasId);
+  if(!cvs) return;
+  const w = cvs.parentElement.offsetWidth || 100, h = 24;
+  cvs.width = w; cvs.height = h;
+  const ctx = cvs.getContext('2d');
+  ctx.clearRect(0,0,w,h);
+  if(data.length < 2) return;
+  const mn = Math.min(...data), mx = Math.max(...data), rng = mx - mn || 1;
+  ctx.beginPath();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5;
+  data.forEach((val, i) => {
+    const x = (i / (data.length - 1)) * w;
+    const y = h - ((val - mn) / rng) * (h - 4) - 2;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+}
+
+/* ── Chart.js Configurations ────────────────────────────────────────────────── */
+// 1. RUL Prognostic Trend Chart
+const rulTrendChart = new Chart(document.getElementById('chart-rul-trend'), {
+  type: 'line',
+  data: {
+    labels: [],
+    datasets: [
+      {label: 'AI Pred RUL', data: [], borderColor: '#00c3ff', backgroundColor: 'rgba(0,195,255,.08)', borderWidth: 1.8, tension: 0.3, pointRadius: 0, fill: false},
+      {label: 'Upper 95% CI', data: [], borderColor: 'rgba(0,195,255,.3)', borderDash: [2,2], borderWidth: 1, pointRadius: 0, fill: '+1', backgroundColor: 'rgba(0,195,255,.05)'},
+      {label: 'Lower 95% CI', data: [], borderColor: 'rgba(0,195,255,.3)', borderDash: [2,2], borderWidth: 1, pointRadius: 0, fill: false},
+      {label: 'Ground Truth', data: [], borderColor: '#00f084', borderWidth: 1, borderDash: [4,4], pointRadius: 0, fill: false}
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false, animation: {duration: 0},
+    plugins: {legend: {display: false}},
+    scales: {
+      x: {display: false},
+      y: {grid: {color: 'rgba(0,195,255,.06)'}, ticks: {color: '#2e4966', font: {size: 9, family: 'Share Tech Mono'}}}
+    }
+  }
+});
+
+// 2. Thermodynamic P-V Indicator Cycle Chart
+const pvChart = new Chart(document.getElementById('chart-pv'), {
+  type: 'line',
+  data: {
+    datasets: [{
+      label: '4-Stroke P-V Loop',
+      data: [],
+      borderColor: '#ffc800',
+      backgroundColor: 'rgba(255,200,0,.08)',
+      borderWidth: 2,
+      pointRadius: 0,
+      tension: 0.4,
+      fill: true
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false, animation: {duration: 0},
+    plugins: {legend: {display: false}},
+    scales: {
+      x: {type: 'linear', title: {display: true, text: 'Volume (cc)', color: '#2e4966', font: {size: 9}}, grid: {color: 'rgba(0,195,255,.06)'}, ticks: {color: '#2e4966', font: {size: 8}}},
+      y: {title: {display: true, text: 'Pressure (bar)', color: '#2e4966', font: {size: 9}}, grid: {color: 'rgba(0,195,255,.06)'}, ticks: {color: '#2e4966', font: {size: 8}}}
+    }
+  }
+});
+
+/* ── Health Gauge Animation ─────────────────────────────────────────────────── */
+const GAUGE_MAX_ARC = 220;
+function updateGauge(hi, cond){
+  const gArc = document.getElementById('gauge-arc');
+  const gVal = document.getElementById('gauge-val');
+  const gCond = document.getElementById('hi-condition');
+
+  const fill = (Math.max(0, Math.min(100, hi)) / 100) * GAUGE_MAX_ARC;
+  const gap = GAUGE_MAX_ARC - fill;
+
+  const hue = Math.round(hi * 1.2);
+  const color = `hsl(${hue}, 100%, 50%)`;
+
+  gArc.setAttribute('stroke-dasharray', `${fill} ${gap}`);
+  gArc.setAttribute('stroke', color);
+  gVal.textContent = Math.round(hi);
+  gVal.style.fill = color;
+  gCond.textContent = cond;
+  gCond.style.color = color;
+}
+
+/* ── WebSocket Client & Real-Time Dispatcher ────────────────────────────────── */
+function connectWS(){
+  ws = new WebSocket('ws://localhost:8765');
+
+  ws.onopen = () => {
+    document.getElementById('overlay').classList.add('hidden');
+    document.getElementById('conn-dot').className = 'conn-dot live';
+    document.getElementById('conn-text').textContent = 'LIVE 10Hz';
+    if(!sessionStart) sessionStart = Date.now();
+  };
+
+  ws.onmessage = (event) => {
+    let d;
+    try { d = JSON.parse(event.data); } catch { return; }
+    if(!d.cycle) return;
+
+    // Log to session history for Dossier
+    if(sessionLog.length < 500) sessionLog.push(d);
+
+    // 1. Header Information
+    document.getElementById('h-cycle').textContent = String(d.cycle).padStart(4, '0');
+    document.getElementById('h-mode').textContent = d.mission_mode || 'NORMAL';
+    document.getElementById('h-alt').textContent = `${(d.altitude_ft||3000).toLocaleString()} FT`;
+
+    // Elapsed timer
+    if(sessionStart){
+      const sec = Math.floor((Date.now() - sessionStart) / 1000);
+      const hh = String(Math.floor(sec / 3600)).padStart(2, '0');
+      const mm = String(Math.floor((sec % 3600) / 60)).padStart(2, '0');
+      const ss = String(sec % 60).padStart(2, '0');
+      document.getElementById('h-time').textContent = `${hh}:${mm}:${ss}`;
+    }
+
+    // 2. Synoptic Schematic Cylinders
+    const chtCyl = d.cht_cyl || [d.cht, d.cht, d.cht, d.cht];
+    const egtCyl = d.egt_cyl || [d.egt, d.egt, d.egt, d.egt];
+    for(let i=0; i<4; i++){
+      document.getElementById(`cyl${i+1}-cht`).textContent = `${chtCyl[i]}°F`;
+      document.getElementById(`cyl${i+1}-egt`).textContent = `${egtCyl[i]}°F`;
+      const flame = document.getElementById(`flame-${i+1}`);
+      if(flame){
+        flame.setAttribute('fill', chtCyl[i] > 420 ? '#ff3b5c' : egtCyl[i] < 1200 ? '#ff8000' : '#00f084');
+      }
+    }
+
+    // 3. Health Index & Subsystems
+    if(d.health){
+      updateGauge(d.health.health_index, d.health.condition);
+      const sub = d.health.sub_scores || {};
+      document.getElementById('sm-therm').style.width = `${sub.thermal||80}%`;
+      document.getElementById('sm-therm-val').textContent = `${Math.round(sub.thermal||80)}%`;
+      document.getElementById('sm-lub').style.width = `${sub.lubrication||85}%`;
+      document.getElementById('sm-lub-val').textContent = `${Math.round(sub.lubrication||85)}%`;
+      document.getElementById('sm-mech').style.width = `${sub.mechanical||90}%`;
+      document.getElementById('sm-mech-val').textContent = `${Math.round(sub.mechanical||90)}%`;
+      document.getElementById('sm-elec').style.width = `${sub.electrical||95}%`;
+      document.getElementById('sm-elec-val').textContent = `${Math.round(sub.electrical||95)}%`;
+    }
+
+    // 4. AI Prognostics RUL Hero & Trend
+    const rEl = document.getElementById('rul-num');
+    const aTag = document.getElementById('alert-tag');
+    if(d.predicted_rul > 0){
+      rEl.textContent = Math.round(d.predicted_rul);
+      rEl.className = d.predicted_rul < 20 ? 'rul-num crit' : d.predicted_rul < 45 ? 'rul-num warn' : 'rul-num';
+      document.getElementById('rul-ci').textContent = `95% CI: [${d.rul_ci_lower}, ${d.rul_ci_upper}]`;
+      
+      // Update chart
+      rulTrendChart.data.labels.push(d.cycle);
+      rulTrendChart.data.datasets[0].data.push(d.predicted_rul);
+      rulTrendChart.data.datasets[1].data.push(d.rul_ci_upper);
+      rulTrendChart.data.datasets[2].data.push(d.rul_ci_lower);
+      rulTrendChart.data.datasets[3].data.push(d.true_rul);
+      if(rulTrendChart.data.labels.length > 50){
+        rulTrendChart.data.labels.shift();
+        rulTrendChart.data.datasets.forEach(ds => ds.data.shift());
+      }
+      rulTrendChart.update('none');
+    } else {
+      rEl.textContent = `BUF ${d.buffer_pct||0}%`;
+      rEl.className = 'rul-num';
+    }
+
+    // Global Alert Tag
+    aTag.textContent = d.alert || 'NOMINAL';
+    aTag.style.color = d.alert === 'CRITICAL' ? 'var(--red)' : d.alert === 'WARNING' ? 'var(--yellow)' : 'var(--green)';
+
+    // 5. 14 Sensors Update
+    const sMap = {
+      'rpm': [d.rpm, '#00c3ff', 'val-rpm', 'sp-rpm'],
+      'cht': [d.cht, '#00f084', 'val-cht', 'sp-cht'],
+      'egt': [d.egt, '#ffc800', 'val-egt', 'sp-egt'],
+      'oil-p': [d.oil_pressure, '#a86bff', 'val-oil-p', 'sp-oil-p'],
+      'oil-t': [d.oil_temp, '#ff8000', 'val-oil-t', 'sp-oil-t'],
+      'fuel': [d.fuel_flow, '#00f084', 'val-fuel', 'sp-fuel'],
+      'rail-p': [d.fuel_rail_pressure_bar, '#00c3ff', 'val-rail-p', 'sp-rail-p'],
+      'vib': [d.vibration, '#ff3b5c', 'val-vib', 'sp-vib'],
+      'kurt': [d.vibration_kurtosis, '#ff8000', 'val-kurt', 'sp-kurt'],
+      'batt': [d.battery_v, '#00c3ff', 'val-batt', 'sp-batt'],
+      'current': [d.bus_current_a, '#00f084', 'val-current', 'sp-current'],
+      'inj': [d.inj_timing, '#a86bff', 'val-inj', 'sp-inj'],
+      'map': [d.map_kpa, '#00c3ff', 'val-map', 'sp-map'],
+      'true-rul': [d.true_rul, '#00f084', 'val-true-rul', 'sp-true-rul'],
+    };
+
+    for(let k in sMap){
+      const [val, col, vid, sid] = sMap[k];
+      if(val !== undefined){
+        const vEl = document.getElementById(vid);
+        if(vEl) vEl.textContent = typeof val === 'number' ? (k === 'vib' ? val.toFixed(3) : val.toFixed(1)) : val;
+        pushSpark(k, val);
+        drawSparkline(sid, sparkHistory[k], col);
+      }
+    }
+
+    // 6. Thermodynamic P-V Cycle & Performance
+    if(d.physics){
+      const p = d.physics;
+      document.getElementById('otto-eff').textContent = `η_th: ${p.thermal_efficiency}%`;
+      document.getElementById('val-hp').textContent = `${p.brake_power_hp} BHP (${p.brake_power_kw} kW)`;
+      document.getElementById('val-bsfc').textContent = `${p.bsfc_g_kwh} g/kWh`;
+      document.getElementById('val-bmep').textContent = `${p.bmep_bar} bar`;
+      document.getElementById('val-voleff').textContent = `${p.volumetric_eff}%`;
+
+      if(p.pv_diagram){
+        pvChart.data.datasets[0].data = p.pv_diagram.map(pt => ({x: pt.volume_cc, y: pt.pressure_bar}));
+        pvChart.update('none');
+      }
+    }
+
+    // 7. Explainable AI (XAI) Attribution
+    if(d.xai){
+      const x = d.xai;
+      document.getElementById('xai-narrative').textContent = x.narrative;
+      const anomTag = document.getElementById('xai-anomaly-tag');
+      anomTag.textContent = x.is_anomaly ? `ANOMALY: ${x.top_driver}` : 'NOMINAL ENVELOPE';
+      anomTag.style.color = x.is_anomaly ? 'var(--red)' : 'var(--green)';
+
+      const bContainer = document.getElementById('xai-bars');
+      if(x.attributions){
+        bContainer.innerHTML = x.attributions.map(a => `
+          <div class="xai-bar-item">
+            <span class="xai-bar-lbl" title="${a.subsystem}">${a.label}</span>
+            <div class="xai-bar-track"><div class="xai-bar-fill" style="width:${a.attribution}%"></div></div>
+            <span class="xai-bar-pct">${a.attribution}%</span>
+          </div>
+        `).join('');
+      }
+    }
+
+    // 8. Maintenance Advisory Cards
+    if(d.advisories && d.advisories.length > 0){
+      document.getElementById('maint-count').textContent = `${d.advisories.length} ADVISORIES`;
+      document.getElementById('advisory-container').innerHTML = d.advisories.map(a => `
+        <div class="ata-card ${a.priority}">
+          <div class="ata-hdr">
+            <span class="ata-id">${a.task_id}</span>
+            <span class="ata-urgency" style="color:${a.priority==='CRITICAL'?'var(--red)':a.priority==='WARNING'?'var(--yellow)':'var(--green)'}">${a.priority} · ${a.urgency_hours}H</span>
+          </div>
+          <div class="ata-title">${a.title}</div>
+          <div class="ata-action">${a.action}</div>
+          <ul class="ata-steps">${(a.steps||[]).map(s=>`<li>${s}</li>`).join('')}</ul>
+        </div>
+      `).join('');
+    }
+
+    // 9. CAN Bus Monitor Frames
+    if(d.can_frames && d.can_frames.length > 0){
+      const tbody = document.getElementById('can-tbody');
+      tbody.innerHTML = d.can_frames.map(f => `
+        <tr>
+          <td class="can-id">${f.can_id}</td>
+          <td>${f.pgn}</td>
+          <td>${f.name}</td>
+          <td class="can-hex">${f.hex}</td>
+          <td>${f.decoded}</td>
+        </tr>
+      `).join('');
+    }
+  };
+
+  ws.onclose = () => {
+    document.getElementById('conn-dot').className = 'conn-dot err';
+    document.getElementById('conn-text').textContent = 'OFFLINE (BACKEND STOPPED)';
+    document.getElementById('firing-stat').textContent = 'TELEMETRY DISCONNECTED';
+    document.getElementById('firing-stat').style.color = 'var(--red)';
+    for(let i=1; i<=4; i++){
+      const fl = document.getElementById(`flame-${i}`);
+      if(fl) fl.setAttribute('fill', '#2e4966');
+    }
+    clearTimeout(reconnectTimer);
+    reconnectTimer = setTimeout(connectWS, 2000);
+  };
+}
+connectWS();
+
+/* ── Interactive Command Telecommand Handlers ───────────────────────────────── */
+function sendCmd(cmd){
+  if(ws && ws.readyState === 1){
+    ws.send(JSON.stringify(cmd));
+  }
+}
+
+function setProfile(btn){
+  document.querySelectorAll('.m-pill').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  sendCmd({command: 'set_profile', profile: btn.dataset.profile});
+}
+
+function setSpeed(spd, btn){
+  document.querySelectorAll('.speed-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentSpeed = spd;
+  sendCmd({command: 'set_speed', speed: spd});
+}
+
+function togglePause(){
+  isPaused = !isPaused;
+  const pBtn = document.getElementById('pause-btn');
+  pBtn.textContent = isPaused ? 'RESUME' : 'PAUSE';
+  pBtn.className = isPaused ? 'speed-btn active' : 'speed-btn btn-red';
+  sendCmd({command: 'set_paused', paused: isPaused});
+}
+
+function toggleFault(btn){
+  const fault = btn.dataset.fault;
+  if(activeFaults.has(fault)){
+    activeFaults.delete(fault);
+    btn.classList.remove('active');
+  } else {
+    activeFaults.add(fault);
+    btn.classList.add('active');
+    sendCmd({command: 'inject_fault', fault: fault});
+  }
+}
+
+function clearAllFaults(){
+  activeFaults.clear();
+  document.querySelectorAll('.fault-btn').forEach(b => b.classList.remove('active'));
+  sendCmd({command: 'clear_faults'});
+}
+
+/* ── Mission Health Dossier PDF/HTML Exporter ───────────────────────────────── */
+function downloadMissionDossier(){
+  const now = new Date().toISOString();
+  const last = sessionLog.slice(-1)[0] || {};
+  const faultsList = last.fault_events || [];
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>UAV Propulsion Health Dossier — ${now}</title>
+<style>
+body{font-family:Helvetica,Arial,sans-serif;background:#fff;color:#111;padding:40px;line-height:1.5}
+h1{color:#0055aa;border-bottom:2px solid #0055aa;padding-bottom:8px}
+h2{color:#333;margin-top:24px;border-bottom:1px solid #ccc;padding-bottom:4px}
+table{width:100%;border-collapse:collapse;margin:16px 0}
+th,td{border:1px solid #ddd;padding:8px;text-align:left;font-size:13px}
+th{background:#f4f4f4}
+.crit{color:#cc0000;font-weight:bold}
+.ok{color:#008800;font-weight:bold}
+</style>
+</head>
+<body>
+<h1>MALE UAV PROPULSION DIGITAL TWIN — MISSION HEALTH DOSSIER</h1>
+<p><strong>Generated:</strong> ${now} | <strong>Tail:</strong> UAV-07 | <strong>Powerplant:</strong> Rotax 914 Turbo Aero Piston (115 HP)</p>
+<h2>1. Propulsion Health & Airworthiness Summary</h2>
+<table>
+  <tr><th>Parameter</th><th>Value</th><th>Status</th></tr>
+  <tr><td>Final Flight Cycle</td><td>${last.cycle||'--'}</td><td>COMPLETED</td></tr>
+  <tr><td>Engine Health Index</td><td>${last.health?.health_index||'--'} / 100</td><td class="${last.health?.health_index<50?'crit':'ok'}">${last.health?.condition||'NOMINAL'}</td></tr>
+  <tr><td>AI Predicted RUL</td><td>${last.predicted_rul||'--'} Cycles</td><td>95% CI: [${last.rul_ci_lower||'--'}, ${last.rul_ci_upper||'--'}]</td></tr>
+  <tr><td>Ground Truth RUL</td><td>${last.true_rul||'--'} Cycles</td><td>GROUND TRUTH</td></tr>
+  <tr><td>Brake Specific Fuel Consumption</td><td>${last.physics?.bsfc_g_kwh||'--'} g/kWh</td><td>THERMODYNAMIC MAP</td></tr>
+  <tr><td>Brake Power Output</td><td>${last.physics?.brake_power_hp||'--'} BHP</td><td>CONTINUOUS RATING</td></tr>
+</table>
+
+<h2>2. Active Anomaly & Fault Event Log</h2>
+<table>
+  <tr><th>Fault Event</th><th>Severity</th><th>Impacted Subsystem</th></tr>
+  ${faultsList.length ? faultsList.map(f => `<tr><td class="crit">${f.name}</td><td>${f.severity}</td><td>AERO CORE</td></tr>`).join('') : '<tr><td colspan="3" class="ok">NO ACTIVE PROPULSION FAULTS RECORDED</td></tr>'}
+</table>
+
+<h2>3. Autonomous ATA Maintenance Action Items</h2>
+<table>
+  <tr><th>Task ID</th><th>Chapter</th><th>Priority</th><th>Action Procedure</th></tr>
+  ${(last.advisories||[]).map(a => `<tr><td><strong>${a.task_id}</strong></td><td>${a.ata_chapter}</td><td>${a.priority}</td><td>${a.action}</td></tr>`).join('')}
+</table>
+</body>
+</html>`;
+
+  const blob = new Blob([html], {type: 'text/html'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `UAV_Propulsion_Dossier_${Date.now()}.html`;
+  a.click();
+}
+</script>
+</body>
+</html>

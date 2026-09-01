@@ -1,1093 +1,1123 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="stealth">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MALE UAV Propulsion Digital Twin — Defense Ground Control Station</title>
-<meta name="description" content="AI-Enabled Real-Time Digital Twin System for Health Monitoring, Fault Prediction, and Mission Reliability of MALE UAV Aero Piston Engines">
-
-<!-- Professional Aerospace Typography -->
+<title>UAV Propulsion Ground Control Station</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-
 <style>
-/* ── Reset & Aerospace Design System ────────────────────────────────────── */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-:root {
-  --bg-dark:       #080c14;
-  --bg-panel:      #0d1424;
-  --bg-card:       #111b2e;
-  --bg-card-hover: #16243d;
-  --bg-subtle:     #1a2942;
-  
-  --border:        rgba(255, 255, 255, 0.08);
-  --border-focus:  rgba(56, 189, 248, 0.40);
-  --border-subtle: rgba(255, 255, 255, 0.04);
-  
-  --cyan:          #38bdf8;
-  --cyan-glow:     rgba(56, 189, 248, 0.15);
-  --green:         #10b981;
-  --green-glow:    rgba(16, 185, 129, 0.15);
-  --amber:         #f59e0b;
-  --amber-glow:    rgba(245, 158, 11, 0.15);
-  --red:           #ef4444;
-  --red-glow:      rgba(239, 68, 68, 0.15);
-  --purple:        #a855f7;
-  --purple-glow:   rgba(168, 85, 247, 0.15);
-  
-  --text-primary:  #f8fafc;
-  --text-secondary:#94a3b8;
-  --text-muted:    #64748b;
-  --text-dim:      #475569;
-  
-  --font-sans:     'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono:     'JetBrains Mono', monospace;
-  
-  --radius-sm:     4px;
-  --radius-md:     6px;
-  --radius-lg:     8px;
+/* ─── RESET & BASE ──────────────────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:#000000}
+
+/* ─── COLOR PALETTE TOKENS ──────────────────────────────────────────────── */
+:root, [data-theme="stealth"] {
+  --bg-app:        #000000;
+  --bg-surface:    #0c0d12;
+  --bg-panel:      #13151c;
+  --bg-card:       #181b24;
+  --bg-card-hover: #222634;
+  --bg-dock:       #08090d;
+
+  --border:        rgba(255,255,255,0.12);
+  --border-strong: rgba(255,255,255,0.22);
+  --border-focus:  #38bdf8;
+
+  --accent:        #38bdf8;
+  --accent-light:  #7dd3fc;
+  --accent-glow:   rgba(56,189,248,0.15);
+
+  --ok:            #10b981;
+  --ok-bg:         rgba(16,185,129,0.18);
+  --warn:          #f59e0b;
+  --warn-bg:       rgba(245,158,11,0.18);
+  --crit:          #ef4444;
+  --crit-bg:       rgba(239,68,68,0.22);
+
+  --text-main:     #ffffff;
+  --text-body:     #f1f5f9;
+  --text-muted:    #cbd5e1;
+  --text-label:    #94a3b8;
+  --text-dim:      #64748b;
+
+  --font-ui:       'Inter', system-ui, -apple-system, sans-serif;
+  --font-data:     'JetBrains Mono', monospace;
 }
 
-html, body {
-  min-height: 100vh;
-  background-color: var(--bg-dark);
-  color: var(--text-primary);
-  font-family: var(--font-sans);
-  font-size: 13px;
-  line-height: 1.4;
-  -webkit-font-smoothing: antialiased;
-  overflow-x: hidden;
+/* ─── 2. Deep Space Ice-Blue ─── */
+[data-theme="ice"] {
+  --bg-app:        #020617;
+  --bg-surface:    #0a1128;
+  --bg-panel:      #0f1a3d;
+  --bg-card:       #142352;
+  --bg-card-hover: #1d3170;
+  --bg-dock:       #070d20;
+  --border:        rgba(56,189,248,0.18);
+  --border-strong: rgba(56,189,248,0.30);
+  --border-focus:  #38bdf8;
+  --accent:        #38bdf8;
+  --accent-light:  #93c5fd;
+  --accent-glow:   rgba(56,189,248,0.20);
+  --text-main:     #ffffff;
+  --text-body:     #f0f9ff;
+  --text-muted:    #bae6fd;
+  --text-label:    #7dd3fc;
+  --text-dim:      #3b82f6;
 }
 
-/* Custom Clean Scrollbar */
+/* ─── 3. Emerald Tactical HUD ─── */
+[data-theme="emerald"] {
+  --bg-app:        #020a06;
+  --bg-surface:    #06180e;
+  --bg-panel:      #0c2617;
+  --bg-card:       #123621;
+  --bg-card-hover: #19482d;
+  --bg-dock:       #04120a;
+  --border:        rgba(16,185,129,0.20);
+  --border-strong: rgba(16,185,129,0.32);
+  --border-focus:  #10b981;
+  --accent:        #10b981;
+  --accent-light:  #6ee7b7;
+  --accent-glow:   rgba(16,185,129,0.20);
+  --text-main:     #ffffff;
+  --text-body:     #ecfdf5;
+  --text-muted:    #a7f3d0;
+  --text-label:    #6ee7b7;
+  --text-dim:      #059669;
+}
+
+/* ─── 4. Amber Flight Deck ─── */
+[data-theme="amber"] {
+  --bg-app:        #0e0b06;
+  --bg-surface:    #1a150b;
+  --bg-panel:      #2a2112;
+  --bg-card:       #3a2e19;
+  --bg-card-hover: #4e3e22;
+  --bg-dock:       #141008;
+  --border:        rgba(245,158,11,0.20);
+  --border-strong: rgba(245,158,11,0.32);
+  --border-focus:  #f59e0b;
+  --accent:        #f59e0b;
+  --accent-light:  #fde68a;
+  --accent-glow:   rgba(245,158,11,0.20);
+  --text-main:     #ffffff;
+  --text-body:     #fffbeb;
+  --text-muted:    #fde68a;
+  --text-label:    #fcd34d;
+  --text-dim:      #d97706;
+}
+
+/* ─── APP GRID LAYOUT ──────────────────────────────────────────────────── */
+body {
+  font-family: var(--font-ui);
+  color: var(--text-body);
+  display: grid;
+  grid-template-rows: 56px 104px 38px 1fr 52px;
+  grid-template-columns: 260px 1fr;
+  grid-template-areas:
+    "hdr hdr"
+    "hdr hdr"
+    "nav nav"
+    "side main"
+    "dock dock";
+  font-size: 12.5px;
+}
+
 ::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: var(--bg-dark); }
-::-webkit-scrollbar-thumb { background: var(--bg-subtle); border-radius: var(--radius-sm); }
-::-webkit-scrollbar-thumb:hover { background: var(--cyan); }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
 
-/* ── Fullscreen Overlay for Disconnect / Loading ───────────────────────── */
-#overlay {
-  position: fixed; inset: 0;
-  background: rgba(8, 12, 20, 0.96);
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  z-index: 9999;
-  transition: opacity 0.3s ease, visibility 0.3s ease;
-}
-#overlay.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
-.loader-spinner {
-  width: 44px; height: 44px;
-  border: 2px solid var(--border);
-  border-top-color: var(--cyan);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  margin-bottom: 16px;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
-
-/* ── Top Header Navigation Bar ──────────────────────────────────────────── */
+/* ─── 1. HEADER ────────────────────────────────────────────────────────── */
 header {
-  height: 52px;
-  background: var(--bg-panel);
-  border-bottom: 1px solid var(--border);
+  grid-area: hdr;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-strong);
+  display: grid;
+  grid-template-columns: 260px 1fr auto;
+  grid-template-rows: 56px 104px;
+}
+
+/* Technical Propulsion Unit Card */
+.hdr-propulsion-card {
+  grid-column: 1; grid-row: 1/3;
+  background: var(--bg-app);
+  border-right: 1px solid var(--border-strong);
+  display: flex; flex-direction: column; justify-content: center;
+  padding: 14px 16px; gap: 6px;
+}
+.hpc-top { display: flex; align-items: center; justify-content: space-between; }
+.hpc-tail { font-family: var(--font-data); font-size: 14px; font-weight: 800; color: var(--text-main); letter-spacing: 0.05em; }
+.hpc-badge {
+  font-family: var(--font-data); font-size: 9px; font-weight: 700; letter-spacing: 0.06em;
+  padding: 2px 6px; border-radius: 2px; background: var(--ok-bg); color: var(--ok); border: 1px solid rgba(16,185,129,0.3);
+}
+.hpc-engine { font-size: 11px; font-weight: 700; color: var(--text-label); font-family: var(--font-data); }
+.hpc-specs {
+  display: flex; flex-direction: column; gap: 2px; font-size: 9.5px; font-family: var(--font-data);
+  color: var(--text-muted); border-top: 1px solid var(--border); padding-top: 6px; margin-top: 2px;
+}
+.hpc-spec-row { display: flex; justify-content: space-between; }
+.hpc-spec-row strong { color: var(--text-main); }
+
+/* Top Header Bar */
+.hdr-strip {
+  grid-column: 2; grid-row: 1;
   display: flex; align-items: center; justify-content: space-between;
-  padding: 0 18px;
-  position: sticky; top: 0; z-index: 50;
-}
-.hdr-left { display: flex; align-items: center; gap: 14px; }
-.crest-badge {
-  width: 30px; height: 30px;
-  background: linear-gradient(135deg, #0284c7, #0369a1);
-  border-radius: var(--radius-sm);
-  display: flex; align-items: center; justify-content: center;
-  font-family: var(--font-mono); font-weight: 700; font-size: 13px; color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-}
-.hdr-title-box { display: flex; flex-direction: column; }
-.hdr-title { font-size: 12px; font-weight: 700; letter-spacing: 1px; color: var(--text-primary); text-transform: uppercase; }
-.hdr-subtitle { font-size: 10px; color: var(--text-muted); font-family: var(--font-mono); letter-spacing: 0.5px; }
-
-.hdr-center { display: flex; align-items: center; gap: 10px; }
-.meta-tag {
-  display: flex; align-items: center; gap: 6px;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 3px 8px;
-  font-family: var(--font-mono); font-size: 11px;
-}
-.meta-tag .lbl { color: var(--text-muted); }
-.meta-tag .val { color: var(--text-primary); font-weight: 600; }
-.phase-badge {
-  padding: 3px 8px; border-radius: var(--radius-sm);
-  font-family: var(--font-mono); font-size: 11px; font-weight: 700;
-  background: rgba(16, 185, 129, 0.12); color: var(--green); border: 1px solid rgba(16, 185, 129, 0.3);
-}
-
-.hdr-right { display: flex; align-items: center; gap: 10px; }
-.caution-indicator {
-  padding: 3px 10px; border-radius: var(--radius-sm);
-  font-family: var(--font-mono); font-size: 11px; font-weight: 700;
-  background: var(--bg-card); border: 1px solid var(--border); color: var(--text-muted);
-  display: flex; align-items: center; gap: 6px;
-}
-.caution-indicator.active-warning {
-  background: var(--amber-glow); border-color: var(--amber); color: var(--amber);
-  animation: pulse-border 1.5s infinite;
-}
-.caution-indicator.active-critical {
-  background: var(--red-glow); border-color: var(--red); color: var(--red);
-  animation: pulse-border 0.8s infinite;
-}
-@keyframes pulse-border { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
-
-.link-status {
-  display: flex; align-items: center; gap: 6px;
-  font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary);
-}
-.status-pip { width: 7px; height: 7px; border-radius: 50%; background: var(--text-dim); }
-.status-pip.live { background: var(--green); box-shadow: 0 0 6px var(--green); }
-.status-pip.error { background: var(--red); box-shadow: 0 0 6px var(--red); }
-
-.btn-tactical {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  color: var(--text-primary);
-  font-family: var(--font-mono); font-size: 11px;
-  padding: 4px 10px;
-  cursor: pointer;
-  display: flex; align-items: center; gap: 6px;
-  transition: all 0.15s ease;
-}
-.btn-tactical:hover { background: var(--bg-card-hover); border-color: var(--cyan); color: var(--cyan); }
-.btn-tactical.active-toggle { background: var(--cyan-glow); border-color: var(--cyan); color: var(--cyan); }
-
-/* ── Tabbed Console Switcher Bar ─────────────────────────────────────────── */
-.nav-tab-bar {
-  background: var(--bg-panel);
+  padding: 0 20px;
   border-bottom: 1px solid var(--border);
-  display: flex; align-items: center;
-  padding: 0 18px;
-  gap: 2px;
 }
-.nav-tab-btn {
-  background: transparent; border: none;
-  padding: 9px 16px;
-  font-family: var(--font-sans); font-size: 12px; font-weight: 500;
-  color: var(--text-muted);
+.hdr-title-meta { display: flex; align-items: center; gap: 12px; }
+.hdr-main-title { font-size: 11.5px; font-weight: 800; letter-spacing: 0.10em; color: var(--text-main); text-transform: uppercase; }
+.hdr-cert-tag { font-family: var(--font-data); font-size: 9px; font-weight: 700; color: var(--ok); background: var(--ok-bg); padding: 2px 6px; border-radius: 2px; }
+
+.hdr-controls { display: flex; align-items: center; gap: 10px; }
+
+.status-badge {
+  display: flex; align-items: center; gap: 7px;
+  padding: 5px 12px; border-radius: 3px;
+  font-family: var(--font-data); font-size: 10px; font-weight: 800; letter-spacing: 0.08em;
+  border: 1px solid;
+}
+.status-badge.nominal { color: var(--ok); border-color: rgba(16,185,129,0.4); background: var(--ok-bg); }
+.status-badge.warning { color: var(--warn); border-color: rgba(245,158,11,0.4); background: var(--warn-bg); }
+.status-badge.critical { color: var(--crit); border-color: rgba(239,68,68,0.5); background: var(--crit-bg); animation: crit-pulse 1s infinite; }
+@keyframes crit-pulse { 0%,100%{box-shadow:0 0 0 0 transparent} 50%{box-shadow:0 0 0 4px rgba(239,68,68,0.25)} }
+.status-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.status-badge.nominal .status-dot { animation: live-blink 2s infinite; }
+@keyframes live-blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+.btn-header {
+  height: 30px; padding: 0 12px;
+  background: var(--bg-panel); border: 1px solid var(--border-strong); border-radius: 3px;
+  color: var(--text-body); font-family: var(--font-data); font-size: 10px; font-weight: 700;
+  letter-spacing: 0.06em; cursor: pointer; transition: all 0.15s; white-space: nowrap;
+}
+.btn-header:hover { background: var(--bg-card-hover); color: var(--text-main); border-color: var(--border-focus); }
+
+.ws-pill {
+  display: flex; align-items: center; gap: 7px;
+  background: var(--bg-panel); border: 1px solid var(--border-strong);
+  border-radius: 20px; padding: 5px 12px;
+  font-family: var(--font-data); font-size: 10px; font-weight: 700; letter-spacing: 0.05em; color: var(--text-main);
   cursor: pointer;
-  position: relative;
-  display: flex; align-items: center; gap: 8px;
-  transition: color 0.15s ease;
 }
-.nav-tab-btn:hover { color: var(--text-primary); }
-.nav-tab-btn.active { color: var(--cyan); font-weight: 600; }
-.nav-tab-btn.active::after {
+.ws-pip { width: 7px; height: 7px; border-radius: 50%; background: var(--text-dim); }
+.ws-pip.live { background: var(--ok); box-shadow: 0 0 8px var(--ok); animation: live-blink 2s infinite; }
+.ws-pip.dead { background: var(--crit); animation: live-blink 0.8s infinite; }
+
+/* ─── 2. KPI RIBBON ────────────────────────────────────────────────────── */
+.kpi-ribbon {
+  grid-column: 2; grid-row: 2;
+  display: grid; grid-template-columns: repeat(5, 1fr);
+  border-left: 1px solid var(--border);
+}
+.kpi-card {
+  padding: 12px 18px;
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; justify-content: center;
+  position: relative; overflow: hidden;
+}
+.kpi-card::after {
   content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 2px;
-  background: var(--cyan);
+  background: var(--accent); transform: scaleX(0); transform-origin: left; transition: transform 0.3s;
 }
-.tab-num {
-  font-family: var(--font-mono); font-size: 10px; opacity: 0.6;
+.kpi-card:hover::after { transform: scaleX(1); }
+.kpi-card:last-child { border-right: none; }
+
+.kpi-label { font-size: 9px; font-weight: 800; letter-spacing: 0.12em; color: var(--text-label); text-transform: uppercase; margin-bottom: 3px; }
+.kpi-val { font-family: var(--font-data); font-size: 28px; font-weight: 800; color: var(--text-main); line-height: 1; }
+.kpi-val .unit { font-size: 12px; font-weight: 600; color: var(--text-muted); margin-left: 4px; }
+.kpi-sub { font-family: var(--font-data); font-size: 10px; font-weight: 600; color: var(--text-muted); margin-top: 4px; display: flex; gap: 8px; align-items: center; }
+
+.tag-badge { padding: 2px 7px; border-radius: 2px; font-size: 9px; font-weight: 800; letter-spacing: 0.06em; }
+.tb-ok { color: #000; background: var(--ok); }
+.tb-warn { color: #000; background: var(--warn); }
+.tb-crit { color: #fff; background: var(--crit); }
+.tb-dim { color: var(--text-main); background: var(--bg-card); border: 1px solid var(--border); }
+
+.micro-meters { display: flex; flex-direction: column; gap: 3px; margin-top: 4px; }
+.mm-row { display: flex; align-items: center; gap: 6px; }
+.mm-lbl { font-size: 8px; color: var(--text-label); font-family: var(--font-data); width: 34px; font-weight: 700; }
+.mm-track { flex: 1; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; }
+.mm-fill { height: 100%; border-radius: 2px; background: var(--text-main); transition: width 0.5s ease; }
+.mm-num { font-size: 8.5px; color: var(--text-main); font-family: var(--font-data); width: 24px; text-align: right; font-weight: 700; }
+
+/* ─── 3. TAB NAVIGATION ────────────────────────────────────────────────── */
+nav {
+  grid-area: nav;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-strong);
+  display: flex; align-items: flex-end; padding: 0 0 0 260px;
 }
-
-/* ── Main Workspace Container ───────────────────────────────────────────── */
-main {
-  padding: 14px 18px 74px 18px; /* Extra bottom padding for floating control bar */
-  max-width: 1800px;
-  margin: 0 auto;
+.tab-btn {
+  padding: 10px 22px;
+  background: none; border: none; border-bottom: 2px solid transparent;
+  color: var(--text-label); font-family: var(--font-ui); font-size: 12px; font-weight: 700;
+  cursor: pointer; transition: all 0.15s; white-space: nowrap; margin-bottom: -1px; letter-spacing: 0.02em;
 }
+.tab-btn:hover { color: var(--text-main); }
+.tab-btn.active { color: var(--text-main); border-bottom-color: var(--accent); font-weight: 800; }
 
-.tab-content { display: none; }
-.tab-content.active { display: block; }
+/* ─── 4. PERSISTENT SIDEBAR ────────────────────────────────────────────── */
+aside {
+  grid-area: side;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border-strong);
+  overflow-y: auto;
+}
+.sb-header {
+  padding: 9px 14px; font-size: 9px; font-weight: 800; letter-spacing: 0.12em;
+  color: var(--text-main); background: var(--bg-panel); border-bottom: 1px solid var(--border); text-transform: uppercase;
+}
+.sb-row {
+  display: grid; grid-template-columns: 1fr auto; align-items: center;
+  padding: 7px 14px; border-bottom: 1px solid var(--border); transition: background 0.12s;
+}
+.sb-row:hover { background: var(--bg-card-hover); }
+.sb-lbl { font-size: 10px; color: var(--text-label); font-weight: 600; }
+.sb-val { font-family: var(--font-data); font-size: 12px; font-weight: 700; color: var(--text-main); text-align: right; }
+.sb-val.ok { color: var(--ok); }
+.sb-val.warn { color: var(--warn); }
+.sb-val.crit { color: var(--crit); }
 
-/* ── Common Card Styling ────────────────────────────────────────────────── */
-.gcs-card {
+.sb-sub-card { padding: 9px 14px; border-bottom: 1px solid var(--border); }
+.sb-sub-head { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 10px; }
+.sb-sub-name { color: var(--text-label); font-weight: 600; }
+.sb-sub-pct { font-family: var(--font-data); color: var(--text-main); font-weight: 700; }
+.sb-sub-track { height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; }
+.sb-sub-fill { height: 100%; border-radius: 2px; background: var(--text-main); transition: width 0.5s; }
+
+/* ─── 5. WORKSPACE & PANELS ────────────────────────────────────────────── */
+.workspace {
+  grid-area: main;
+  overflow-y: auto;
+  background: var(--bg-app);
+  padding: 14px;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.tab-pane { display: none; }
+.tab-pane.active { display: contents; }
+
+.panel-card {
   background: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
   overflow: hidden;
-  display: flex; flex-direction: column;
 }
-.card-top {
-  padding: 8px 14px;
-  background: var(--bg-card);
-  border-bottom: 1px solid var(--border-subtle);
+.panel-hdr {
   display: flex; align-items: center; justify-content: space-between;
+  padding: 11px 18px; background: var(--bg-surface); border-bottom: 1px solid var(--border);
 }
-.card-label {
-  font-size: 11px; font-weight: 600; color: var(--text-secondary);
-  letter-spacing: 0.8px; text-transform: uppercase; font-family: var(--font-mono);
-}
-.card-content { padding: 12px 14px; }
+.panel-title { font-size: 11px; font-weight: 800; letter-spacing: 0.08em; color: var(--text-main); text-transform: uppercase; }
+.panel-meta { font-family: var(--font-data); font-size: 10px; font-weight: 600; color: var(--text-label); }
 
-/* ── TAB 1: Mission Telemetry & Synoptic Overview ────────────────────────── */
-.overview-grid {
-  display: grid;
-  grid-template-columns: 460px 1fr 340px;
-  gap: 14px;
+/* Data Tables */
+.data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.data-table th {
+  padding: 9px 16px; text-align: left; font-size: 9px; font-weight: 800; letter-spacing: 0.10em;
+  color: var(--text-label); text-transform: uppercase; background: var(--bg-surface); border-bottom: 1px solid var(--border); white-space: nowrap;
 }
+.data-table td { padding: 9px 16px; border-bottom: 1px solid var(--border); color: var(--text-body); white-space: nowrap; }
+.data-table td.mono { font-family: var(--font-data); font-weight: 700; color: var(--text-main); }
+.data-table td.muted { color: var(--text-label); font-size: 11px; font-weight: 600; }
+.data-table tr:last-child td { border-bottom: none; }
+.data-table tr:hover td { background: var(--bg-card-hover); }
 
-/* Synoptic Engine Layout */
-.synoptic-box { display: flex; flex-direction: column; gap: 10px; }
-.synoptic-svg-wrap {
-  width: 100%; height: 200px;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  position: relative;
-}
-.synoptic-svg { width: 100%; height: 100%; }
-.synoptic-interactive-node {
-  cursor: pointer;
-  transition: filter 0.2s ease;
-}
-.synoptic-interactive-node:hover {
-  filter: brightness(1.3);
-}
+.tag-stat { display: inline-block; padding: 2px 7px; border-radius: 2px; font-size: 9px; font-family: var(--font-data); font-weight: 800; letter-spacing: 0.05em; }
+.tag-stat.ok { color: #000; background: var(--ok); }
+.tag-stat.warn { color: #000; background: var(--warn); }
+.tag-stat.crit { color: #fff; background: var(--crit); }
 
-.cyl-spread-grid {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
-}
-.cyl-cell {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 6px 8px; text-align: center;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-.cyl-cell:hover { border-color: var(--cyan); background: var(--bg-card-hover); }
-.cyl-cell.active-inspect { border-color: var(--cyan); background: var(--cyan-glow); }
-.cyl-name { font-size: 10px; font-family: var(--font-mono); color: var(--text-muted); }
-.cyl-cht-val { font-size: 13px; font-weight: 700; font-family: var(--font-mono); color: var(--text-primary); }
-.cyl-egt-val { font-size: 11px; font-family: var(--font-mono); color: var(--amber); }
-
-/* Thermal Balance Bar */
-.thermal-balance-box {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 8px 10px;
-}
-.tbal-hdr { display: flex; justify-content: space-between; font-size: 10px; font-family: var(--font-mono); color: var(--text-muted); margin-bottom: 4px; }
-.tbal-track { height: 6px; background: var(--bg-subtle); border-radius: 3px; position: relative; overflow: hidden; }
-.tbal-marker { position: absolute; top: 0; bottom: 0; width: 4px; border-radius: 2px; }
-
-/* 14 Sensors Matrix */
+/* Sensor Matrix 12-Grid */
 .sensor-matrix-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--border-strong);
 }
-.sensor-node-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 8px 10px;
-  display: flex; flex-direction: column; justify-content: space-between;
-  transition: all 0.15s ease;
+.sensor-cell {
+  background: var(--bg-panel); padding: 14px 16px; display: flex; flex-direction: column; gap: 4px;
+  border-left: 4px solid transparent; transition: all 0.15s;
 }
-.sensor-node-card:hover { border-color: var(--border-focus); }
-.sensor-node-card.caution-state { border-color: var(--amber); background: rgba(245, 158, 11, 0.04); }
-.sensor-node-card.critical-state { border-color: var(--red); background: rgba(239, 68, 68, 0.06); }
+.sensor-cell:hover { background: var(--bg-card-hover); }
+.sensor-cell.s-ok { border-left-color: transparent; }
+.sensor-cell.s-warn { border-left-color: var(--warn); background: rgba(245,158,11,0.05); }
+.sensor-cell.s-crit { border-left-color: var(--crit); background: rgba(239,68,68,0.07); }
 
-.s-top { display: flex; justify-content: space-between; align-items: center; }
-.s-tag-name { font-size: 10px; font-family: var(--font-mono); color: var(--text-muted); text-transform: uppercase; }
-.s-status-tag { font-size: 9px; font-family: var(--font-mono); padding: 1px 4px; border-radius: 2px; background: var(--bg-subtle); color: var(--text-muted); }
-.s-status-tag.ok { color: var(--green); background: rgba(16, 185, 129, 0.1); }
-.s-status-tag.warn { color: var(--amber); background: rgba(245, 158, 11, 0.1); }
-.s-status-tag.crit { color: var(--red); background: rgba(239, 68, 68, 0.15); font-weight: 700; }
+.sc-label { font-size: 9.5px; color: var(--text-label); letter-spacing: 0.08em; text-transform: uppercase; font-weight: 800; }
+.sc-val-row { display: flex; align-items: baseline; gap: 6px; margin: 2px 0; }
+.sc-val { font-family: var(--font-data); font-size: 24px; font-weight: 800; color: var(--text-main); line-height: 1; }
+.sc-unit { font-family: var(--font-data); font-size: 11px; font-weight: 700; color: var(--text-muted); }
+.sc-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 3px; }
 
-.s-num-row { display: flex; align-items: baseline; gap: 4px; margin: 4px 0; }
-.s-numeric-val { font-size: 16px; font-weight: 700; font-family: var(--font-mono); color: var(--text-primary); }
-.s-unit { font-size: 10px; font-family: var(--font-mono); color: var(--text-muted); }
-.s-spark-box { height: 22px; width: 100%; }
+/* Grid helpers */
+.grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.chart-box { padding: 16px; height: 240px; }
 
-/* Right Column: Health Index Gauge & Component Drawer */
-.gauge-overview-wrap {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  padding: 10px 0;
-}
-.gauge-svg-container { width: 160px; height: 100px; position: relative; }
-.sub-meter-row {
-  width: 100%; display: flex; justify-content: space-between; align-items: center;
-  font-size: 11px; font-family: var(--font-mono); margin-bottom: 5px;
-}
-.sub-meter-bar { width: 90px; height: 4px; background: var(--bg-subtle); border-radius: 2px; overflow: hidden; }
-.sub-meter-fill { height: 100%; background: var(--cyan); transition: width 0.3s ease; }
+.perf-quad { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border-strong); }
+.perf-cell { background: var(--bg-panel); padding: 16px; }
+.perf-lbl { font-size: 9.5px; color: var(--text-label); letter-spacing: 0.08em; text-transform: uppercase; font-weight: 800; margin-bottom: 4px; }
+.perf-val { font-family: var(--font-data); font-size: 21px; font-weight: 800; color: var(--text-main); }
 
-.rul-prognosis-box {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 10px 12px; margin-top: 10px;
-}
-.rul-hero-num {
-  font-size: 26px; font-weight: 700; font-family: var(--font-mono);
-  color: var(--green); line-height: 1;
-}
-.rul-hero-num.warn { color: var(--amber); }
-.rul-hero-num.crit { color: var(--red); }
+/* XAI Attribution */
+.xai-narrative { padding: 14px 18px; font-size: 12px; color: var(--text-body); line-height: 1.7; border-bottom: 1px solid var(--border); font-style: italic; background: var(--bg-surface); font-weight: 500; }
+.att-row { display: grid; grid-template-columns: 150px 1fr 50px; align-items: center; gap: 14px; padding: 9px 18px; border-bottom: 1px solid var(--border); }
+.att-name { font-size: 11px; color: var(--text-main); font-weight: 700; }
+.att-sub { font-size: 9px; color: var(--text-label); font-weight: 600; }
+.att-track { height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; }
+.att-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.4s; }
+.att-pct { font-family: var(--font-data); font-size: 11px; font-weight: 800; color: var(--text-main); text-align: right; }
 
-/* Component Drawer */
-.component-drawer {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 10px 12px;
-  margin-top: 10px;
-}
-.drawer-title { font-size: 11px; font-weight: 700; font-family: var(--font-mono); color: var(--cyan); margin-bottom: 6px; }
-.drawer-row { display: flex; justify-content: space-between; font-size: 11px; font-family: var(--font-mono); padding: 3px 0; border-bottom: 1px solid var(--border-subtle); }
-.drawer-row:last-child { border-bottom: none; }
+/* CAN */
+.can-toolbar { display: flex; align-items: center; gap: 12px; padding: 11px 18px; background: var(--bg-surface); border-bottom: 1px solid var(--border); }
+.can-search-box { background: var(--bg-app); border: 1px solid var(--border-strong); border-radius: 3px; color: var(--text-main); font-family: var(--font-data); font-size: 11.5px; padding: 6px 12px; outline: none; width: 260px; font-weight: 600; }
+.can-search-box::placeholder { color: var(--text-label); }
+.can-search-box:focus { border-color: var(--border-focus); }
+.can-viewport { max-height: 480px; overflow-y: auto; }
+.can-id { font-family: var(--font-data); font-size: 11px; color: #38bdf8; font-weight: 700; }
+.can-hex { font-family: var(--font-data); font-size: 10px; color: var(--text-muted); letter-spacing: 0.05em; font-weight: 600; }
 
-/* ── TAB 2: AI Prognostics & Explainable AI (XAI) ────────────────────────── */
-.ai-tab-grid {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
-}
-.rul-chart-box { height: 260px; position: relative; }
+/* Maintenance */
+.wo-item { padding: 14px 18px; border-bottom: 1px solid var(--border); border-left: 4px solid transparent; transition: background 0.12s; }
+.wo-item:hover { background: var(--bg-card-hover); }
+.wo-item:last-child { border-bottom: none; }
+.wo-item.ok { border-left-color: var(--ok); }
+.wo-item.warn { border-left-color: var(--warn); }
+.wo-item.crit { border-left-color: var(--crit); background: rgba(239,68,68,0.04); }
+.wo-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.wo-id { font-size: 10px; font-family: var(--font-data); color: var(--text-label); font-weight: 700; }
+.wo-prio { font-size: 9px; font-family: var(--font-data); font-weight: 800; letter-spacing: 0.06em; padding: 2px 7px; border-radius: 2px; }
+.wo-prio.ok { color: #000; background: var(--ok); }
+.wo-prio.warn { color: #000; background: var(--warn); }
+.wo-prio.crit { color: #fff; background: var(--crit); }
+.wo-title { font-size: 13px; font-weight: 800; color: var(--text-main); margin-bottom: 4px; }
+.wo-action { font-size: 11.5px; color: var(--text-body); line-height: 1.6; margin-bottom: 8px; }
+.wo-steps { margin-left: 18px; }
+.wo-steps li { font-size: 10.5px; font-family: var(--font-data); color: var(--text-muted); margin-bottom: 3px; font-weight: 600; }
+.airw-dossier { padding: 18px; font-family: var(--font-data); font-size: 11px; line-height: 2.1; color: var(--text-body); }
+.airw-dossier strong { color: var(--text-main); font-weight: 800; }
 
-.xai-narrative-card {
-  background: var(--bg-card);
-  border-left: 3px solid var(--purple);
-  border-radius: var(--radius-sm);
-  padding: 10px 12px; margin-bottom: 12px;
-  font-size: 12px; font-family: var(--font-mono); line-height: 1.4; color: var(--text-secondary);
+/* ─── 6. BOTTOM COMMAND DOCK ───────────────────────────────────────────── */
+.cmd-dock {
+  grid-area: dock;
+  background: var(--bg-dock);
+  border-top: 1px solid var(--border-strong);
+  display: flex; align-items: center; overflow-x: auto;
 }
-.xai-attribution-list { display: flex; flex-direction: column; gap: 6px; }
-.xai-att-row {
-  display: grid; grid-template-columns: 110px 1fr 45px; gap: 8px; align-items: center;
-  font-size: 11px; font-family: var(--font-mono);
+.dock-group {
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 16px; height: 100%; border-right: 1px solid var(--border); flex-shrink: 0;
 }
-.xai-track { height: 6px; background: var(--bg-subtle); border-radius: 3px; overflow: hidden; }
-.xai-fill { height: 100%; background: linear-gradient(90deg, var(--purple), var(--cyan)); border-radius: 3px; }
-
-/* ── TAB 3: Thermodynamic Cycle & Performance ───────────────────────────── */
-.thermo-grid {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+.dock-lbl { font-size: 9px; font-weight: 800; letter-spacing: 0.12em; color: var(--text-label); white-space: nowrap; }
+.dock-select {
+  background: var(--bg-panel); border: 1px solid var(--border-strong); border-radius: 3px;
+  color: var(--text-main); font-family: var(--font-data); font-size: 11px; font-weight: 700; padding: 5px 10px;
+  outline: none; cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%23cbd5e1'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 8px center; padding-right: 24px; appearance: none;
 }
-.pv-chart-box { height: 240px; position: relative; }
-
-.perf-stat-matrix {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;
+.dock-select:focus { border-color: var(--border-focus); }
+.dock-btn {
+  height: 30px; padding: 0 14px;
+  background: var(--bg-panel); border: 1px solid var(--border-strong); border-radius: 3px;
+  color: var(--text-main); font-family: var(--font-data); font-size: 10px; font-weight: 800;
+  letter-spacing: 0.06em; cursor: pointer; transition: all 0.15s; white-space: nowrap;
 }
-.perf-stat-item {
-  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm);
-  padding: 8px 12px;
-}
-.perf-stat-lbl { font-size: 10px; color: var(--text-muted); font-family: var(--font-mono); }
-.perf-stat-val { font-size: 16px; font-weight: 700; font-family: var(--font-mono); color: var(--text-primary); }
-
-.residual-table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 11px; margin-top: 8px; }
-.residual-table th { text-align: left; padding: 5px 8px; color: var(--text-muted); border-bottom: 1px solid var(--border); }
-.residual-table td { padding: 5px 8px; border-bottom: 1px solid var(--border-subtle); }
-
-/* ── TAB 4: CAN Bus & Flight Data Recorder ──────────────────────────────── */
-.can-fdr-box { display: flex; flex-direction: column; gap: 10px; }
-.can-toolbar { display: flex; justify-content: space-between; align-items: center; }
-.can-filter-input {
-  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm);
-  color: var(--text-primary); font-family: var(--font-mono); font-size: 11px;
-  padding: 4px 10px; width: 220px;
-}
-.can-table-container { max-height: 420px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); }
-.can-table-styled { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 11px; }
-.can-table-styled th {
-  background: var(--bg-card); color: var(--text-muted); padding: 6px 10px;
-  position: sticky; top: 0; text-align: left; border-bottom: 1px solid var(--border);
-}
-.can-table-styled td { padding: 5px 10px; border-bottom: 1px solid var(--border-subtle); white-space: nowrap; }
-.can-table-styled tr:hover { background: var(--bg-card); }
-.can-id-col { color: var(--purple); font-weight: 600; }
-.can-hex-col { color: var(--cyan); }
-
-/* ── TAB 5: ATA Maintenance Advisory & Compliance ────────────────────────── */
-.ata-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-.ata-card-item {
-  background: var(--bg-card); border: 1px solid var(--border);
-  border-left: 3px solid var(--green); border-radius: var(--radius-sm);
-  padding: 10px 12px; margin-bottom: 8px;
-}
-.ata-card-item.CRITICAL { border-left-color: var(--red); }
-.ata-card-item.WARNING { border-left-color: var(--amber); }
-.ata-card-hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-.ata-task-code { font-family: var(--font-mono); font-weight: 700; color: var(--cyan); font-size: 11px; }
-.ata-priority-badge { font-family: var(--font-mono); font-size: 9px; padding: 2px 6px; border-radius: 2px; font-weight: 700; }
-.ata-priority-badge.CRITICAL { background: var(--red-glow); color: var(--red); }
-.ata-priority-badge.WARNING { background: var(--amber-glow); color: var(--amber); }
-.ata-priority-badge.OK { background: var(--green-glow); color: var(--green); }
-.ata-title-text { font-size: 12px; font-weight: 600; color: var(--text-primary); margin-bottom: 4px; }
-.ata-desc-text { font-size: 11px; color: var(--text-secondary); margin-bottom: 6px; }
-.ata-steps-list { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); padding-left: 12px; }
-
-/* ── Bottom Floating Master Command Deck ────────────────────────────────── */
-.bottom-dock {
-  position: fixed; bottom: 0; left: 0; right: 0;
-  height: 60px;
-  background: rgba(13, 20, 36, 0.96);
-  border-top: 1px solid var(--border);
-  backdrop-filter: blur(12px);
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 0 18px;
-  z-index: 80;
-}
-.dock-group { display: flex; align-items: center; gap: 8px; }
-.dock-lbl { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); text-transform: uppercase; }
-
-.dock-pill-btn {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  color: var(--text-secondary);
-  font-family: var(--font-mono); font-size: 11px;
-  padding: 4px 10px; cursor: pointer;
-  transition: all 0.15s ease;
-}
-.dock-pill-btn:hover { border-color: var(--cyan); color: var(--text-primary); }
-.dock-pill-btn.active-profile { background: var(--cyan); color: #000; font-weight: 700; border-color: var(--cyan); }
-
-.fault-btn-node {
-  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm);
-  color: var(--text-secondary); font-family: var(--font-mono); font-size: 10px;
-  padding: 3px 8px; cursor: pointer;
-}
-.fault-btn-node:hover { border-color: var(--red); color: var(--red); }
-.fault-btn-node.active-injected { background: var(--red); color: #fff; border-color: var(--red); font-weight: 700; }
-
-.speed-control-btn {
-  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm);
-  color: var(--text-muted); font-family: var(--font-mono); font-size: 10px;
-  padding: 3px 7px; cursor: pointer;
-}
-.speed-control-btn.active-spd { background: var(--green); color: #000; font-weight: 700; border-color: var(--green); }
-.pause-btn-toggle {
-  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm);
-  color: var(--amber); font-family: var(--font-mono); font-size: 10px; padding: 3px 8px; cursor: pointer;
-}
-.pause-btn-toggle.paused-state { background: var(--amber); color: #000; font-weight: 700; }
-
-/* ── Responsive Adaptations ─────────────────────────────────────────────── */
-@media (max-width: 1400px) {
-  .overview-grid { grid-template-columns: 380px 1fr; }
-  .overview-grid > .gcs-card:nth-child(3) { grid-column: span 2; }
-}
-@media (max-width: 900px) {
-  .overview-grid { grid-template-columns: 1fr; }
-  .sensor-matrix-grid { grid-template-columns: 1fr 1fr; }
-  .ai-tab-grid, .thermo-grid, .ata-grid { grid-template-columns: 1fr; }
-  .hdr-center { display: none; }
-}
+.dock-btn:hover { background: var(--bg-card-hover); color: var(--text-main); border-color: var(--border-focus); }
+.dock-btn.active { background: #ffffff; color: #000000; border-color: #ffffff; font-weight: 800; }
+.dock-btn.danger { border-color: rgba(239,68,68,0.5); color: var(--crit); }
+.dock-btn.danger:hover { background: var(--crit); color: #ffffff; border-color: var(--crit); }
 </style>
 </head>
 <body>
 
-<!-- Startup & Disconnect Overlay -->
-<div id="overlay">
-  <div class="loader-spinner"></div>
-  <div style="font-family: var(--font-mono); font-size: 13px; font-weight: 700; letter-spacing: 1px; color: var(--cyan);">
-    MALE UAV GROUND CONTROL STATION
-  </div>
-  <div style="font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); margin-top: 6px;" id="ov-status-msg">
-    SYNCHRONIZING TELEMETRY STREAM (WS://127.0.0.1:8765)...
-  </div>
-  <button class="btn-tactical" onclick="dismissOverlay()" style="margin-top: 14px; border-color: var(--cyan); color: var(--cyan);">
-    ENTER GCS CONSOLE
-  </button>
-</div>
-
-<!-- Top Navigation Bar -->
+<!-- ══════════════════════════════════════════════════════════════════════════
+     HEADER
+══════════════════════════════════════════════════════════════════════════ -->
 <header>
-  <div class="hdr-left">
-    <div class="crest-badge">DT</div>
-    <div class="hdr-title-box">
-      <div class="hdr-title">UAV PROPULSION DIGITAL TWIN GCS</div>
-      <div class="hdr-subtitle">DO-178C / MIL-STD-1553 COMPLIANT TELEMETRY</div>
+  <!-- Technical Propulsion Unit Card -->
+  <div class="hdr-propulsion-card">
+    <div class="hpc-top">
+      <span class="hpc-tail">UAV-07</span>
+      <span class="hpc-badge">PROPULSION UNIT</span>
+    </div>
+    <div class="hpc-engine">ROTAX 914 F ENGINE</div>
+    <div class="hpc-specs">
+      <div class="hpc-spec-row"><span>S/N:</span><strong>914-8841</strong></div>
+      <div class="hpc-spec-row"><span>RATING:</span><strong>84.5 kW @ 5800 RPM</strong></div>
+      <div class="hpc-spec-row"><span>STANDARD:</span><strong style="color:var(--ok)">DO-178C LEVEL B</strong></div>
+      <div class="hpc-spec-row"><span>FADEC SAMPLING:</span><strong style="color:var(--accent)">10 Hz SYNC</strong></div>
     </div>
   </div>
 
-  <div class="hdr-center">
-    <div class="meta-tag"><span class="lbl">TAIL:</span><span class="val" id="h-tail">UAV-07</span></div>
-    <div class="meta-tag"><span class="lbl">ENG:</span><span class="val">ROTAX 914-T</span></div>
-    <div class="meta-tag"><span class="lbl">CYCLE:</span><span class="val" id="h-cycle">----</span></div>
-    <div class="phase-badge" id="h-phase">ISR LOITER</div>
-    <div class="meta-tag"><span class="lbl">ZULU:</span><span class="val" id="h-zulu">--:--:--Z</span></div>
-    <div class="meta-tag"><span class="lbl">MET:</span><span class="val" id="h-met">00:00:00</span></div>
+  <!-- Top Strip -->
+  <div class="hdr-strip">
+    <div class="hdr-title-meta">
+      <span class="hdr-main-title">UAV PROPULSION GROUND CONTROL STATION</span>
+      <span class="hdr-cert-tag">OPERATIONAL</span>
+    </div>
+    <div class="hdr-controls">
+      <!-- Theme Switcher -->
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <span style="font-family: var(--font-data); font-size: 9.5px; font-weight: 700; color: var(--text-label);">THEME:</span>
+        <select class="dock-select" id="theme-selector" onchange="setDashboardTheme(this.value)" style="padding: 4px 8px;">
+          <option value="stealth">Stealth Titanium (OLED Black)</option>
+          <option value="ice">Deep Space Ice-Blue (SpaceX/Palantir)</option>
+          <option value="emerald">Emerald HUD (Avionics Cockpit)</option>
+          <option value="amber">Amber Flight Deck (Honeywell/Boeing)</option>
+        </select>
+      </div>
+
+      <div class="ws-pill" id="ws-pill-box" onclick="connect()" title="Click to reconnect">
+        <div class="ws-pip" id="ws-pip"></div>
+        <span id="ws-text">10 Hz · CONNECTING</span>
+      </div>
+
+      <div class="status-badge nominal" id="alert-badge">
+        <div class="status-dot"></div>
+        <span id="alert-text">NOMINAL STATUS</span>
+      </div>
+
+      <button class="btn-header" id="audio-btn" onclick="toggleAudio()">🔊 AUDIO ON</button>
+      <button class="btn-header" onclick="exportDossier()">⬇ EXPORT DOSSIER</button>
+    </div>
   </div>
 
-  <div class="hdr-right">
-    <div class="caution-indicator" id="master-caution-box">
-      <span id="caution-pip">●</span> <span id="caution-text">CAUTION: NONE</span>
+  <!-- Executive KPI Strip -->
+  <div class="kpi-ribbon">
+    <!-- EHI -->
+    <div class="kpi-card">
+      <div class="kpi-label">Engine Health Index</div>
+      <div class="kpi-val"><span id="k-ehi">--</span><span class="unit">/ 100</span></div>
+      <div class="kpi-sub"><span class="tag-badge tb-dim" id="k-cond">NOMINAL</span></div>
+      <div class="micro-meters">
+        <div class="mm-row"><span class="mm-lbl">THRML</span><div class="mm-track"><div class="mm-fill" id="mm-th" style="width:80%"></div></div><span class="mm-num" id="mv-th">80</span></div>
+        <div class="mm-row"><span class="mm-lbl">LUBR</span><div class="mm-track"><div class="mm-fill" id="mm-lb" style="width:85%"></div></div><span class="mm-num" id="mv-lb">85</span></div>
+        <div class="mm-row"><span class="mm-lbl">MECH</span><div class="mm-track"><div class="mm-fill" id="mm-mc" style="width:90%"></div></div><span class="mm-num" id="mv-mc">90</span></div>
+        <div class="mm-row"><span class="mm-lbl">ELEC</span><div class="mm-track"><div class="mm-fill" id="mm-el" style="width:95%"></div></div><span class="mm-num" id="mv-el">95</span></div>
+      </div>
     </div>
-    <button class="btn-tactical" id="audio-toggle-btn" onclick="toggleTacticalAudio()">
-      <span id="audio-icon">🔊</span> AUDIO: ON
-    </button>
-    <button class="btn-tactical" onclick="generateAirworthinessDossier()">
-      ⬇ DOSSIER
-    </button>
-    <div class="link-status">
-      <div class="status-pip" id="link-pip"></div>
-      <span id="link-label">DISCONNECTED</span>
+
+    <!-- AI Predicted RUL -->
+    <div class="kpi-card">
+      <div class="kpi-label">Estimated Remaining Life</div>
+      <div class="kpi-val"><span id="k-rul">--</span><span class="unit">cycles</span></div>
+      <div class="kpi-sub">
+        <span>TRUE:</span><span id="k-true-rul" style="color:var(--ok)">--</span>
+        <span>95% CI:</span><span id="k-ci" style="color:var(--text-main)">[--, --]</span>
+      </div>
+    </div>
+
+    <!-- Brake Power -->
+    <div class="kpi-card">
+      <div class="kpi-label">Brake Power Output</div>
+      <div class="kpi-val"><span id="k-bhp">--</span><span class="unit">BHP</span></div>
+      <div class="kpi-sub">
+        <span>BSFC:</span><span id="k-bsfc" style="color:var(--text-main)">--</span><span>g/kWh</span>
+        <span>η:</span><span id="k-eta" style="color:var(--ok)">--%</span>
+        <span>IMEP:</span><span id="k-imep" style="color:var(--text-main)">--</span><span>bar</span>
+      </div>
+    </div>
+
+    <!-- Diagnostics -->
+    <div class="kpi-card">
+      <div class="kpi-label">Diagnostic Alarms</div>
+      <div class="kpi-val" id="k-alarms" style="font-size:22px;padding-top:4px">0 ALARMS</div>
+      <div class="kpi-sub">
+        <span id="k-xai-driver" style="color:var(--ok)">WITHIN 3σ ENVELOPE</span>
+      </div>
+    </div>
+
+    <!-- Platform -->
+    <div class="kpi-card">
+      <div class="kpi-label">Flight Profile</div>
+      <div class="kpi-val" style="font-size:20px;padding-top:4px" id="k-profile">NORMAL ISR</div>
+      <div class="kpi-sub" style="margin-top:4px">
+        <span>CYCLE:</span><span id="k-cycle" style="color:var(--text-main); font-weight:800;">----</span>
+        <span>MET:</span><span id="k-met" style="color:var(--text-main); font-weight:800;">00:00:00</span>
+      </div>
     </div>
   </div>
 </header>
 
-<!-- Tab Switcher Bar -->
-<div class="nav-tab-bar">
-  <button class="nav-tab-btn active" onclick="switchConsoleTab('tab-overview', this)">
-    <span class="tab-num">01.</span> MISSION TELEMETRY & SYNOPTIC
-  </button>
-  <button class="nav-tab-btn" onclick="switchConsoleTab('tab-ai-prognostics', this)">
-    <span class="tab-num">02.</span> AI PROGNOSTICS & XAI
-  </button>
-  <button class="nav-tab-btn" onclick="switchConsoleTab('tab-thermo', this)">
-    <span class="tab-num">03.</span> THERMODYNAMICS & PERFORMANCE
-  </button>
-  <button class="nav-tab-btn" onclick="switchConsoleTab('tab-can-fdr', this)">
-    <span class="tab-num">04.</span> CAN BUS & FLIGHT DATA RECORDER
-  </button>
-  <button class="nav-tab-btn" onclick="switchConsoleTab('tab-ata-maint', this)">
-    <span class="tab-num">05.</span> ATA MAINTENANCE ADVISORY
-  </button>
+<!-- ══════════════════════════════════════════════════════════════════════════
+     TAB NAVIGATION
+══════════════════════════════════════════════════════════════════════════ -->
+<nav>
+  <button class="tab-btn active" onclick="switchTab('pane-telemetry',this)">TELEMETRY MATRIX</button>
+  <button class="tab-btn" onclick="switchTab('pane-ai',this)">PROGNOSTICS &amp; ATTRIBUTION</button>
+  <button class="tab-btn" onclick="switchTab('pane-thermo',this)">THERMODYNAMICS &amp; P-V</button>
+  <button class="tab-btn" onclick="switchTab('pane-can',this)">CAN BUS FDR</button>
+  <button class="tab-btn" onclick="switchTab('pane-maint',this)">MAINTENANCE ADVISORIES</button>
+</nav>
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     PERSISTENT SIDEBAR
+══════════════════════════════════════════════════════════════════════════ -->
+<aside>
+  <div class="sb-header">Engine Parameter Snapshot</div>
+  <div class="sb-row"><span class="sb-lbl">Engine Speed</span><span class="sb-val" id="sb-rpm">--- RPM</span></div>
+  <div class="sb-row"><span class="sb-lbl">CHT Average</span><span class="sb-val" id="sb-cht">--- °F</span></div>
+  <div class="sb-row"><span class="sb-lbl">EGT Average</span><span class="sb-val" id="sb-egt">--- °F</span></div>
+  <div class="sb-row"><span class="sb-lbl">Oil Gallery Pressure</span><span class="sb-val" id="sb-oil">--- PSI</span></div>
+  <div class="sb-row"><span class="sb-lbl">Fuel Mass Flow</span><span class="sb-val" id="sb-fuel">--- L/h</span></div>
+  <div class="sb-row"><span class="sb-lbl">Vibration RMS</span><span class="sb-val" id="sb-vib">--- g</span></div>
+  <div class="sb-row"><span class="sb-lbl">28V Bus Voltage</span><span class="sb-val" id="sb-batt">--- V</span></div>
+
+  <div class="sb-header" style="margin-top:6px">Subsystem Ratings</div>
+  <div class="sb-sub-card"><div class="sb-sub-head"><span class="sb-sub-name">Thermal Circuit</span><span class="sb-sub-pct" id="sbs-th-p">--</span></div><div class="sb-sub-track"><div class="sb-sub-fill" id="sbs-th-f" style="width:80%"></div></div></div>
+  <div class="sb-sub-card"><div class="sb-sub-head"><span class="sb-sub-name">Lubrication Circuit</span><span class="sb-sub-pct" id="sbs-lb-p">--</span></div><div class="sb-sub-track"><div class="sb-sub-fill" id="sbs-lb-f" style="width:85%"></div></div></div>
+  <div class="sb-sub-card"><div class="sb-sub-head"><span class="sb-sub-name">Mechanical Core</span><span class="sb-sub-pct" id="sbs-mc-p">--</span></div><div class="sb-sub-track"><div class="sb-sub-fill" id="sbs-mc-f" style="width:90%"></div></div></div>
+  <div class="sb-sub-card"><div class="sb-sub-head"><span class="sb-sub-name">Electrical Bus</span><span class="sb-sub-pct" id="sbs-el-p">--</span></div><div class="sb-sub-track"><div class="sb-sub-fill" id="sbs-el-f" style="width:95%"></div></div></div>
+
+  <div class="sb-header" style="margin-top:6px">Environmental Operating Envelope</div>
+  <div class="sb-row"><span class="sb-lbl">Altitude (MSL)</span><span class="sb-val" id="sb-alt">3,000 ft</span></div>
+  <div class="sb-row"><span class="sb-lbl">Outside Air (OAT)</span><span class="sb-val" id="sb-oat">15.0 °C</span></div>
+  <div class="sb-row"><span class="sb-lbl">Manifold Pressure</span><span class="sb-val" id="sb-map">-- kPa</span></div>
+  <div class="sb-row"><span class="sb-lbl">Anomaly Metric</span><span class="sb-val" id="sb-anm">--</span></div>
+  <div class="sb-row"><span class="sb-lbl">Sequence Buffer</span><span class="sb-val" id="sb-buf">--</span></div>
+
+  <div class="sb-header" style="margin-top:6px">4-Cylinder CHT Distribution (°F)</div>
+  <div class="sb-row"><span class="sb-lbl">Cylinder #1</span><span class="sb-val" id="cy1">--</span></div>
+  <div class="sb-row"><span class="sb-lbl">Cylinder #2</span><span class="sb-val" id="cy2">--</span></div>
+  <div class="sb-row"><span class="sb-lbl">Cylinder #3</span><span class="sb-val" id="cy3">--</span></div>
+  <div class="sb-row"><span class="sb-lbl">Cylinder #4</span><span class="sb-val" id="cy4">--</span></div>
+  <div class="sb-row"><span class="sb-lbl">CHT Variance (Δ)</span><span class="sb-val" id="cy-spread">--</span></div>
+</aside>
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     WORKSPACE CONSOLES
+══════════════════════════════════════════════════════════════════════════ -->
+<div class="workspace">
+
+  <!-- ── TAB 1: TELEMETRY MATRIX ───────────────────────────────────────── -->
+  <div id="pane-telemetry" class="tab-pane active">
+    <div class="panel-card">
+      <div class="panel-hdr">
+        <span class="panel-title">Telemetry Matrix — 12 Synchronized Sensor Channels @ 10 Hz</span>
+        <span class="panel-meta" id="hz-tag">10.0 Hz · LIVE</span>
+      </div>
+      <div class="sensor-matrix-grid">
+        <div class="sensor-cell s-ok" id="sc-rpm"><div class="sc-label">Engine Speed</div><div class="sc-val-row"><span class="sc-val" id="sv-rpm">---</span><span class="sc-unit">RPM</span></div><div class="sc-foot"><canvas id="sp-rpm" height="16"></canvas><span class="tag-stat ok" id="st-rpm">NORM</span></div></div>
+        <div class="sensor-cell s-ok" id="sc-cht"><div class="sc-label">Cyl Head Temp (Avg)</div><div class="sc-val-row"><span class="sc-val" id="sv-cht">---</span><span class="sc-unit">°F</span></div><div class="sc-foot"><canvas id="sp-cht" height="16"></canvas><span class="tag-stat ok" id="st-cht">NORM</span></div></div>
+        <div class="sensor-cell s-ok" id="sc-egt"><div class="sc-label">Exhaust Gas Temp</div><div class="sc-val-row"><span class="sc-val" id="sv-egt">---</span><span class="sc-unit">°F</span></div><div class="sc-foot"><canvas id="sp-egt" height="16"></canvas><span class="tag-stat ok" id="st-egt">NORM</span></div></div>
+        <div class="sensor-cell s-ok" id="sc-oil-p"><div class="sc-label">Oil Gallery Pressure</div><div class="sc-val-row"><span class="sc-val" id="sv-oil-p">---</span><span class="sc-unit">PSI</span></div><div class="sc-foot"><canvas id="sp-oil-p" height="16"></canvas><span class="tag-stat ok" id="st-oil-p">NORM</span></div></div>
+        <div class="sensor-cell s-ok" id="sc-oil-t"><div class="sc-label">Oil Sump Temp</div><div class="sc-val-row"><span class="sc-val" id="sv-oil-t">---</span><span class="sc-unit">°F</span></div><div class="sc-foot"><canvas id="sp-oil-t" height="16"></canvas><span class="tag-stat ok" id="st-oil-t">NORM</span></div></div>
+        <div class="sensor-cell s-ok" id="sc-fuel"><div class="sc-label">Fuel Mass Flow</div><div class="sc-val-row"><span class="sc-val" id="sv-fuel">---</span><span class="sc-unit">L/HR</span></div><div class="sc-foot"><canvas id="sp-fuel" height="16"></canvas><span class="tag-stat ok" id="st-fuel">NORM</span></div></div>
+        <div class="sensor-cell s-ok" id="sc-rail-p"><div class="sc-label">Fuel Rail Pressure</div><div class="sc-val-row"><span class="sc-val" id="sv-rail-p">---</span><span class="sc-unit">BAR</span></div><div class="sc-foot"><canvas id="sp-rail-p" height="16"></canvas><span class="tag-stat ok" id="st-rail-p">NORM</span></div></div>
+        <div class="sensor-cell s-ok" id="sc-vib"><div class="sc-label">Overall Vibration RMS</div><div class="sc-val-row"><span class="sc-val" id="sv-vib">---</span><span class="sc-unit">g</span></div><div class="sc-foot"><canvas id="sp-vib" height="16"></canvas><span class="tag-stat ok" id="st-vib">NORM</span></div></div>
+        <div class="sensor-cell s-ok" id="sc-kurt"><div class="sc-label">Vibration Kurtosis</div><div class="sc-val-row"><span class="sc-val" id="sv-kurt">---</span><span class="sc-unit">K4</span></div><div class="sc-foot"><canvas id="sp-kurt" height="16"></canvas><span class="tag-stat ok" id="st-kurt">NORM</span></div></div>
+        <div class="sensor-cell s-ok" id="sc-batt"><div class="sc-label">28V Electrical Bus</div><div class="sc-val-row"><span class="sc-val" id="sv-batt">---</span><span class="sc-unit">VDC</span></div><div class="sc-foot"><canvas id="sp-batt" height="16"></canvas><span class="tag-stat ok" id="st-batt">NORM</span></div></div>
+        <div class="sensor-cell s-ok" id="sc-current"><div class="sc-label">Alternator Current Load</div><div class="sc-val-row"><span class="sc-val" id="sv-current">---</span><span class="sc-unit">A</span></div><div class="sc-foot"><canvas id="sp-current" height="16"></canvas><span class="tag-stat ok" id="st-current">NORM</span></div></div>
+        <div class="sensor-cell s-ok" id="sc-inj"><div class="sc-label">Injection Timing</div><div class="sc-val-row"><span class="sc-val" id="sv-inj">---</span><span class="sc-unit">°BTDC</span></div><div class="sc-foot"><canvas id="sp-inj" height="16"></canvas><span class="tag-stat ok" id="st-inj">NORM</span></div></div>
+      </div>
+    </div>
+
+    <!-- 4-Cylinder Balance Table -->
+    <div class="panel-card">
+      <div class="panel-hdr">
+        <span class="panel-title">4-Cylinder Thermal Balance &amp; Spread Matrix</span>
+        <span class="panel-meta" id="cyl-spread-tag">Δ 0.0°F · BALANCED</span>
+      </div>
+      <table class="data-table">
+        <thead><tr><th>Cylinder</th><th>CHT (°F)</th><th>EGT (°F)</th><th>Δ CHT vs Avg</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Cylinder #1</strong></td><td class="mono" id="c1-cht">--</td><td class="mono" id="c1-egt">--</td><td class="mono" id="c1-d">--</td><td><span class="tag-stat ok" id="c1-s">NORMAL</span></td></tr>
+          <tr><td><strong>Cylinder #2</strong></td><td class="mono" id="c2-cht">--</td><td class="mono" id="c2-egt">--</td><td class="mono" id="c2-d">--</td><td><span class="tag-stat ok" id="c2-s">NORMAL</span></td></tr>
+          <tr><td><strong>Cylinder #3</strong></td><td class="mono" id="c3-cht">--</td><td class="mono" id="c3-egt">--</td><td class="mono" id="c3-d">--</td><td><span class="tag-stat ok" id="c3-s">NORMAL</span></td></tr>
+          <tr><td><strong>Cylinder #4</strong></td><td class="mono" id="c4-cht">--</td><td class="mono" id="c4-egt">--</td><td class="mono" id="c4-d">--</td><td><span class="tag-stat ok" id="c4-s">NORMAL</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── TAB 2: AI PROGNOSTICS & XAI ───────────────────────────────────── -->
+  <div id="pane-ai" class="tab-pane">
+    <div class="grid-2col">
+      <!-- Deep LSTM RUL Chart -->
+      <div class="panel-card">
+        <div class="panel-hdr">
+          <span class="panel-title">LSTM RUL Degradation Forecast &amp; 95% CI</span>
+          <span class="panel-meta">SEQUENCE WINDOW: 50 CYCLES</span>
+        </div>
+        <div class="chart-box"><canvas id="chart-rul"></canvas></div>
+        <table class="data-table">
+          <tbody>
+            <tr><td class="muted">Predicted RUL</td><td class="mono" id="ai-rul">-- cycles</td><td class="muted">Reference RUL</td><td class="mono" id="ai-gt">-- cycles</td></tr>
+            <tr><td class="muted">95% CI Lower Limit</td><td class="mono" id="ai-lo">--</td><td class="muted">95% CI Upper Limit</td><td class="mono" id="ai-hi">--</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- XAI Attribution -->
+      <div class="panel-card">
+        <div class="panel-hdr">
+          <span class="panel-title">Feature Attribution &amp; Root Cause Analysis</span>
+          <span class="panel-meta" id="xai-badge" style="color:var(--ok)">NOMINAL ENVELOPE</span>
+        </div>
+        <div class="xai-narrative" id="xai-narr">
+          Multivariate statistical evaluation indicates that all propulsion channels remain securely within the certified 3-sigma learned normal operational envelope.
+        </div>
+        <div id="xai-att-rows"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TAB 3: THERMODYNAMICS & P-V ───────────────────────────────────── -->
+  <div id="pane-thermo" class="tab-pane">
+    <div class="grid-2col">
+      <!-- P-V Diagram -->
+      <div class="panel-card">
+        <div class="panel-hdr">
+          <span class="panel-title">4-Stroke Otto P-V Indicator Diagram</span>
+          <span class="panel-meta" id="pv-imep">IMEP: -- bar</span>
+        </div>
+        <div class="chart-box"><canvas id="chart-pv"></canvas></div>
+        <div class="perf-quad">
+          <div class="perf-cell"><div class="perf-lbl">Brake Power Output</div><div class="perf-val" id="pq-bhp">-- BHP</div></div>
+          <div class="perf-cell"><div class="perf-lbl">Brake SFC</div><div class="perf-val" id="pq-bsfc">-- g/kWh</div></div>
+          <div class="perf-cell"><div class="perf-lbl">Brake Thermal Efficiency (η_th)</div><div class="perf-val" id="pq-eta">--%</div></div>
+          <div class="perf-cell"><div class="perf-lbl">Volumetric Efficiency (η_v)</div><div class="perf-val" id="pq-vol">--%</div></div>
+        </div>
+      </div>
+
+      <!-- Physics Residuals -->
+      <div class="panel-card">
+        <div class="panel-hdr">
+          <span class="panel-title">Thermodynamic Residual Tracker</span>
+          <span class="panel-meta">Δ = MEASURED − THEORETICAL BASELINE</span>
+        </div>
+        <div style="padding:10px 16px; font-size:11.5px; color:var(--text-label); border-bottom:1px solid var(--border); font-weight:600;">
+          Continuously evaluates physical thermodynamic residuals to identify component drift.
+        </div>
+        <table class="data-table">
+          <thead><tr><th>Parameter</th><th>Measured</th><th>Baseline</th><th>Residual (Δ)</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td class="muted">Exhaust Gas Temp (EGT)</td><td class="mono" id="r-m-egt">--</td><td class="mono" id="r-e-egt">--</td><td class="mono" id="r-d-egt">--</td><td><span class="tag-stat ok">TRACKING</span></td></tr>
+            <tr><td class="muted">Cylinder Head Temp (CHT)</td><td class="mono" id="r-m-cht">--</td><td class="mono" id="r-e-cht">--</td><td class="mono" id="r-d-cht">--</td><td><span class="tag-stat ok">TRACKING</span></td></tr>
+            <tr><td class="muted">Oil Gallery Pressure</td><td class="mono" id="r-m-oil">--</td><td class="mono" id="r-e-oil">--</td><td class="mono" id="r-d-oil">--</td><td><span class="tag-stat ok">TRACKING</span></td></tr>
+            <tr><td class="muted">Fuel Mass Consumption</td><td class="mono" id="r-m-fuel">--</td><td class="mono" id="r-e-fuel">--</td><td class="mono" id="r-d-fuel">--</td><td><span class="tag-stat ok">TRACKING</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TAB 4: SAE J1939 CAN / FDR ────────────────────────────────────── -->
+  <div id="pane-can" class="tab-pane">
+    <div class="panel-card">
+      <div class="panel-hdr">
+        <span class="panel-title">SAE J1939 CAN Flight Data Recorder</span>
+        <span class="panel-meta">SocketCAN Bus · 250 kbps · Continuous Log</span>
+      </div>
+      <div class="can-toolbar">
+        <input class="can-search-box" id="can-search" placeholder="Filter by PGN or message name…" oninput="filterCAN()">
+        <button class="dock-btn" onclick="exportCAN()">⬇ EXPORT CSV LOG</button>
+      </div>
+      <div class="can-viewport">
+        <table class="data-table">
+          <thead><tr><th>Timestamp</th><th>CAN ID (29-Bit)</th><th>PGN</th><th>Message Name</th><th>DLC</th><th>Hex Payload</th><th>Decoded Value</th></tr></thead>
+          <tbody id="can-tbody"><tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted);font-weight:600;">Listening on SocketCAN bus…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TAB 5: ATA-100 MAINTENANCE ────────────────────────────────────── -->
+  <div id="pane-maint" class="tab-pane">
+    <div class="grid-2col">
+      <div class="panel-card">
+        <div class="panel-hdr">
+          <span class="panel-title">Active Maintenance Action Items</span>
+          <span class="panel-meta" id="wo-cnt">0 ACTION ITEMS</span>
+        </div>
+        <div id="wo-body">
+          <div class="wo-item ok">
+            <div class="wo-head"><span class="wo-id">ATA 05-00-00</span><span class="wo-prio ok">DISPATCH READY</span></div>
+            <div class="wo-title">Propulsion System Operational for Flight Dispatch</div>
+            <div class="wo-action">All monitored parameters and structural degradation indices remain within certified operating limits. Proceed with standard pre-flight runup.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-card">
+        <div class="panel-hdr">
+          <span class="panel-title">Airworthiness Compliance Summary</span>
+          <span class="panel-meta" style="color:var(--ok)">DO-178C LEVEL B · EASA PART 21</span>
+        </div>
+        <div class="airw-dossier">
+          <div><strong>PROPULSION UNIT:</strong> ROTAX 914 F 4-STROKE AERO PISTON ENGINE</div>
+          <div><strong>MAX RATING:</strong> 84.5 kW @ 5,800 RPM (5-MIN TAKEOFF), 73.5 kW CONTINUOUS</div>
+          <div><strong>COOLING TYPE:</strong> LIQUID COOLED HEADS / RAM-AIR COOLED CYLINDERS</div>
+          <div><strong>LUBRICATION:</strong> DRY SUMP WITH TROCHOID PUMP &amp; OIL THERMOSTAT</div>
+          <div style="border-top:1px solid var(--border); margin-top:12px; padding-top:12px">
+            <div><strong>TIME SINCE OVERHAUL (TSO):</strong> 428.4 FLIGHT HOURS / 852 CYCLES</div>
+            <div><strong>NEXT SCHEDULED DEPOT INSPECTION:</strong> AT 1,000 FLIGHT HOURS</div>
+            <div><strong>AIRWORTHINESS DIRECTIVES (AD):</strong> 100% COMPLIANT</div>
+            <div><strong>CERTIFICATION:</strong> MIL-STD-1553 · SAE AS9100D · EASA 21.J</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
-<!-- Main Console Workspace -->
-<main>
-
-  <!-- ══════════════════════════════════════════════════════════════════════ -->
-  <!-- TAB 1: Mission Telemetry & Synoptic Overview                           -->
-  <!-- ══════════════════════════════════════════════════════════════════════ -->
-  <div id="tab-overview" class="tab-content active">
-    <div class="overview-grid">
-
-      <!-- Column 1: CAD-Style Engine Synoptic -->
-      <div class="gcs-card">
-        <div class="card-top">
-          <span class="card-label">AERO PISTON ENGINE SYNOPTIC</span>
-          <span style="font-family: var(--font-mono); font-size: 10px; color: var(--cyan);">CLICK COMPONENT TO INSPECT</span>
-        </div>
-        <div class="card-content synoptic-box">
-          
-          <!-- Vector CAD Engine Graphic -->
-          <div class="synoptic-svg-wrap">
-            <svg class="synoptic-svg" viewBox="0 0 420 190">
-              <!-- Engine Block Housing -->
-              <rect x="50" y="35" width="310" height="115" rx="6" fill="#0f172a" stroke="rgba(56, 189, 248, 0.25)" stroke-width="1.2"/>
-              <line x1="205" y1="35" x2="205" y2="150" stroke="rgba(255, 255, 255, 0.08)" stroke-dasharray="3"/>
-              
-              <!-- Fuel Injection Rail (Top) -->
-              <line x1="65" y1="42" x2="345" y2="42" stroke="#f59e0b" stroke-width="2" stroke-dasharray="5 3"/>
-              <text x="52" y="28" fill="#f59e0b" font-family="'JetBrains Mono'" font-size="8" font-weight="600">FUEL RAIL [3.0 BAR]</text>
-
-              <!-- Cylinders 1-4 Interactive Rectangles -->
-              <!-- Cyl 1 -->
-              <g class="synoptic-interactive-node" onclick="inspectComponent('cyl1')">
-                <rect id="syn-cyl-1" x="68" y="52" width="58" height="74" rx="4" fill="#1e293b" stroke="#38bdf8" stroke-width="1"/>
-                <text x="97" y="70" text-anchor="middle" fill="#94a3b8" font-family="'JetBrains Mono'" font-size="9" font-weight="600">CYL 1</text>
-                <circle id="flame-node-1" cx="97" cy="100" r="10" fill="#10b981" opacity="0.8"/>
-              </g>
-
-              <!-- Cyl 2 -->
-              <g class="synoptic-interactive-node" onclick="inspectComponent('cyl2')">
-                <rect id="syn-cyl-2" x="138" y="52" width="58" height="74" rx="4" fill="#1e293b" stroke="#38bdf8" stroke-width="1"/>
-                <text x="167" y="70" text-anchor="middle" fill="#94a3b8" font-family="'JetBrains Mono'" font-size="9" font-weight="600">CYL 2</text>
-                <circle id="flame-node-2" cx="167" cy="100" r="10" fill="#10b981" opacity="0.8"/>
-              </g>
-
-              <!-- Cyl 3 -->
-              <g class="synoptic-interactive-node" onclick="inspectComponent('cyl3')">
-                <rect id="syn-cyl-3" x="218" y="52" width="58" height="74" rx="4" fill="#1e293b" stroke="#38bdf8" stroke-width="1"/>
-                <text x="247" y="70" text-anchor="middle" fill="#94a3b8" font-family="'JetBrains Mono'" font-size="9" font-weight="600">CYL 3</text>
-                <circle id="flame-node-3" cx="247" cy="100" r="10" fill="#10b981" opacity="0.8"/>
-              </g>
-
-              <!-- Cyl 4 -->
-              <g class="synoptic-interactive-node" onclick="inspectComponent('cyl4')">
-                <rect id="syn-cyl-4" x="288" y="52" width="58" height="74" rx="4" fill="#1e293b" stroke="#38bdf8" stroke-width="1"/>
-                <text x="317" y="70" text-anchor="middle" fill="#94a3b8" font-family="'JetBrains Mono'" font-size="9" font-weight="600">CYL 4</text>
-                <circle id="flame-node-4" cx="317" cy="100" r="10" fill="#10b981" opacity="0.8"/>
-              </g>
-
-              <!-- Oil Circuit Gallery (Bottom) -->
-              <g class="synoptic-interactive-node" onclick="inspectComponent('oil_gallery')">
-                <line x1="65" y1="142" x2="345" y2="142" stroke="#a855f7" stroke-width="2.5"/>
-                <text x="52" y="165" fill="#a855f7" font-family="'JetBrains Mono'" font-size="8" font-weight="600">OIL LUBRICATION GALLERY [55 PSI]</text>
-              </g>
-
-              <!-- Reduction Gearbox & Propeller Hub -->
-              <g class="synoptic-interactive-node" onclick="inspectComponent('prop_gearbox')">
-                <rect x="360" y="78" width="18" height="30" fill="#1e293b" stroke="#38bdf8" stroke-width="1"/>
-                <line x1="378" y1="20" x2="378" y2="165" stroke="#10b981" stroke-width="3" stroke-linecap="round"/>
-                <text x="360" y="180" fill="#10b981" font-family="'JetBrains Mono'" font-size="7">PROPELLER</text>
-              </g>
-            </svg>
-          </div>
-
-          <!-- Multi-Cylinder 4-Way Temperature Grid -->
-          <div class="cyl-spread-grid">
-            <div class="cyl-cell" id="cell-cyl-1" onclick="inspectComponent('cyl1')">
-              <div class="cyl-name">CYL 1</div>
-              <div class="cyl-cht-val" id="c1-cht">---°F</div>
-              <div class="cyl-egt-val" id="c1-egt">---°F</div>
-            </div>
-            <div class="cyl-cell" id="cell-cyl-2" onclick="inspectComponent('cyl2')">
-              <div class="cyl-name">CYL 2</div>
-              <div class="cyl-cht-val" id="c2-cht">---°F</div>
-              <div class="cyl-egt-val" id="c2-egt">---°F</div>
-            </div>
-            <div class="cyl-cell" id="cell-cyl-3" onclick="inspectComponent('cyl3')">
-              <div class="cyl-name">CYL 3</div>
-              <div class="cyl-cht-val" id="c3-cht">---°F</div>
-              <div class="cyl-egt-val" id="c3-egt">---°F</div>
-            </div>
-            <div class="cyl-cell" id="cell-cyl-4" onclick="inspectComponent('cyl4')">
-              <div class="cyl-name">CYL 4</div>
-              <div class="cyl-cht-val" id="c4-cht">---°F</div>
-              <div class="cyl-egt-val" id="c4-egt">---°F</div>
-            </div>
-          </div>
-
-          <!-- Cylinder Thermal Variance Indicator -->
-          <div class="thermal-balance-box">
-            <div class="tbal-hdr">
-              <span>CYLINDER CHT SPREAD (VARIANCE)</span>
-              <span id="tbal-delta" style="color: var(--cyan);">Δ 0.0°F (BALANCED)</span>
-            </div>
-            <div class="tbal-track" id="tbal-track">
-              <div class="tbal-marker" id="tb-m1" style="left: 45%; background: #38bdf8;"></div>
-              <div class="tbal-marker" id="tb-m2" style="left: 48%; background: #10b981;"></div>
-              <div class="tbal-marker" id="tb-m3" style="left: 52%; background: #f59e0b;"></div>
-              <div class="tbal-marker" id="tb-m4" style="left: 55%; background: #a855f7;"></div>
-            </div>
-          </div>
-
-        </div>
-      </div>
-
-      <!-- Column 2: 14-Channel Sensor Telemetry Matrix -->
-      <div class="gcs-card">
-        <div class="card-top">
-          <span class="card-label">MULTI-CHANNEL SENSOR TELEMETRY MATRIX</span>
-          <span style="font-family: var(--font-mono); font-size: 10px; color: var(--text-muted);">14 ACTIVE CHANNELS</span>
-        </div>
-        <div class="card-content">
-          <div class="sensor-matrix-grid">
-            <!-- 1. RPM -->
-            <div class="sensor-node-card" id="scard-rpm">
-              <div class="s-top"><span class="s-tag-name">ENGINE SPEED</span><span class="s-status-tag ok" id="stag-rpm">NORM</span></div>
-              <div class="s-num-row"><span class="s-numeric-val" id="sval-rpm">---</span><span class="s-unit">RPM</span></div>
-              <canvas class="s-spark-box" id="spark-rpm"></canvas>
-            </div>
-            <!-- 2. CHT -->
-            <div class="sensor-node-card" id="scard-cht">
-              <div class="s-top"><span class="s-tag-name">CYL HEAD TEMP</span><span class="s-status-tag ok" id="stag-cht">NORM</span></div>
-              <div class="s-num-row"><span class="s-numeric-val" id="sval-cht">---</span><span class="s-unit">°F AVG</span></div>
-              <canvas class="s-spark-box" id="spark-cht"></canvas>
-            </div>
-            <!-- 3. EGT -->
-            <div class="sensor-node-card" id="scard-egt">
-              <div class="s-top"><span class="s-tag-name">EXHAUST TEMP</span><span class="s-status-tag ok" id="stag-egt">NORM</span></div>
-              <div class="s-num-row"><span class="s-numeric-val" id="sval-egt">---</span><span class="s-unit">°F AVG</span></div>
-              <canvas class="s-spark-box" id="spark-egt"></canvas>
-            </div>
-            <!-- 4. Oil Press -->
-            <div class="sensor-node-card" id="scard-oil-p">
-              <div class="s-top"><span class="s-tag-name">OIL PRESSURE</span><span class="s-status-tag ok" id="stag-oil-p">NORM</span></div>
-              <div class="s-num-row"><span class="s-numeric-val" id="sval-oil-p">---</span><span class="s-unit">PSI</span></div>
-              <canvas class="s-spark-box" id="spark-oil-p"></canvas>
-            </div>
-            <!-- 5. Oil Temp -->
-            <div class="sensor-node-card" id="scard-oil-t">
-              <div class="s-top"><span class="s-tag-name">OIL TEMP</span><span class="s-status-tag ok" id="stag-oil-t">NORM</span></div>
-              <div class="s-num-row"><span class="s-numeric-val" id="sval-oil-t">---</span><span class="s-unit">°F</span></div>
-              <canvas class="s-spark-box" id="spark-oil-t"></canvas>
-            </div>
-            <!-- 6. Fuel Flow -->
-            <div class="sensor-node-card" id="scard-fuel">
-              <div class="s-top"><span class="s-tag-name">FUEL FLOW</span><span class="s-status-tag ok" id="stag-fuel">NORM</span></div>
-              <div class="s-num-row"><span class="s-numeric-val" id="sval-fuel">---</span><span class="s-unit">L/HR</span></div>
-              <canvas class="s-spark-box" id="spark-fuel"></canvas>
-            </div>
-            <!-- 7. Rail Pressure -->
-            <div class="sensor-node-card" id="scard-rail-p">
-              <div class="s-top"><span class="s-tag-name">RAIL PRESS</span><span class="s-status-tag ok" id="stag-rail-p">NORM</span></div>
-              <div class="s-num-row"><span class="s-numeric-val" id="sval-rail-p">---</span><span class="s-unit">BAR</span></div>
-              <canvas class="s-spark-box" id="spark-rail-p"></canvas>
-            </div>
-            <!-- 8. Vibration RMS -->
-            <div class="sensor-node-card" id="scard-vib">
-              <div class="s-top"><span class="s-tag-name">VIBRATION RMS</span><span class="s-status-tag ok" id="stag-vib">NORM</span></div>
-              <div class="s-num-row"><span class="s-numeric-val" id="sval-vib">---</span><span class="s-unit">g RMS</span></div>
-              <canvas class="s-spark-box" id="spark-vib"></canvas>
-            </div>
-            <!-- 9. Kurtosis -->
-            <div class="sensor-node-card" id="scard-kurt">
-              <div class="s-top"><span class="s-tag-name">VIB KURTOSIS</span><span class="s-status-tag ok" id="stag-kurt">NORM</span></div>
-              <div class="s-num-row"><span class="s-numeric-val" id="sval-kurt">---</span><span class="s-unit">INDEX</span></div>
-              <canvas class="s-spark-box" id="spark-kurt"></canvas>
-            </div>
-            <!-- 10. Bus Voltage -->
-            <div class="sensor-node-card" id="scard-batt">
-              <div class="s-top"><span class="s-tag-name">BUS VOLTAGE</span><span class="s-status-tag ok" id="stag-batt">NORM</span></div>
-              <div class="s-num-row"><span class="s-numeric-val" id="sval-batt">---</span><span class="s-unit">V DC</span></div>
-              <canvas class="s-spark-box" id="spark-batt"></canvas>
-            </div>
-            <!-- 11. Bus Current -->
-            <div class="sensor-node-card" id="scard-current">
-              <div class="s-top"><span class="s-tag-name">BUS CURRENT</span><span class="s-status-tag ok" id="stag-current">NORM</span></div>
-              <div class="s-num-row"><span class="s-numeric-val" id="sval-current">---</span><span class="s-unit">AMPS</span></div>
-              <canvas class="s-spark-box" id="spark-current"></canvas>
-            </div>
-            <!-- 12. Injection Timing -->
-            <div class="sensor-node-card" id="scard-inj">
-              <div class="s-top"><span class="s-tag-name">INJ TIMING</span><span class="s-status-tag ok" id="stag-inj">NORM</span></div>
-              <div class="s-num-row"><span class="s-numeric-val" id="sval-inj">---</span><span class="s-unit">°BTDC</span></div>
-              <canvas class="s-spark-box" id="spark-inj"></canvas>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Column 3: Health Index & Component Inspection Drawer -->
-      <div class="gcs-card">
-        <div class="card-top">
-          <span class="card-label">HEALTH & INSPECTION DRAWER</span>
-          <span class="phase-badge" id="hi-badge-status">NOMINAL</span>
-        </div>
-        <div class="card-content">
-          <!-- Circular Health Gauge -->
-          <div class="gauge-overview-wrap">
-            <div class="gauge-svg-container">
-              <svg viewBox="0 0 160 100" style="width: 100%; height: 100%;">
-                <path d="M 18,85 A 62,62 0 0,1 142,85" fill="none" stroke="#1e293b" stroke-width="10" stroke-linecap="round"/>
-                <path id="svg-hi-arc" d="M 18,85 A 62,62 0 0,1 142,85" fill="none" stroke="#10b981" stroke-width="10" stroke-linecap="round" stroke-dasharray="0 195" style="transition: stroke-dasharray 0.4s ease, stroke 0.3s;"/>
-                <text id="svg-hi-val" x="80" y="72" text-anchor="middle" fill="#f8fafc" font-family="'JetBrains Mono'" font-size="24" font-weight="700">--</text>
-                <text x="80" y="88" text-anchor="middle" fill="#64748b" font-family="'JetBrains Mono'" font-size="8" letter-spacing="1">HEALTH INDEX / 100</text>
-              </svg>
-            </div>
-
-            <!-- Subsystem Health Ratings -->
-            <div style="width: 100%; margin-top: 6px;">
-              <div class="sub-meter-row"><span>THERMAL</span><div class="sub-meter-bar"><div class="sub-meter-fill" id="sub-th-fill" style="width:80%"></div></div><span id="sub-th-num">80%</span></div>
-              <div class="sub-meter-row"><span>LUBRICATION</span><div class="sub-meter-bar"><div class="sub-meter-fill" id="sub-lub-fill" style="width:85%"></div></div><span id="sub-lub-num">85%</span></div>
-              <div class="sub-meter-row"><span>MECHANICAL</span><div class="sub-meter-bar"><div class="sub-meter-fill" id="sub-mech-fill" style="width:90%"></div></div><span id="sub-mech-num">90%</span></div>
-              <div class="sub-meter-row"><span>ELECTRICAL</span><div class="sub-meter-bar"><div class="sub-meter-fill" id="sub-elec-fill" style="width:95%"></div></div><span id="sub-elec-num">95%</span></div>
-            </div>
-          </div>
-
-          <!-- RUL Hero -->
-          <div class="rul-prognosis-box">
-            <div style="font-size: 10px; font-family: var(--font-mono); color: var(--text-muted);">AI PREDICTED REMAINING USEFUL LIFE</div>
-            <div style="display: flex; align-items: baseline; justify-content: space-between; margin-top: 2px;">
-              <div class="rul-hero-num" id="overview-rul-num">BUFF</div>
-              <div style="font-family: var(--font-mono); font-size: 10px; color: var(--cyan);" id="overview-rul-ci">95% CI: [--, --]</div>
-            </div>
-          </div>
-
-          <!-- Component Inspection Drawer (Interactive) -->
-          <div class="component-drawer" id="component-inspection-drawer">
-            <div class="drawer-title" id="drawer-component-title">COMPONENT: CYLINDER #1</div>
-            <div class="drawer-row"><span style="color: var(--text-muted);">STATUS</span><span style="color: var(--green);" id="drawer-comp-stat">NOMINAL AIRWORTHY</span></div>
-            <div class="drawer-row"><span style="color: var(--text-muted);">OPERATING TEMP</span><span id="drawer-comp-temp">395.2°F CHT / 1580°F EGT</span></div>
-            <div class="drawer-row"><span style="color: var(--text-muted);">COMBUSTION EFFICIENCY</span><span id="drawer-comp-eff">98.4% (STOICHIOMETRIC)</span></div>
-            <div class="drawer-row"><span style="color: var(--text-muted);">DEGRADATION PROB</span><span id="drawer-comp-deg">1.2% (LOW RISK)</span></div>
-          </div>
-
-        </div>
-      </div>
-
-    </div>
-  </div>
-
-  <!-- ══════════════════════════════════════════════════════════════════════ -->
-  <!-- TAB 2: AI Prognostics & Explainable AI (XAI)                           -->
-  <!-- ══════════════════════════════════════════════════════════════════════ -->
-  <div id="tab-ai-prognostics" class="tab-content">
-    <div class="ai-tab-grid">
-      <!-- Left: Deep LSTM RUL Curve with Confidence Bounds -->
-      <div class="gcs-card">
-        <div class="card-top">
-          <span class="card-label">DEEP LSTM RUL PROGNOSTICS (95% CONFIDENCE ENVELOPE)</span>
-          <span style="font-family: var(--font-mono); font-size: 10px; color: var(--green);">MONTE-CARLO ENVELOPE</span>
-        </div>
-        <div class="card-content">
-          <div class="rul-chart-box">
-            <canvas id="chart-deep-rul"></canvas>
-          </div>
-          <div style="display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); margin-top: 8px;">
-            <span>● AI PREDICTED RUL (CYCLES)</span>
-            <span>▨ 95% CONFIDENCE BOUNDS</span>
-            <span>-- GROUND TRUTH FLIGHT DATA</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Right: Explainable AI (XAI) Feature Attribution Waterfall -->
-      <div class="gcs-card">
-        <div class="card-top">
-          <span class="card-label">EXPLAINABLE AI (XAI) ROOT CAUSE ATTRIBUTION</span>
-          <span class="phase-badge" id="xai-verdict-badge">NOMINAL ENVELOPE</span>
-        </div>
-        <div class="card-content">
-          <div class="xai-narrative-card" id="xai-narrative-text">
-            Multi-sensor multivariate envelope evaluation shows all monitored channels tracking within nominal 3-sigma learned limits.
-          </div>
-
-          <div style="font-size: 10px; font-family: var(--font-mono); color: var(--text-muted); margin-bottom: 6px;">
-            FEATURE ATTRIBUTION TO CURRENT ANOMALY SCORE (% WEIGHT):
-          </div>
-          <div class="xai-attribution-list" id="xai-att-container">
-            <!-- Populated via JS -->
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ══════════════════════════════════════════════════════════════════════ -->
-  <!-- TAB 3: Thermodynamic Cycle & Performance                               -->
-  <!-- ══════════════════════════════════════════════════════════════════════ -->
-  <div id="tab-thermo" class="tab-content">
-    <div class="thermo-grid">
-      <!-- P-V Indicator Diagram -->
-      <div class="gcs-card">
-        <div class="card-top">
-          <span class="card-label">4-STROKE OTTO PRESSURE-VOLUME (P-V) INDICATOR</span>
-          <span style="font-family: var(--font-mono); font-size: 10px; color: var(--amber);" id="pv-indicated-power">IMEP: -- bar</span>
-        </div>
-        <div class="card-content">
-          <div class="pv-chart-box">
-            <canvas id="chart-pv-curve"></canvas>
-          </div>
-          <div class="perf-stat-matrix">
-            <div class="perf-stat-item">
-              <div class="perf-stat-lbl">BRAKE POWER OUTPUT</div>
-              <div class="perf-stat-val" id="t-hp-val">-- BHP</div>
-            </div>
-            <div class="perf-stat-item">
-              <div class="perf-stat-lbl">SPECIFIC FUEL CONSUMPTION</div>
-              <div class="perf-stat-val" id="t-bsfc-val">-- g/kWh</div>
-            </div>
-            <div class="perf-stat-item">
-              <div class="perf-stat-lbl">THERMAL EFFICIENCY (η_th)</div>
-              <div class="perf-stat-val" id="t-th-eff-val">-- %</div>
-            </div>
-            <div class="perf-stat-item">
-              <div class="perf-stat-lbl">VOLUMETRIC EFFICIENCY (η_v)</div>
-              <div class="perf-stat-val" id="t-vol-eff-val">-- %</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Physics Residuals Table (Sensor vs Model Delta) -->
-      <div class="gcs-card">
-        <div class="card-top">
-          <span class="card-label">PHYSICS-INFORMED RESIDUAL TRACKER (PINN MODEL)</span>
-          <span style="font-family: var(--font-mono); font-size: 10px; color: var(--cyan);">Δ = SENSOR - PHYSICS EXPECTED</span>
-        </div>
-        <div class="card-content">
-          <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 8px;">
-            Comparing real-time telemetry against thermodynamic expectations to detect sub-threshold sensor drift and thermal decay before hard limits are breached.
-          </div>
-          <table class="residual-table">
-            <thead>
-              <tr>
-                <th>MONITORED CHANNEL</th>
-                <th>MEASURED</th>
-                <th>PHYSICS EXPECTED</th>
-                <th>RESIDUAL Δ</th>
-                <th>STATUS</th>
-              </tr>
-            </thead>
-            <tbody id="residual-tbody">
-              <tr>
-                <td>EXHAUST GAS TEMP (EGT)</td>
-                <td id="res-m-egt">--</td>
-                <td id="res-e-egt">--</td>
-                <td id="res-d-egt" style="color: var(--cyan);">--</td>
-                <td><span class="s-status-tag ok">TRACKING</span></td>
-              </tr>
-              <tr>
-                <td>CYL HEAD TEMP (CHT)</td>
-                <td id="res-m-cht">--</td>
-                <td id="res-e-cht">--</td>
-                <td id="res-d-cht" style="color: var(--cyan);">--</td>
-                <td><span class="s-status-tag ok">TRACKING</span></td>
-              </tr>
-              <tr>
-                <td>OIL GALLERY PRESSURE</td>
-                <td id="res-m-oil">--</td>
-                <td id="res-e-oil">--</td>
-                <td id="res-d-oil" style="color: var(--cyan);">--</td>
-                <td><span class="s-status-tag ok">TRACKING</span></td>
-              </tr>
-              <tr>
-                <td>FUEL MASS FLOW</td>
-                <td id="res-m-fuel">--</td>
-                <td id="res-e-fuel">--</td>
-                <td id="res-d-fuel" style="color: var(--cyan);">--</td>
-                <td><span class="s-status-tag ok">TRACKING</span></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ══════════════════════════════════════════════════════════════════════ -->
-  <!-- TAB 4: CAN Bus & Flight Data Recorder                                  -->
-  <!-- ══════════════════════════════════════════════════════════════════════ -->
-  <div id="tab-can-fdr" class="tab-content">
-    <div class="gcs-card">
-      <div class="card-top">
-        <span class="card-label">SAE J1939 / UAVCAN PROTOCOL FLIGHT DATA RECORDER</span>
-        <div class="can-toolbar">
-          <input type="text" class="can-filter-input" id="can-filter" placeholder="FILTER BY PGN OR NAME..." onkeyup="filterCANTraffic()">
-          <button class="btn-tactical" onclick="exportCANLogsCSV()">⬇ EXPORT CSV LOG</button>
-        </div>
-      </div>
-      <div class="card-content can-fdr-box">
-        <div class="can-table-container">
-          <table class="can-table-styled">
-            <thead>
-              <tr>
-                <th>TIMESTAMP</th>
-                <th>CAN ID (29-BIT)</th>
-                <th>PGN</th>
-                <th>MESSAGE IDENTIFIER</th>
-                <th>DLC</th>
-                <th>HEX PAYLOAD</th>
-                <th>DECODED ENGINEERING PARAMETERS</th>
-              </tr>
-            </thead>
-            <tbody id="can-traffic-tbody">
-              <tr><td colspan="7" style="text-align: center; color: var(--text-muted);">Listening on SocketCAN bus (250 kbps)...</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ══════════════════════════════════════════════════════════════════════ -->
-  <!-- TAB 5: ATA Maintenance Advisory & Compliance                           -->
-  <!-- ══════════════════════════════════════════════════════════════════════ -->
-  <div id="tab-ata-maint" class="tab-content">
-    <div class="ata-grid">
-      <!-- Left: Active ATA Work Orders -->
-      <div class="gcs-card">
-        <div class="card-top">
-          <span class="card-label">ACTIVE ATA-100 AEROSPACE WORK ORDERS</span>
-          <span style="font-family: var(--font-mono); font-size: 10px; color: var(--cyan);" id="ata-active-count">0 ACTION ITEMS</span>
-        </div>
-        <div class="card-content" id="ata-work-orders-container">
-          <div class="ata-card-item OK">
-            <div class="ata-card-hdr">
-              <span class="ata-task-code">ATA 05-00-00</span>
-              <span class="ata-priority-badge OK">DISPATCH READY</span>
-            </div>
-            <div class="ata-title-text">Propulsion System Certified for Flight Dispatch</div>
-            <div class="ata-desc-text">All monitored parameters and structural indices remain within certified airworthiness limits. Proceed with standard pre-flight runup.</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Right: Subsystem Airworthiness Compliance Matrix -->
-      <div class="gcs-card">
-        <div class="card-top">
-          <span class="card-label">SUBSYSTEM AIRWORTHINESS COMPLIANCE SUMMARY</span>
-          <span style="font-family: var(--font-mono); font-size: 10px; color: var(--green);">DO-178C LEVEL B</span>
-        </div>
-        <div class="card-content">
-          <div style="font-size: 11px; font-family: var(--font-mono); color: var(--text-secondary); line-height: 1.6;">
-            <div><strong>POWERPLANT:</strong> ROTAX 914 TURBOCHARGED 4-STROKE AERO PISTON</div>
-            <div><strong>MAX RATING:</strong> 115 HP @ 5800 RPM (5-MIN TAKEOFF), 100 HP CONTINUOUS</div>
-            <div><strong>COOLING TYPE:</strong> LIQUID COOLED CYLINDER HEADS / RAM-AIR COOLED CYLINDERS</div>
-            <div><strong>LUBRICATION:</strong> DRY SUMP WITH TROCHOID PUMP / INTEGRAL PRESSURE REGULATOR</div>
-            <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border);">
-              <strong>TIME SINCE OVERHAUL (TSO):</strong> 428.4 FLIGHT HOURS / 852 CYCLES<br>
-              <strong>NEXT SCHEDULED DEPOT INSPECTION:</strong> AT 1000 FLIGHT HOURS<br>
-              <strong>AIRWORTHINESS DIRECTIVE (AD) COMPLIANCE:</strong> 100% UP TO DATE
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-</main>
-
-<!-- ══════════════════════════════════════════════════════════════════════════ -->
-<!-- Bottom Floating Master Command Dock (Persistent Across All Tabs)           -->
-<!-- ══════════════════════════════════════════════════════════════════════════ -->
-<div class="bottom-dock">
-  <!-- Mission Scenario Profiles -->
+<!-- ══════════════════════════════════════════════════════════════════════════
+     COMMAND DOCK
+══════════════════════════════════════════════════════════════════════════ -->
+<div class="cmd-dock">
   <div class="dock-group">
     <span class="dock-lbl">MISSION PROFILE:</span>
-    <button class="dock-pill-btn active-profile" data-profile="NORMAL" onclick="setFlightProfile(this)">NORMAL ISR</button>
-    <button class="dock-pill-btn" data-profile="HIGH_ALTITUDE" onclick="setFlightProfile(this)">HIGH ALTITUDE (18k FT)</button>
-    <button class="dock-pill-btn" data-profile="HOT_WEATHER" onclick="setFlightProfile(this)">HOT DESERT (45°C)</button>
-    <button class="dock-pill-btn" data-profile="ENDURANCE" onclick="setFlightProfile(this)">MAX ENDURANCE</button>
-    <button class="dock-pill-btn" data-profile="RAPID_THROTTLE" onclick="setFlightProfile(this)">DYNAMIC AGILITY</button>
+    <select class="dock-select" id="sel-profile" onchange="sendCmd({command:'set_profile',profile:this.value})">
+      <option value="NORMAL">Normal ISR Cruise (3,000 ft MSL)</option>
+      <option value="HIGH_ALTITUDE">High Altitude Loiter (18,000 ft MSL)</option>
+      <option value="HOT_WEATHER">Hot Desert Operation (45°C ISA+25)</option>
+      <option value="ENDURANCE">Maximum Endurance (Lean of Peak)</option>
+      <option value="RAPID_THROTTLE">Dynamic Agility / Rapid Throttle</option>
+    </select>
   </div>
 
-  <!-- Interactive Fault Injection Testbed (For Live Jury Demo) -->
   <div class="dock-group">
-    <span class="dock-lbl">FAULT INJECTION TESTBED:</span>
-    <button class="fault-btn-node" data-fault="misfire" onclick="toggleFaultInjection(this)">MISFIRE</button>
-    <button class="fault-btn-node" data-fault="injector_clog" onclick="toggleFaultInjection(this)">INJ CLOG</button>
-    <button class="fault-btn-node" data-fault="cooling_degradation" onclick="toggleFaultInjection(this)">COOLING</button>
-    <button class="fault-btn-node" data-fault="oil_leak" onclick="toggleFaultInjection(this)">OIL LEAK</button>
-    <button class="fault-btn-node" data-fault="sensor_drift" onclick="toggleFaultInjection(this)">DRIFT</button>
-    <button class="fault-btn-node" data-fault="bearing_wear" onclick="toggleFaultInjection(this)">BEARING</button>
-    <button class="fault-btn-node" data-fault="combustion_instability" onclick="toggleFaultInjection(this)">FLAME</button>
-    <button class="fault-btn-node" style="color: var(--cyan); border-color: var(--cyan);" onclick="clearAllInjectedFaults()">CLEAR ALL</button>
+    <span class="dock-lbl">FAULT INJECTION:</span>
+    <select class="dock-select" id="sel-fault">
+      <option value="misfire">Ignition Misfire (Dead Cyl #2)</option>
+      <option value="injector_clog">Fuel Injector Clog &amp; Lean Spike</option>
+      <option value="cooling_degradation">Cooling Radiator Matrix Fouling</option>
+      <option value="oil_leak">Lubrication Pressure Loss &amp; Leak</option>
+      <option value="sensor_drift">Thermocouple Sensor Drift</option>
+      <option value="bearing_wear">Crankshaft Bearing Spalling</option>
+      <option value="combustion_instability">Combustion Flame Instability</option>
+    </select>
+    <button class="dock-btn" onclick="doInjectFault()">INJECT FAULT</button>
+    <button class="dock-btn danger" onclick="doClearFaults()">CLEAR ALL FAULTS</button>
   </div>
 
-  <!-- Replay Speed & Pause -->
   <div class="dock-group">
     <span class="dock-lbl">REPLAY SPEED:</span>
-    <button class="speed-control-btn active-spd" onclick="setPlaybackSpeed(1.0, this)">1X</button>
-    <button class="speed-control-btn" onclick="setPlaybackSpeed(2.0, this)">2X</button>
-    <button class="speed-control-btn" onclick="setPlaybackSpeed(5.0, this)">5X</button>
-    <button class="speed-control-btn" onclick="setPlaybackSpeed(10.0, this)">10X</button>
-    <button class="pause-btn-toggle" id="dock-pause-btn" onclick="togglePlaybackPause()">PAUSE</button>
+    <select class="dock-select" id="sel-speed" onchange="sendCmd({command:'set_speed',speed:parseFloat(this.value)})">
+      <option value="1.0">1.0× (Real-Time 10 Hz)</option>
+      <option value="2.0">2.0× (Accelerated 20 Hz)</option>
+      <option value="5.0">5.0× (Fast Forward 50 Hz)</option>
+    </select>
+    <button class="dock-btn" id="pause-btn" onclick="doTogglePause()">PAUSE</button>
   </div>
 </div>
 
+<!-- ══════════════════════════════════════════════════════════════════════════
+     CORE GCS JAVASCRIPT
+══════════════════════════════════════════════════════════════════════════ -->
 <script>
-/* ── State & Variables ─────────────────────────────────────────────────────── */
-let ws = null, reconnectTimer = null, sessionStart = null;
-let audioAlertsEnabled = true, isPaused = false, currentSpeed = 1.0;
-let activeFaultSet = new Set(), rawCANLogs = [], sessionTelemetryLog = [];
-let lastSpokenAlarm = "", lastAlarmTime = 0;
+/* ─── 0. Helper Functions (Available everywhere) ────────────────────────── */
+function $(id, v){ const e = document.getElementById(id); if(e) e.textContent = v; }
+function fmtResidual(v){ if(v == null) return '--'; return `${v >= 0 ? '+' : ''}${v}`; }
 
-/* ── Sparklines Data Buffers ────────────────────────────────────────────────── */
-const sparkHistory = {};
-const SENSOR_CHANNELS = ['rpm','cht','egt','oil-p','oil-t','fuel','rail-p','vib','kurt','batt','current','inj'];
-SENSOR_CHANNELS.forEach(k => sparkHistory[k] = []);
+let ws = null, reconn = null, sessionStart = null, paused = false, audioOn = true;
+let lastMsg = '', lastMsgAt = 0;
+let canLog = [], telLog = [];
+const sparks = {};
+['rpm','cht','egt','oil-p','oil-t','fuel','rail-p','vib','kurt','batt','current','inj']
+  .forEach(k => sparks[k] = []);
 
-function appendSparkData(key, val){
-  if(!sparkHistory[key]) sparkHistory[key] = [];
-  sparkHistory[key].push(val);
-  if(sparkHistory[key].length > 35) sparkHistory[key].shift();
+function setPip(live){
+  const d = document.getElementById('ws-pip');
+  if(d) d.className = 'ws-pip' + (live ? ' live' : ' dead');
 }
 
-function renderSparkline(canvasId, data, strokeColor){
-  const cvs = document.getElementById(canvasId);
-  if(!cvs) return;
-  const w = cvs.parentElement.offsetWidth || 90, h = 22;
-  cvs.width = w; cvs.height = h;
-  const ctx = cvs.getContext('2d');
-  ctx.clearRect(0, 0, w, h);
-  if(data.length < 2) return;
+/* ─── 1. WebSocket Ingestion Engine (Runs First & Reliably) ─────────────── */
+function connect(){
+  clearTimeout(reconn);
+  if(ws){
+    try { ws.close(); } catch(e){}
+    ws = null;
+  }
+
+  const endpoint = 'ws://127.0.0.1:8765';
+  console.log('[GCS WS] Connecting to:', endpoint);
+  $('ws-text', '10 Hz · CONNECTING');
+  setPip(false);
+
+  try {
+    ws = new WebSocket(endpoint);
+  } catch(e) {
+    console.error('[GCS WS Init Error]', e);
+    $('ws-text', 'RECONNECTING...');
+    reconn = setTimeout(connect, 1000);
+    return;
+  }
+
+  ws.onopen = () => {
+    console.log('[GCS WS] Connected successfully!');
+    setPip(true);
+    $('ws-text', '10 Hz · LIVE');
+    if(!sessionStart) sessionStart = Date.now();
+  };
+
+  ws.onmessage = ev => {
+    let d;
+    try { d = JSON.parse(ev.data); } catch(e) { return; }
+    if(!d || !d.cycle) return;
+    setPip(true);
+    $('ws-text', '10 Hz · LIVE');
+    telLog.push(d);
+    if(telLog.length > 500) telLog.shift();
+    try {
+      render(d);
+    } catch(renderErr) {
+      console.error("[Render Error]", renderErr);
+    }
+  };
+
+  ws.onclose = (ev) => {
+    setPip(false);
+    $('ws-text', 'RECONNECTING...');
+    clearTimeout(reconn);
+    reconn = setTimeout(connect, 1000);
+  };
+
+  ws.onerror = (err) => {
+    setPip(false);
+    $('ws-text', 'RECONNECTING...');
+  };
+}
+
+// Start WebSocket Immediately
+connect();
+
+// Watchdog timer to ensure continuous connection
+setInterval(() => {
+  if(!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING){
+    connect();
+  }
+}, 3000);
+
+/* ─── 2. Master Render Function ─────────────────────────────────────────── */
+function render(d){
+  // Header Meta
+  $('k-cycle', String(d.cycle).padStart(4, '0'));
+  if(d.mission_mode) $('k-profile', d.mission_mode.replace(/_/g, ' '));
+
+  // Master Alert Badge
+  const badge = document.getElementById('alert-badge');
+  const at = document.getElementById('alert-text');
+  if(badge && at){
+    const al = d.alert || 'NOMINAL';
+    badge.className = 'status-badge ' + (al === 'CRITICAL' ? 'critical' : al === 'WARNING' ? 'warning' : 'nominal');
+    if(al === 'CRITICAL'){
+      const fn = (d.fault_events?.[0]?.name || 'PARAMETER ANOMALY').replace(/_/g, ' ');
+      at.textContent = `ALERT: ${fn}`;
+      speak(`Alert: ${fn}`);
+    } else if(al === 'WARNING'){
+      const fn = (d.fault_events?.[0]?.name || 'PARAMETER CAUTION').replace(/_/g, ' ');
+      at.textContent = `CAUTION: ${fn}`;
+      speak(`Caution: ${fn}`);
+    } else {
+      at.textContent = 'NOMINAL STATUS';
+    }
+  }
+
+  // Executive KPI Ribbon
+  if(d.health){
+    const hi = d.health.health_index;
+    $('k-ehi', Math.round(hi));
+    const cond = document.getElementById('k-cond');
+    if(cond){
+      cond.textContent = d.health.condition;
+      cond.className = 'tag-badge ' + (hi >= 70 ? 'tb-ok' : hi >= 40 ? 'tb-warn' : 'tb-crit');
+    }
+    const sub = d.health.sub_scores || {};
+    setMicroBar('th', sub.thermal ?? 80); setMicroBar('lb', sub.lubrication ?? 85);
+    setMicroBar('mc', sub.mechanical ?? 90); setMicroBar('el', sub.electrical ?? 95);
+    setSbBar('th', sub.thermal ?? 80); setSbBar('lb', sub.lubrication ?? 85);
+    setSbBar('mc', sub.mechanical ?? 90); setSbBar('el', sub.electrical ?? 95);
+  }
+
+  if(d.predicted_rul > 0){
+    $('k-rul', Math.round(d.predicted_rul));
+    $('k-true-rul', Math.round(d.true_rul));
+    $('k-ci', `[${d.rul_ci_lower}, ${d.rul_ci_upper}]`);
+  } else {
+    $('k-rul', `BUF ${d.buffer_pct || 0}%`);
+  }
+
+  if(d.physics){
+    const p = d.physics;
+    $('k-bhp', p.brake_power_hp); $('k-bsfc', p.bsfc_g_kwh);
+    $('k-eta', `${p.thermal_efficiency}%`); $('k-imep', p.imep_bar);
+  }
+
+  const fc = d.fault_events?.length || 0;
+  const ael = document.getElementById('k-alarms');
+  if(ael){
+    ael.textContent = `${fc} ACTIVE ${fc === 1 ? 'ALARM' : 'ALARMS'}`;
+    ael.style.color = fc > 0 ? (d.alert === 'CRITICAL' ? 'var(--crit)' : 'var(--warn)') : 'var(--text-main)';
+  }
+
+  if(d.xai){
+    const xd = document.getElementById('k-xai-driver');
+    if(xd){
+      xd.textContent = d.xai.is_anomaly ? `DRIVER: ${d.xai.top_driver}` : 'WITHIN 3σ ENVELOPE';
+      xd.style.color = d.xai.is_anomaly ? 'var(--crit)' : 'var(--ok)';
+    }
+  }
+
+  // Sidebar Snapshot
+  $('sb-rpm', `${d.rpm?.toFixed(0) || '---'} RPM`);
+  $('sb-cht', `${d.cht?.toFixed(1) || '---'} °F`);
+  $('sb-egt', `${d.egt?.toFixed(1) || '---'} °F`);
+  $('sb-oil', `${d.oil_pressure?.toFixed(1) || '---'} PSI`);
+  $('sb-fuel', `${d.fuel_flow?.toFixed(2) || '---'} L/h`);
+  $('sb-vib', `${d.vibration?.toFixed(3) || '---'} g`);
+  $('sb-batt', `${d.battery_v?.toFixed(2) || '---'} V`);
+  $('sb-alt', `${(d.altitude_ft || 3000).toLocaleString()} ft`);
+  $('sb-oat', `${d.oat_c ?? 15} °C`);
+  $('sb-map', d.map_kpa ? `${d.map_kpa} kPa` : '--');
+  $('sb-anm', d.anomaly_score != null ? d.anomaly_score.toFixed(4) : '--');
+  $('sb-buf', `${d.buffer_pct || 0}%`);
+
+  // 12-Channel Sensor Grid
+  SENSOR_DEFS.forEach(s => {
+    const v = s.v(d);
+    if(v == null) return;
+    $(s.val, s.fmt(v));
+    const isCrit = s.inv ? v < s.crit : v > s.crit;
+    const isWarn = s.inv ? v < s.warn : v > s.warn;
+    const tag = document.getElementById(s.tag);
+    const cell = document.getElementById(s.cell);
+    if(tag && cell){
+      if(isCrit){
+        tag.className = 'tag-stat crit'; tag.textContent = 'CRIT';
+        cell.className = 'sensor-cell s-crit';
+      } else if(isWarn){
+        tag.className = 'tag-stat warn'; tag.textContent = 'WARN';
+        cell.className = 'sensor-cell s-warn';
+      } else {
+        tag.className = 'tag-stat ok'; tag.textContent = 'NORM';
+        cell.className = 'sensor-cell s-ok';
+      }
+    }
+    pushSpark(s.k, v);
+    drawSpark(s.sp, sparks[s.k], s.c);
+  });
+
+  // 4-Cylinder Balance
+  const ccht = d.cht_cyl || [d.cht, d.cht, d.cht, d.cht];
+  const cegt = d.egt_cyl || [d.egt, d.egt, d.egt, d.egt];
+  const avgC = ccht.reduce((a,b) => a + b, 0) / 4;
+  const spread = (Math.max(...ccht) - Math.min(...ccht)).toFixed(1);
+  for(let i=0; i<4; i++){
+    $(`c${i+1}-cht`, `${ccht[i]}°F`);
+    $(`c${i+1}-egt`, `${cegt[i]}°F`);
+    $(`c${i+1}-d`, `${(ccht[i]-avgC >= 0 ? '+' : '') + (ccht[i]-avgC).toFixed(1)}°F`);
+    const si = document.getElementById(`c${i+1}-s`);
+    if(si){
+      if(ccht[i] > 420 || cegt[i] > 1650){ si.className = 'tag-stat crit'; si.textContent = 'HIGH'; }
+      else if(ccht[i] < 300){ si.className = 'tag-stat warn'; si.textContent = 'LOW'; }
+      else { si.className = 'tag-stat ok'; si.textContent = 'NORMAL'; }
+    }
+    $(`cy${i+1}`, `${ccht[i]}°F`);
+  }
+  const st = document.getElementById('cyl-spread-tag');
+  if(st){
+    st.textContent = `Δ ${spread}°F · ${parseFloat(spread) > 35 ? 'UNBALANCED' : 'BALANCED'}`;
+    st.style.color = parseFloat(spread) > 35 ? 'var(--warn)' : 'var(--text-muted)';
+  }
+  $('cy-spread', `${spread}°F`);
+
+  // AI Tab Forecast
+  if(d.predicted_rul > 0){
+    $('ai-rul', `${Math.round(d.predicted_rul)} cycles`);
+    $('ai-gt', `${Math.round(d.true_rul)} cycles`);
+    $('ai-lo', String(d.rul_ci_lower)); $('ai-hi', String(d.rul_ci_upper));
+    if(cRUL){
+      try {
+        cRUL.data.labels.push(d.cycle);
+        cRUL.data.datasets[0].data.push(d.predicted_rul);
+        cRUL.data.datasets[1].data.push(d.rul_ci_upper);
+        cRUL.data.datasets[2].data.push(d.rul_ci_lower);
+        cRUL.data.datasets[3].data.push(d.true_rul);
+        if(cRUL.data.labels.length > 80){
+          cRUL.data.datasets.forEach(ds => ds.data.shift());
+          cRUL.data.labels.shift();
+        }
+        cRUL.update('none');
+      } catch(e){}
+    }
+  }
+  if(d.xai){
+    const badge = document.getElementById('xai-badge');
+    const narr = document.getElementById('xai-narr');
+    if(badge){
+      badge.textContent = d.xai.is_anomaly ? `ANOMALY: ${d.xai.top_driver}` : 'NOMINAL ENVELOPE';
+      badge.style.color = d.xai.is_anomaly ? 'var(--crit)' : 'var(--ok)';
+    }
+    if(narr) narr.textContent = d.xai.narrative || '';
+    const rows = document.getElementById('xai-att-rows');
+    if(rows && d.xai.attributions){
+      rows.innerHTML = d.xai.attributions.map(a => `
+        <div class="att-row">
+          <div><div class="att-name">${a.label}</div><div class="att-sub">${a.subsystem}</div></div>
+          <div class="att-track"><div class="att-fill" style="width:${a.attribution}%"></div></div>
+          <div class="att-pct">${a.attribution}%</div>
+        </div>`).join('');
+    }
+  }
+
+  // Thermodynamics Tab
+  if(d.physics){
+    const p = d.physics;
+    $('pq-bhp', `${p.brake_power_hp} BHP`); $('pq-bsfc', `${p.bsfc_g_kwh} g/kWh`);
+    $('pq-eta', `${p.thermal_efficiency}%`); $('pq-vol', `${p.volumetric_eff}%`);
+    $('pv-imep', `IMEP: ${p.imep_bar} bar`);
+    if(cPV && p.pv_diagram){
+      try {
+        cPV.data.datasets[0].data = p.pv_diagram.map(pt => ({ x: pt.volume_cc, y: pt.pressure_bar }));
+        cPV.update('none');
+      } catch(e){}
+    }
+    const eb = p.expected_baselines || {}, res = p.residuals || {};
+    $('r-m-egt', `${d.egt}°F`); $('r-e-egt', `${eb.egt || '--'}°F`); $('r-d-egt', fmtResidual(res.delta_egt));
+    $('r-m-cht', `${d.cht}°F`); $('r-e-cht', `${eb.cht || '--'}°F`); $('r-d-cht', fmtResidual(res.delta_cht));
+    $('r-m-oil', `${d.oil_pressure} PSI`); $('r-e-oil', `${eb.oil_p || '--'} PSI`); $('r-d-oil', fmtResidual(res.delta_oil_p));
+    $('r-m-fuel', `${d.fuel_flow} L/h`); $('r-e-fuel', `${eb.fuel_flow || '--'} L/h`); $('r-d-fuel', fmtResidual(res.delta_fuel));
+  }
+
+  // CAN Bus FDR
+  if(d.can_frames?.length){
+    d.can_frames.forEach(f => {
+      canLog.push({ ...f, cycle: d.cycle });
+      if(canLog.length > 200) canLog.shift();
+    });
+    renderCAN();
+  }
+
+  // ATA Maintenance
+  if(d.advisories?.length){
+    $('wo-cnt', `${d.advisories.length} WORK ORDERS`);
+    const wb = document.getElementById('wo-body');
+    if(wb) wb.innerHTML = d.advisories.map(a => {
+      const cls = a.priority === 'CRITICAL' ? 'crit' : a.priority === 'WARNING' ? 'warn' : 'ok';
+      return `<div class="wo-item ${cls}">
+        <div class="wo-head"><span class="wo-id">${a.task_id} [${a.ata_chapter}]</span><span class="wo-prio ${cls}">${a.priority} · ${a.urgency_hours}H</span></div>
+        <div class="wo-title">${a.title}</div>
+        <div class="wo-action">${a.action}</div>
+        <ul class="wo-steps">${(a.steps || []).map(s => `<li>${s}</li>`).join('')}</ul>
+      </div>`;
+    }).join('');
+  }
+}
+
+/* ─── 3. Micro Sparklines (High Visibility) ──────────────────────────────── */
+function pushSpark(k, v){ sparks[k].push(v); if(sparks[k].length > 40) sparks[k].shift(); }
+function drawSpark(id, data, color){
+  const cv = document.getElementById(id);
+  if(!cv || data.length < 2) return;
+  const w = cv.parentElement.offsetWidth * 0.55 || 75, h = 16;
+  cv.width = w; cv.height = h;
+  const ctx = cv.getContext('2d'); ctx.clearRect(0, 0, w, h);
   const mn = Math.min(...data), mx = Math.max(...data), rng = (mx - mn) || 1;
   ctx.beginPath();
-  ctx.strokeStyle = strokeColor;
-  ctx.lineWidth = 1.4;
+  ctx.strokeStyle = color || '#38bdf8';
+  ctx.lineWidth = 1.6;
   data.forEach((v, i) => {
     const x = (i / (data.length - 1)) * w;
     const y = h - ((v - mn) / rng) * (h - 4) - 2;
@@ -1096,594 +1126,231 @@ function renderSparkline(canvasId, data, strokeColor){
   ctx.stroke();
 }
 
-/* ── Chart.js Configurations (Safely Wrapped) ─────────────────────────────────── */
-let rulPrognosticsChart = null;
-let pvLoopChart = null;
+/* ─── 4. Sensor Definitions ─────────────────────────────────────────────── */
+const SENSOR_DEFS = [
+  { k:'rpm', val:'sv-rpm', tag:'st-rpm', cell:'sc-rpm', sp:'sp-rpm', v:d=>d.rpm, fmt:v=>v.toFixed(0), warn:2600, crit:2750, inv:false, c:'#38bdf8' },
+  { k:'cht', val:'sv-cht', tag:'st-cht', cell:'sc-cht', sp:'sp-cht', v:d=>d.cht, fmt:v=>v.toFixed(1), warn:410, crit:435, inv:false, c:'#10b981' },
+  { k:'egt', val:'sv-egt', tag:'st-egt', cell:'sc-egt', sp:'sp-egt', v:d=>d.egt, fmt:v=>v.toFixed(1), warn:1630, crit:1670, inv:false, c:'#f59e0b' },
+  { k:'oil-p', val:'sv-oil-p', tag:'st-oil-p', cell:'sc-oil-p', sp:'sp-oil-p', v:d=>d.oil_pressure, fmt:v=>v.toFixed(1), warn:42, crit:35, inv:true, c:'#38bdf8' },
+  { k:'oil-t', val:'sv-oil-t', tag:'st-oil-t', cell:'sc-oil-t', sp:'sp-oil-t', v:d=>d.oil_temp, fmt:v=>v.toFixed(1), warn:215, crit:240, inv:false, c:'#f59e0b' },
+  { k:'fuel', val:'sv-fuel', tag:'st-fuel', cell:'sc-fuel', sp:'sp-fuel', v:d=>d.fuel_flow, fmt:v=>v.toFixed(2), warn:14, crit:18, inv:false, c:'#10b981' },
+  { k:'rail-p', val:'sv-rail-p', tag:'st-rail-p', cell:'sc-rail-p', sp:'sp-rail-p', v:d=>d.fuel_rail_pressure_bar, fmt:v=>v.toFixed(2), warn:2.3, crit:1.9, inv:true, c:'#38bdf8' },
+  { k:'vib', val:'sv-vib', tag:'st-vib', cell:'sc-vib', sp:'sp-vib', v:d=>d.vibration, fmt:v=>v.toFixed(3), warn:1.8, crit:2.8, inv:false, c:'#ef4444' },
+  { k:'kurt', val:'sv-kurt', tag:'st-kurt', cell:'sc-kurt', sp:'sp-kurt', v:d=>d.vibration_kurtosis, fmt:v=>v.toFixed(2), warn:4.2, crit:5.5, inv:false, c:'#f59e0b' },
+  { k:'batt', val:'sv-batt', tag:'st-batt', cell:'sc-batt', sp:'sp-batt', v:d=>d.battery_v, fmt:v=>v.toFixed(2), warn:12.6, crit:12.0, inv:true, c:'#38bdf8' },
+  { k:'current', val:'sv-current', tag:'st-current', cell:'sc-current', sp:'sp-current', v:d=>d.bus_current_a, fmt:v=>v.toFixed(1), warn:35, crit:42, inv:false, c:'#10b981' },
+  { k:'inj', val:'sv-inj', tag:'st-inj', cell:'sc-inj', sp:'sp-inj', v:d=>d.inj_timing, fmt:v=>v.toFixed(1), warn:16, crit:12, inv:true, c:'#a855f7' },
+];
+
+/* ─── 5. UI Controls & Helpers ──────────────────────────────────────────── */
+function setMicroBar(k, val){
+  const f = document.getElementById(`mm-${k}`);
+  const n = document.getElementById(`mv-${k}`);
+  if(f){
+    f.style.width = `${val}%`;
+    f.style.background = val < 40 ? 'var(--crit)' : val < 65 ? 'var(--warn)' : 'var(--text-main)';
+  }
+  if(n) n.textContent = Math.round(val);
+}
+
+function setSbBar(k, val){
+  const f = document.getElementById(`sbs-${k}-f`);
+  const p = document.getElementById(`sbs-${k}-p`);
+  if(f){
+    f.style.width = `${val}%`;
+    f.style.background = val < 40 ? 'var(--crit)' : val < 65 ? 'var(--warn)' : 'var(--text-main)';
+  }
+  if(p) p.textContent = `${val.toFixed(1)}%`;
+}
+
+function toggleAudio(){
+  audioOn = !audioOn;
+  $('audio-btn', audioOn ? '🔊 AUDIO ON' : '🔇 AUDIO OFF');
+}
+
+function speak(msg){
+  if(!audioOn || !('speechSynthesis' in window)) return;
+  const now = Date.now();
+  if(msg === lastMsg && now - lastMsgAt < 9000) return;
+  lastMsg = msg; lastMsgAt = now;
+  try {
+    const u = new SpeechSynthesisUtterance(msg);
+    u.rate = 1.0; u.pitch = 0.95; u.volume = 0.8;
+    speechSynthesis.speak(u);
+  } catch(e){}
+}
+
+function renderCAN(){
+  const f = (document.getElementById('can-search')?.value || '').toUpperCase();
+  const tbody = document.getElementById('can-tbody');
+  if(!tbody) return;
+  const rows = f ? canLog.filter(r => r.name?.includes(f) || String(r.pgn).includes(f)) : canLog.slice(-20);
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td class="muted">${new Date().toLocaleTimeString()}</td>
+      <td class="can-id">${r.can_id}</td>
+      <td class="mono">${r.pgn}</td>
+      <td style="font-weight:700; color:var(--text-main);">${r.name}</td>
+      <td class="mono">${r.dlc}</td>
+      <td class="can-hex">${r.hex}</td>
+      <td class="muted">${r.decoded}</td>
+    </tr>`).join('');
+}
+function filterCAN(){ renderCAN(); }
+
+function exportCAN(){
+  if(!canLog.length){ alert('No CAN frames recorded yet.'); return; }
+  let csv = 'Timestamp,Cycle,CAN_ID,PGN,Message,DLC,Hex,Decoded\n';
+  canLog.forEach(r => { csv += `"${r.timestamp}","${r.cycle}","${r.can_id}","${r.pgn}","${r.name}","${r.dlc}","${r.hex}","${r.decoded}"\n`; });
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(new Blob([csv], { type: 'text/csv' })),
+    download: `SAE_J1939_CAN_Log_${Date.now()}.csv`
+  });
+  a.click();
+}
+
+function sendCmd(o){ if(ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
+function doInjectFault(){ sendCmd({ command: 'inject_fault', fault: document.getElementById('sel-fault').value }); }
+function doClearFaults(){ sendCmd({ command: 'clear_faults' }); }
+function doTogglePause(){
+  paused = !paused;
+  const b = document.getElementById('pause-btn');
+  if(b){
+    b.textContent = paused ? 'RESUME' : 'PAUSE';
+    b.className = paused ? 'dock-btn active' : 'dock-btn';
+  }
+  sendCmd({ command: 'set_paused', paused });
+}
+
+function switchTab(id, btn){
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  const p = document.getElementById(id);
+  if(p) p.classList.add('active');
+  initCharts();
+}
+
+function setDashboardTheme(name){
+  document.documentElement.setAttribute('data-theme', name);
+  localStorage.setItem('uav_stealth_theme', name);
+  const sel = document.getElementById('theme-selector');
+  if(sel) sel.value = name;
+  updateChartColors();
+}
+const initialTheme = localStorage.getItem('uav_stealth_theme') || 'stealth';
+setDashboardTheme(initialTheme);
+
+// MET Timer
+setInterval(() => {
+  if(!sessionStart) return;
+  const s = Math.floor((Date.now() - sessionStart) / 1000);
+  $('k-met', `${pad(Math.floor(s/3600))}:${pad(Math.floor((s%3600)/60))}:${pad(s%60)}`);
+}, 1000);
+function pad(n){ return String(n).padStart(2,'0'); }
+
+/* ─── 6. Safe Chart.js Initialization ───────────────────────────────────── */
+let cRUL = null, cPV = null;
 
 function initCharts(){
   if(typeof Chart === 'undefined') return;
+  const base = { responsive: true, maintainAspectRatio: false, animation: { duration: 0 }, plugins: { legend: { display: false } } };
+  const grid = { color: 'rgba(255,255,255,0.08)' };
+  const tick = { color: '#cbd5e1', font: { size: 9, family: 'JetBrains Mono', weight: 'bold' } };
+
   try {
-    const elRul = document.getElementById('chart-deep-rul');
-    if(elRul){
-      rulPrognosticsChart = new Chart(elRul, {
+    const e1 = document.getElementById('chart-rul');
+    if(e1 && !cRUL && e1.offsetParent !== null){
+      cRUL = new Chart(e1, {
         type: 'line',
         data: {
           labels: [],
           datasets: [
-            {label: 'AI Predicted RUL', data: [], borderColor: '#38bdf8', borderWidth: 1.8, tension: 0.3, pointRadius: 0, fill: false},
-            {label: 'Upper 95% Bound', data: [], borderColor: 'rgba(56, 189, 248, 0.25)', borderDash: [3, 3], borderWidth: 1, pointRadius: 0, fill: '+1', backgroundColor: 'rgba(56, 189, 248, 0.06)'},
-            {label: 'Lower 95% Bound', data: [], borderColor: 'rgba(56, 189, 248, 0.25)', borderDash: [3, 3], borderWidth: 1, pointRadius: 0, fill: false},
-            {label: 'Ground Truth Flight Data', data: [], borderColor: '#10b981', borderDash: [4, 4], borderWidth: 1.2, pointRadius: 0, fill: false}
+            { label: 'Pred RUL', data: [], borderColor: '#38bdf8', borderWidth: 2.0, tension: 0.3, pointRadius: 0, fill: false },
+            { label: '95% Hi', data: [], borderColor: 'rgba(56,189,248,0.25)', borderDash: [3,3], borderWidth: 1.2, pointRadius: 0, fill: '+1', backgroundColor: 'rgba(56,189,248,0.05)' },
+            { label: '95% Lo', data: [], borderColor: 'rgba(56,189,248,0.25)', borderDash: [3,3], borderWidth: 1.2, pointRadius: 0, fill: false },
+            { label: 'True RUL', data: [], borderColor: '#10b981', borderDash: [4,4], borderWidth: 1.5, pointRadius: 0, fill: false }
           ]
         },
-        options: {
-          responsive: true, maintainAspectRatio: false, animation: { duration: 0 },
-          plugins: { legend: { display: false } },
-          scales: {
-            x: { display: false },
-            y: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#64748b', font: { size: 9, family: 'JetBrains Mono' } } }
-          }
-        }
+        options: { ...base, scales: { x: { display: false }, y: { grid, ticks: tick } } }
       });
     }
+  } catch(e){}
 
-    const elPv = document.getElementById('chart-pv-curve');
-    if(elPv){
-      pvLoopChart = new Chart(elPv, {
+  try {
+    const e2 = document.getElementById('chart-pv');
+    if(e2 && !cPV && e2.offsetParent !== null){
+      cPV = new Chart(e2, {
         type: 'line',
         data: {
-          datasets: [{
-            label: 'P-V Cycle',
-            data: [],
-            borderColor: '#f59e0b',
-            backgroundColor: 'rgba(245, 158, 11, 0.07)',
-            borderWidth: 1.8,
-            pointRadius: 0,
-            tension: 0.35,
-            fill: true
-          }]
+          datasets: [{ label: 'P-V', data: [], borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.08)', borderWidth: 2.0, pointRadius: 0, tension: 0.35, fill: true }]
         },
         options: {
-          responsive: true, maintainAspectRatio: false, animation: { duration: 0 },
-          plugins: { legend: { display: false } },
+          ...base,
           scales: {
-            x: { type: 'linear', title: { display: true, text: 'Volume (cc)', color: '#64748b', font: { size: 9, family: 'JetBrains Mono' } }, grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#64748b', font: { size: 9 } } },
-            y: { title: { display: true, text: 'Pressure (bar)', color: '#64748b', font: { size: 9, family: 'JetBrains Mono' } }, grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#64748b', font: { size: 9 } } }
+            x: { type: 'linear', title: { display: true, text: 'Volume (cc)', color: '#cbd5e1', font: { size: 9.5, weight: 'bold' } }, grid, ticks: tick },
+            y: { title: { display: true, text: 'Pressure (bar)', color: '#cbd5e1', font: { size: 9.5, weight: 'bold' } }, grid, ticks: tick }
           }
         }
       });
     }
-  } catch(err){
-    console.warn("Chart initialization notice:", err);
-  }
-}
-window.addEventListener('DOMContentLoaded', initCharts);
-initCharts();
-
-/* ── Overlay Dismiss Handler ────────────────────────────────────────────────── */
-function dismissOverlay(){
-  const ov = document.getElementById('overlay');
-  if(ov) ov.classList.add('hidden');
-}
-setTimeout(dismissOverlay, 1500);
-
-/* ── Tab Switching ──────────────────────────────────────────────────────────── */
-function switchConsoleTab(tabId, btn){
-  document.querySelectorAll('.nav-tab-btn').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll('.tab-content').forEach(tc => tc.classList.remove('active'));
-  btn.classList.add('active');
-  const target = document.getElementById(tabId);
-  if(target) target.classList.add('active');
-}
-
-/* ── Interactive Component Inspection ───────────────────────────────────────── */
-const COMPONENT_DETAILS = {
-  cyl1: { title: "COMPONENT: CYLINDER #1 (FRONT STARBOARD)", stat: "NOMINAL AIRWORTHY", color: "var(--green)", eff: "98.4%", deg: "1.2%" },
-  cyl2: { title: "COMPONENT: CYLINDER #2 (FRONT PORT)", stat: "NOMINAL AIRWORTHY", color: "var(--green)", eff: "98.1%", deg: "1.4%" },
-  cyl3: { title: "COMPONENT: CYLINDER #3 (REAR STARBOARD)", stat: "NOMINAL AIRWORTHY", color: "var(--green)", eff: "97.8%", deg: "1.8%" },
-  cyl4: { title: "COMPONENT: CYLINDER #4 (REAR PORT)", stat: "NOMINAL AIRWORTHY", color: "var(--green)", eff: "97.5%", deg: "2.1%" },
-  oil_gallery: { title: "COMPONENT: MAIN CRANKCASE OIL GALLERY", stat: "HYDRODYNAMIC LUBRICATION ACTIVE", color: "var(--purple)", eff: "99.1%", deg: "0.8%" },
-  prop_gearbox: { title: "COMPONENT: PROPELLER REDUCTION GEARBOX (2.43:1)", stat: "DOG CLUTCH ENGAGED · LOW VIBRATION", color: "var(--green)", eff: "98.9%", deg: "1.1%" }
-};
-
-function inspectComponent(compKey){
-  const info = COMPONENT_DETAILS[compKey];
-  if(!info) return;
-  document.getElementById('drawer-component-title').textContent = info.title;
-  const statEl = document.getElementById('drawer-comp-stat');
-  statEl.textContent = info.stat;
-  statEl.style.color = info.color;
-  document.getElementById('drawer-comp-eff').textContent = info.eff;
-  document.getElementById('drawer-comp-deg').textContent = info.deg;
-}
-
-/* ── Tactical Voice Synthesizer ─────────────────────────────────────────────── */
-function triggerTacticalVoiceAlarm(message){
-  if(!audioAlertsEnabled || !('speechSynthesis' in window)) return;
-  const now = Date.now();
-  if(message === lastSpokenAlarm && (now - lastAlarmTime) < 8000) return;
-  lastSpokenAlarm = message;
-  lastAlarmTime = now;
-  try {
-    const utterance = new SpeechSynthesisUtterance(message);
-    utterance.rate = 1.05;
-    utterance.pitch = 0.95;
-    utterance.volume = 0.85;
-    window.speechSynthesis.speak(utterance);
   } catch(e){}
 }
 
-function toggleTacticalAudio(){
-  audioAlertsEnabled = !audioAlertsEnabled;
-  const btn = document.getElementById('audio-toggle-btn');
-  if(audioAlertsEnabled){
-    btn.classList.add('active-toggle');
-    btn.innerHTML = `<span id="audio-icon">🔊</span> AUDIO: ON`;
-  } else {
-    btn.classList.remove('active-toggle');
-    btn.innerHTML = `<span id="audio-icon">🔇</span> AUDIO: OFF`;
+function updateChartColors(){
+  const theme = document.documentElement.getAttribute('data-theme') || 'stealth';
+  let lineCol = '#38bdf8';
+  if(theme === 'ice') lineCol = '#38bdf8';
+  if(theme === 'emerald') lineCol = '#10b981';
+  if(theme === 'amber') lineCol = '#f59e0b';
+  if(theme === 'stealth') lineCol = '#ffffff';
+
+  if(cRUL && cRUL.data.datasets[0]){
+    cRUL.data.datasets[0].borderColor = lineCol;
+    cRUL.update('none');
   }
 }
 
-/* ── Health Gauge Renderer ──────────────────────────────────────────────────── */
-const MAX_GAUGE_ARC = 195;
-function updateHealthGauge(healthIndex, condition){
-  const arcEl = document.getElementById('svg-hi-arc');
-  const valEl = document.getElementById('svg-hi-val');
-  const badgeEl = document.getElementById('hi-badge-status');
-  if(!arcEl || !valEl || !badgeEl) return;
+window.addEventListener('DOMContentLoaded', () => {
+  setTimeout(initCharts, 200);
+});
 
-  const fill = (Math.max(0, Math.min(100, healthIndex)) / 100) * MAX_GAUGE_ARC;
-  const gap = MAX_GAUGE_ARC - fill;
-
-  const color = healthIndex >= 70 ? '#10b981' : healthIndex >= 40 ? '#f59e0b' : '#ef4444';
-
-  arcEl.setAttribute('stroke-dasharray', `${fill} ${gap}`);
-  arcEl.setAttribute('stroke', color);
-  valEl.textContent = Math.round(healthIndex);
-  valEl.style.fill = color;
-  badgeEl.textContent = condition;
-  badgeEl.style.color = color;
-}
-
-/* ── WebSocket Telemetry Bridge & Ingestion ─────────────────────────────────── */
-function connectTelemetryStream(){
-  const wsUrl = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-    ? `ws://${window.location.hostname}:8765`
-    : 'ws://127.0.0.1:8765';
-
-  try {
-    ws = new WebSocket(wsUrl);
-  } catch(e) {
-    ws = new WebSocket('ws://localhost:8765');
-  }
-
-  ws.onopen = () => {
-    dismissOverlay();
-    document.getElementById('link-pip').className = 'status-pip live';
-    document.getElementById('link-label').textContent = '10 Hz REALTIME';
-    if(!sessionStart) sessionStart = Date.now();
-  };
-
-  ws.onmessage = (event) => {
-    dismissOverlay();
-    let d;
-    try { d = JSON.parse(event.data); } catch { return; }
-    if(!d.cycle) return;
-
-    sessionTelemetryLog.push(d);
-    if(sessionTelemetryLog.length > 500) sessionTelemetryLog.shift();
-
-    // 1. Header Bar Updates
-    document.getElementById('h-cycle').textContent = String(d.cycle).padStart(4, '0');
-    
-    // Dynamic Flight Phase estimation
-    const phaseEl = document.getElementById('h-phase');
-    if(d.cycle < 10){ phaseEl.textContent = 'TAKEOFF POWER'; phaseEl.style.color = 'var(--cyan)'; }
-    else if(d.cycle < 35){ phaseEl.textContent = 'CLIMB PROFILE'; phaseEl.style.color = 'var(--cyan)'; }
-    else if(d.predicted_rul > 0 && d.predicted_rul < 20){ phaseEl.textContent = 'EMERGENCY RECOVERY'; phaseEl.style.color = 'var(--red)'; }
-    else { phaseEl.textContent = 'ISR LOITER'; phaseEl.style.color = 'var(--green)'; }
-
-    // Zulu & MET
-    const nowUtc = new Date();
-    document.getElementById('h-zulu').textContent = nowUtc.toISOString().substring(11, 19) + 'Z';
-    if(sessionStart){
-      const s = Math.floor((Date.now() - sessionStart) / 1000);
-      const hh = String(Math.floor(s / 3600)).padStart(2, '0');
-      const mm = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
-      const ss = String(s % 60).padStart(2, '0');
-      document.getElementById('h-met').textContent = `${hh}:${mm}:${ss}`;
-    }
-
-    // Master Caution Annunciator
-    const cautionBox = document.getElementById('master-caution-box');
-    const cautionText = document.getElementById('caution-text');
-    if(d.alert === 'CRITICAL'){
-      cautionBox.className = 'caution-indicator active-critical';
-      const faultName = d.fault_events?.[0]?.name?.replace(/_/g, ' ') || 'ENGINE FAULT';
-      cautionText.textContent = `WARNING: ${faultName}`;
-      triggerTacticalVoiceAlarm(`Warning: Master alarm, ${faultName}`);
-    } else if(d.alert === 'WARNING'){
-      cautionBox.className = 'caution-indicator active-warning';
-      const faultName = d.fault_events?.[0]?.name?.replace(/_/g, ' ') || 'PARAMETER ANOMALY';
-      cautionText.textContent = `CAUTION: ${faultName}`;
-      triggerTacticalVoiceAlarm(`Caution: ${faultName}`);
-    } else {
-      cautionBox.className = 'caution-indicator';
-      cautionText.textContent = 'CAUTION: NONE';
-    }
-
-    // 2. Synoptic 4-Cylinder Thermal Values & Spread
-    const cCht = d.cht_cyl || [d.cht, d.cht, d.cht, d.cht];
-    const cEgt = d.egt_cyl || [d.egt, d.egt, d.egt, d.egt];
-    for(let i=0; i<4; i++){
-      const chtEl = document.getElementById(`c${i+1}-cht`);
-      const egtEl = document.getElementById(`c${i+1}-egt`);
-      if(chtEl) chtEl.textContent = `${cCht[i]}°F`;
-      if(egtEl) egtEl.textContent = `${cEgt[i]}°F`;
-      const flame = document.getElementById(`flame-node-${i+1}`);
-      if(flame){
-        flame.setAttribute('fill', cCht[i] > 420 ? '#ef4444' : cEgt[i] < 1200 ? '#f59e0b' : '#10b981');
-      }
-    }
-    const chtSpread = (Math.max(...cCht) - Math.min(...cCht)).toFixed(1);
-    const deltaEl = document.getElementById('tbal-delta');
-    if(deltaEl){
-      deltaEl.textContent = `Δ ${chtSpread}°F ${chtSpread > 35 ? '(UNBALANCED)' : '(BALANCED)'}`;
-      deltaEl.style.color = chtSpread > 35 ? 'var(--amber)' : 'var(--cyan)';
-    }
-
-    // 3. Health Index
-    if(d.health){
-      updateHealthGauge(d.health.health_index, d.health.condition);
-      const sub = d.health.sub_scores || {};
-      const elTh = document.getElementById('sub-th-fill');
-      if(elTh) elTh.style.width = `${sub.thermal || 80}%`;
-      const elThN = document.getElementById('sub-th-num');
-      if(elThN) elThN.textContent = `${Math.round(sub.thermal || 80)}%`;
-
-      const elLub = document.getElementById('sub-lub-fill');
-      if(elLub) elLub.style.width = `${sub.lubrication || 85}%`;
-      const elLubN = document.getElementById('sub-lub-num');
-      if(elLubN) elLubN.textContent = `${Math.round(sub.lubrication || 85)}%`;
-
-      const elMech = document.getElementById('sub-mech-fill');
-      if(elMech) elMech.style.width = `${sub.mechanical || 90}%`;
-      const elMechN = document.getElementById('sub-mech-num');
-      if(elMechN) elMechN.textContent = `${Math.round(sub.mechanical || 90)}%`;
-
-      const elElec = document.getElementById('sub-elec-fill');
-      if(elElec) elElec.style.width = `${sub.electrical || 95}%`;
-      const elElecN = document.getElementById('sub-elec-num');
-      if(elElecN) elElecN.textContent = `${Math.round(sub.electrical || 95)}%`;
-    }
-
-    // 4. RUL Hero & Chart Updates
-    const rHero = document.getElementById('overview-rul-num');
-    if(d.predicted_rul > 0){
-      if(rHero){
-        rHero.textContent = `${Math.round(d.predicted_rul)} CYCLES`;
-        rHero.className = d.predicted_rul < 20 ? 'rul-hero-num crit' : d.predicted_rul < 45 ? 'rul-hero-num warn' : 'rul-hero-num';
-      }
-      const rCiEl = document.getElementById('overview-rul-ci');
-      if(rCiEl) rCiEl.textContent = `95% CI: [${d.rul_ci_lower}, ${d.rul_ci_upper}]`;
-
-      // Chart
-      if(rulPrognosticsChart){
-        rulPrognosticsChart.data.labels.push(d.cycle);
-        rulPrognosticsChart.data.datasets[0].data.push(d.predicted_rul);
-        rulPrognosticsChart.data.datasets[1].data.push(d.rul_ci_upper);
-        rulPrognosticsChart.data.datasets[2].data.push(d.rul_ci_lower);
-        rulPrognosticsChart.data.datasets[3].data.push(d.true_rul);
-        if(rulPrognosticsChart.data.labels.length > 50){
-          rulPrognosticsChart.data.labels.shift();
-          rulPrognosticsChart.data.datasets.forEach(ds => ds.data.shift());
-        }
-        rulPrognosticsChart.update('none');
-      }
-    } else {
-      if(rHero){
-        rHero.textContent = `BUFFERING ${d.buffer_pct || 0}%`;
-        rHero.className = 'rul-hero-num';
-      }
-    }
-
-    // 5. 14 Sensors Update Matrix
-    const sensorConfig = [
-      { id: 'rpm', val: d.rpm, fmt: v => v.toFixed(0), warn: 2600, crit: 2750, color: '#38bdf8' },
-      { id: 'cht', val: d.cht, fmt: v => v.toFixed(1), warn: 410, crit: 435, color: '#10b981' },
-      { id: 'egt', val: d.egt, fmt: v => v.toFixed(1), warn: 1630, crit: 1670, color: '#f59e0b' },
-      { id: 'oil-p', val: d.oil_pressure, fmt: v => v.toFixed(1), warn: 42, crit: 35, color: '#a855f7', invert: true },
-      { id: 'oil-t', val: d.oil_temp, fmt: v => v.toFixed(1), warn: 215, crit: 240, color: '#f59e0b' },
-      { id: 'fuel', val: d.fuel_flow, fmt: v => v.toFixed(2), warn: 14, crit: 18, color: '#10b981' },
-      { id: 'rail-p', val: d.fuel_rail_pressure_bar, fmt: v => v.toFixed(2), warn: 2.3, crit: 1.9, color: '#38bdf8', invert: true },
-      { id: 'vib', val: d.vibration, fmt: v => v.toFixed(3), warn: 1.8, crit: 2.8, color: '#ef4444' },
-      { id: 'kurt', val: d.vibration_kurtosis, fmt: v => v.toFixed(2), warn: 4.2, crit: 5.5, color: '#f59e0b' },
-      { id: 'batt', val: d.battery_v, fmt: v => v.toFixed(2), warn: 12.6, crit: 12.0, color: '#38bdf8', invert: true },
-      { id: 'current', val: d.bus_current_a, fmt: v => v.toFixed(1), warn: 35, crit: 42, color: '#10b981' },
-      { id: 'inj', val: d.inj_timing, fmt: v => v.toFixed(1), warn: 16, crit: 12, color: '#a855f7', invert: true },
-    ];
-
-    sensorConfig.forEach(sc => {
-      const v = sc.val;
-      if(v !== undefined){
-        const valEl = document.getElementById(`sval-${sc.id}`);
-        const tagEl = document.getElementById(`stag-${sc.id}`);
-        const cardEl = document.getElementById(`scard-${sc.id}`);
-        if(valEl) valEl.textContent = sc.fmt(v);
-
-        let isCrit = sc.invert ? v < sc.crit : v > sc.crit;
-        let isWarn = sc.invert ? v < sc.warn : v > sc.warn;
-
-        if(tagEl && cardEl){
-          if(isCrit){
-            tagEl.className = 's-status-tag crit'; tagEl.textContent = 'CRIT';
-            cardEl.className = 'sensor-node-card critical-state';
-          } else if(isWarn){
-            tagEl.className = 's-status-tag warn'; tagEl.textContent = 'WARN';
-            cardEl.className = 'sensor-node-card caution-state';
-          } else {
-            tagEl.className = 's-status-tag ok'; tagEl.textContent = 'NORM';
-            cardEl.className = 'sensor-node-card';
-          }
-        }
-        appendSparkData(sc.id, v);
-        renderSparkline(`spark-${sc.id}`, sparkHistory[sc.id], sc.color);
-      }
-    });
-
-    // 6. Explainable AI (XAI) Attribution
-    if(d.xai){
-      const narrEl = document.getElementById('xai-narrative-text');
-      if(narrEl) narrEl.textContent = d.xai.narrative;
-      const vBadge = document.getElementById('xai-verdict-badge');
-      if(vBadge){
-        vBadge.textContent = d.xai.is_anomaly ? `ANOMALY: ${d.xai.top_driver}` : 'NOMINAL ENVELOPE';
-        vBadge.style.color = d.xai.is_anomaly ? 'var(--red)' : 'var(--green)';
-      }
-
-      const attList = document.getElementById('xai-att-container');
-      if(attList && d.xai.attributions){
-        attList.innerHTML = d.xai.attributions.map(a => `
-          <div class="xai-att-row">
-            <span style="color: var(--text-secondary); text-overflow: ellipsis; overflow: hidden;" title="${a.subsystem}">${a.label}</span>
-            <div class="xai-track"><div class="xai-fill" style="width: ${a.attribution}%"></div></div>
-            <span style="text-align: right; color: var(--cyan);">${a.attribution}%</span>
-          </div>
-        `).join('');
-      }
-    }
-
-    // 7. Thermodynamic P-V Curve & Residuals
-    if(d.physics){
-      const p = d.physics;
-      const imeEl = document.getElementById('pv-indicated-power');
-      if(imeEl) imeEl.textContent = `IMEP: ${p.imep_bar} bar`;
-      const hpEl = document.getElementById('t-hp-val');
-      if(hpEl) hpEl.textContent = `${p.brake_power_hp} BHP (${p.brake_power_kw} kW)`;
-      const bsfcEl = document.getElementById('t-bsfc-val');
-      if(bsfcEl) bsfcEl.textContent = `${p.bsfc_g_kwh} g/kWh`;
-      const thEl = document.getElementById('t-th-eff-val');
-      if(thEl) thEl.textContent = `${p.thermal_efficiency}%`;
-      const volEl = document.getElementById('t-vol-eff-val');
-      if(volEl) volEl.textContent = `${p.volumetric_eff}%`;
-
-      if(pvLoopChart && p.pv_diagram){
-        pvLoopChart.data.datasets[0].data = p.pv_diagram.map(pt => ({ x: pt.volume_cc, y: pt.pressure_bar }));
-        pvLoopChart.update('none');
-      }
-
-      // Residuals
-      const eb = p.expected_baselines || {};
-      const res = p.residuals || {};
-      const setTxt = (id, txt) => { const el = document.getElementById(id); if(el) el.textContent = txt; };
-      setTxt('res-m-egt', `${d.egt}°F`);
-      setTxt('res-e-egt', `${eb.egt || '--'}°F`);
-      setTxt('res-d-egt', `${res.delta_egt >= 0 ? '+' : ''}${res.delta_egt || 0}°F`);
-
-      setTxt('res-m-cht', `${d.cht}°F`);
-      setTxt('res-e-cht', `${eb.cht || '--'}°F`);
-      setTxt('res-d-cht', `${res.delta_cht >= 0 ? '+' : ''}${res.delta_cht || 0}°F`);
-
-      setTxt('res-m-oil', `${d.oil_pressure} PSI`);
-      setTxt('res-e-oil', `${eb.oil_p || '--'} PSI`);
-      setTxt('res-d-oil', `${res.delta_oil_p >= 0 ? '+' : ''}${res.delta_oil_p || 0} PSI`);
-
-      setTxt('res-m-fuel', `${d.fuel_flow} L/h`);
-      setTxt('res-e-fuel', `${eb.fuel_flow || '--'} L/h`);
-      setTxt('res-d-fuel', `${res.delta_fuel >= 0 ? '+' : ''}${res.delta_fuel || 0} L/h`);
-    }
-
-    // 8. CAN Bus FDR Table
-    if(d.can_frames && d.can_frames.length > 0){
-      d.can_frames.forEach(f => {
-        rawCANLogs.push({ ...f, cycle: d.cycle });
-        if(rawCANLogs.length > 200) rawCANLogs.shift();
-      });
-      renderCANTable(rawCANLogs);
-    }
-
-    // 9. ATA Maintenance Work Orders
-    if(d.advisories && d.advisories.length > 0){
-      const acEl = document.getElementById('ata-active-count');
-      if(acEl) acEl.textContent = `${d.advisories.length} WORK ORDERS`;
-      const atContainer = document.getElementById('ata-work-orders-container');
-      if(atContainer){
-        atContainer.innerHTML = d.advisories.map(a => `
-          <div class="ata-card-item ${a.priority}">
-            <div class="ata-card-hdr">
-              <span class="ata-task-code">${a.task_id} [${a.ata_chapter}]</span>
-              <span class="ata-priority-badge ${a.priority}">${a.priority} · URGENCY: ${a.urgency_hours}H</span>
-            </div>
-            <div class="ata-title-text">${a.title}</div>
-            <div class="ata-desc-text">${a.action}</div>
-            <ul class="ata-steps-list">${(a.steps || []).map(s => `<li>${s}</li>`).join('')}</ul>
-          </div>
-        `).join('');
-      }
-    }
-  };
-
-  ws.onclose = () => {
-    const pip = document.getElementById('link-pip');
-    if(pip) pip.className = 'status-pip error';
-    const lbl = document.getElementById('link-label');
-    if(lbl) lbl.textContent = 'OFFLINE (RECONNECTING...)';
-    clearTimeout(reconnectTimer);
-    reconnectTimer = setTimeout(connectTelemetryStream, 2000);
-  };
-}
-connectTelemetryStream();
-
-/* ── CAN Traffic Filter & Renderer ──────────────────────────────────────────── */
-function renderCANTable(frames){
-  const filter = (document.getElementById('can-filter').value || '').toUpperCase();
-  const tbody = document.getElementById('can-traffic-tbody');
-  const filtered = filter ? frames.filter(f => f.name.includes(filter) || String(f.pgn).includes(filter)) : frames.slice(-15);
-  tbody.innerHTML = filtered.map(f => `
-    <tr>
-      <td>${new Date().toLocaleTimeString()}</td>
-      <td class="can-id-col">${f.can_id}</td>
-      <td>${f.pgn}</td>
-      <td style="color: var(--text-primary); font-weight: 600;">${f.name}</td>
-      <td>${f.dlc}</td>
-      <td class="can-hex-col">${f.hex}</td>
-      <td style="color: var(--text-secondary);">${f.decoded}</td>
-    </tr>
-  `).join('');
-}
-
-function filterCANTraffic(){
-  renderCANTable(rawCANLogs);
-}
-
-function exportCANLogsCSV(){
-  if(rawCANLogs.length === 0){ alert("No CAN frames recorded yet."); return; }
-  let csv = "Timestamp,Cycle,CAN_ID,PGN,Message_Name,DLC,Hex_Payload,Decoded_Data\n";
-  rawCANLogs.forEach(f => {
-    csv += `"${f.timestamp}","${f.cycle}","${f.can_id}","${f.pgn}","${f.name}","${f.dlc}","${f.hex}","${f.decoded.replace(/"/g, '""')}"\n`;
-  });
-  const blob = new Blob([csv], { type: 'text/csv' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `CAN_Telemetry_Log_${Date.now()}.csv`;
-  a.click();
-}
-
-/* ── Interactive Command Telecommand Handlers ───────────────────────────────── */
-function sendCommand(cmd){
-  if(ws && ws.readyState === 1){
-    ws.send(JSON.stringify(cmd));
-  }
-}
-
-function setFlightProfile(btn){
-  document.querySelectorAll('.dock-pill-btn').forEach(b => b.classList.remove('active-profile'));
-  btn.classList.add('active-profile');
-  sendCommand({ command: 'set_profile', profile: btn.dataset.profile });
-}
-
-function setPlaybackSpeed(spd, btn){
-  document.querySelectorAll('.speed-control-btn').forEach(b => b.classList.remove('active-spd'));
-  btn.classList.add('active-spd');
-  currentSpeed = spd;
-  sendCommand({ command: 'set_speed', speed: spd });
-}
-
-function togglePlaybackPause(){
-  isPaused = !isPaused;
-  const btn = document.getElementById('dock-pause-btn');
-  btn.textContent = isPaused ? 'RESUME' : 'PAUSE';
-  btn.className = isPaused ? 'pause-btn-toggle paused-state' : 'pause-btn-toggle';
-  sendCommand({ command: 'set_paused', paused: isPaused });
-}
-
-function toggleFaultInjection(btn){
-  const f = btn.dataset.fault;
-  if(activeFaultSet.has(f)){
-    activeFaultSet.delete(f);
-    btn.classList.remove('active-injected');
-  } else {
-    activeFaultSet.add(f);
-    btn.classList.add('active-injected');
-    sendCommand({ command: 'inject_fault', fault: f });
-  }
-}
-
-function clearAllInjectedFaults(){
-  activeFaultSet.clear();
-  document.querySelectorAll('.fault-btn-node').forEach(b => b.classList.remove('active-injected'));
-  sendCommand({ command: 'clear_faults' });
-}
-
-/* ── Official Airworthiness Dossier PDF/HTML Exporter ───────────────────────── */
-function generateAirworthinessDossier(){
+function exportDossier(){
+  const last = telLog.slice(-1)[0] || {};
   const now = new Date().toISOString();
-  const last = sessionTelemetryLog.slice(-1)[0] || {};
-  const html = `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<title>UAV-07 Propulsion Digital Twin — Airworthiness Dossier</title>
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>UAV Propulsion Dossier</title>
 <style>
-body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #fff; color: #0f172a; padding: 40px; font-size: 13px; line-height: 1.5; }
-.hdr-top { border-bottom: 2px solid #0284c7; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
-h1 { font-size: 20px; color: #0369a1; text-transform: uppercase; margin: 0; }
-.sub-meta { color: #64748b; font-size: 11px; margin-top: 4px; }
-h2 { font-size: 14px; color: #0f172a; text-transform: uppercase; margin: 24px 0 10px 0; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px; }
-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
-th, td { border: 1px solid #e2e8f0; padding: 7px 10px; text-align: left; }
-th { background: #f8fafc; font-weight: 600; color: #475569; font-size: 11px; }
-.crit-text { color: #dc2626; font-weight: bold; }
-.ok-text { color: #16a34a; font-weight: bold; }
-.sign-box { margin-top: 40px; display: flex; justify-content: space-between; border-top: 1px solid #94a3b8; padding-top: 10px; }
-</style>
-</head>
-<body>
-<div class="hdr-top">
-  <div>
-    <h1>MALE UAV PROPULSION AIRWORTHINESS DOSSIER</h1>
-    <div class="sub-meta">MIL-STD-1553 & DO-178C LEVEL B FLIGHT DATA CERTIFICATION</div>
-  </div>
-  <div style="text-align: right; font-family: monospace; font-size: 11px;">
-    DATE: ${now}<br>TAIL: UAV-07 | S/N: 914-8841
-  </div>
-</div>
-
+body{font-family:'Helvetica Neue',Arial,sans-serif;background:#ffffff;color:#09090b;padding:40px;font-size:13px;line-height:1.6}
+.hdr{border-bottom:2px solid #000000;padding-bottom:12px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:flex-end}
+h1{font-size:18px;color:#000000;font-weight:800;letter-spacing:0.05em}
+h2{font-size:12px;text-transform:uppercase;margin:24px 0 10px;border-bottom:1px solid #e4e4e7;padding-bottom:4px;font-weight:700}
+table{width:100%;border-collapse:collapse}
+th,td{border:1px solid #e4e4e7;padding:8px 12px;text-align:left}
+th{background:#f4f4f5;font-weight:700;color:#52525b;font-size:11px}
+.ok{color:#10b981;font-weight:700}.cr{color:#ef4444;font-weight:700}
+.sign{margin-top:40px;display:flex;justify-content:space-between;border-top:1px solid #71717a;padding-top:12px;font-size:12px}
+</style></head><body>
+<div class="hdr"><div><h1>MALE UAV PROPULSION AIRWORTHINESS DOSSIER</h1>
+<div style="font-size:11px;color:#71717a">MIL-STD-1553 · DO-178C LEVEL B CERTIFICATION</div></div>
+<div style="font-family:monospace;font-size:11px;text-align:right">DATE: ${now}<br>TAIL: UAV-07 | S/N: 914-8841</div></div>
 <h2>1. Executive Propulsion State & Prognostics Summary</h2>
-<table>
-  <tr><th>PARAMETER</th><th>VALUE</th><th>AIRWORTHINESS EVALUATION</th></tr>
-  <tr><td>Total Flight Cycles Recorded</td><td>${last.cycle || '--'}</td><td>COMPLETED</td></tr>
-  <tr><td>Engine Health Index (EHI)</td><td>${last.health?.health_index || '--'} / 100</td><td class="${last.health?.health_index < 50 ? 'crit-text' : 'ok-text'}">${last.health?.condition || 'NOMINAL'}</td></tr>
-  <tr><td>AI Predicted RUL</td><td>${last.predicted_rul || '--'} Flight Cycles</td><td>95% CI: [${last.rul_ci_lower || '--'}, ${last.rul_ci_upper || '--'}]</td></tr>
-  <tr><td>Brake Horsepower Rating</td><td>${last.physics?.brake_power_hp || '--'} BHP</td><td>CONTINUOUS OPERATING ENVELOPE</td></tr>
-  <tr><td>Brake Specific Fuel Consumption</td><td>${last.physics?.bsfc_g_kwh || '--'} g/kWh</td><td>OPTIMAL CRUISE RANGE</td></tr>
+<table><tr><th>Parameter</th><th>Value</th><th>Airworthiness Evaluation</th></tr>
+<tr><td>Total Flight Cycles Recorded</td><td>${last.cycle||'--'}</td><td>COMPLETED</td></tr>
+<tr><td>Engine Health Index (EHI)</td><td>${last.health?.health_index||'--'} / 100</td><td class="${(last.health?.health_index||100)<50?'cr':'ok'}">${last.health?.condition||'--'}</td></tr>
+<tr><td>AI Predicted RUL</td><td>${last.predicted_rul||'--'} cycles</td><td>95% CI [${last.rul_ci_lower||'--'}, ${last.rul_ci_upper||'--'}]</td></tr>
+<tr><td>Brake Horsepower</td><td>${last.physics?.brake_power_hp||'--'} BHP</td><td>CONTINUOUS OPERATING ENVELOPE</td></tr>
+<tr><td>Specific Fuel Consumption</td><td>${last.physics?.bsfc_g_kwh||'--'} g/kWh</td><td>OPTIMAL CRUISE RANGE</td></tr>
 </table>
-
 <h2>2. Active ATA-100 Maintenance Work Orders</h2>
-<table>
-  <tr><th>TASK ID</th><th>ATA CHAPTER</th><th>PRIORITY</th><th>REQUIRED MAINTENANCE ACTION</th></tr>
-  ${(last.advisories || []).map(a => `
-    <tr>
-      <td><strong>${a.task_id}</strong></td>
-      <td>${a.ata_chapter}</td>
-      <td class="${a.priority === 'CRITICAL' ? 'crit-text' : ''}">${a.priority}</td>
-      <td>${a.action}</td>
-    </tr>
-  `).join('')}
+<table><tr><th>Task ID</th><th>ATA Chapter</th><th>Priority</th><th>Required Maintenance Action</th></tr>
+${(last.advisories||[]).map(a=>`<tr><td><strong>${a.task_id}</strong></td><td>${a.ata_chapter}</td><td class="${a.priority==='CRITICAL'?'cr':''}">${a.priority}</td><td>${a.action}</td></tr>`).join('')}
 </table>
-
-<div class="sign-box">
-  <div>CHIEF PROPULSION ENGINEER SIGN-OFF: _______________________</div>
-  <div>QUALITY ASSURANCE CERTIFIED: [✓] DO-178C VERIFIED</div>
-</div>
-</body>
-</html>`;
-
-  const blob = new Blob([html], { type: 'text/html' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `UAV07_Airworthiness_Dossier_${Date.now()}.html`;
+<div class="sign"><div>CHIEF PROPULSION ENGINEER: _______________________</div><div>QA VERIFIED: [✓] DO-178C LVL B · ${now}</div></div>
+</body></html>`;
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(new Blob([html], { type: 'text/html' })),
+    download: `UAV07_Airworthiness_Dossier_${Date.now()}.html`
+  });
   a.click();
 }
 </script>

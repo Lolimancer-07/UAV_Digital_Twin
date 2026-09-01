@@ -37,7 +37,7 @@ from tensorflow.keras.models import load_model
 # ── Project Core Intelligence Modules ─────────────────────────────────────────
 from physics_engine      import physics_model
 from anomaly_detector    import AnomalyDetector
-from health_index        import compute_health_index
+from health_index        import compute_health_index, reset_health_state
 from xai_engine          import XAIDiagnosticEngine
 from maintenance_advisor import AutonomousMaintenanceAdvisor
 
@@ -77,6 +77,7 @@ WINDOW_SIZE    = 50
 engine_buffer  = deque(maxlen=WINDOW_SIZE)
 latest_payload = json.dumps({"status": "INITIALIZING", "message": "Digital Twin Core starting up..."})
 active_faults_set = set()
+last_engine_id = None
 
 # ── MQTT Telemetry Consumer ───────────────────────────────────────────────────
 def on_connect(client, userdata, connect_flags, reason_code, properties):
@@ -88,12 +89,19 @@ def on_connect(client, userdata, connect_flags, reason_code, properties):
 
 
 def on_message(client, userdata, msg):
-    global latest_payload
+    global latest_payload, last_engine_id
 
     try:
         data = json.loads(msg.payload.decode('utf-8'))
     except Exception:
         return
+
+    # Handle engine ID transition cleanly
+    cur_engine = data.get("engine_id", 1)
+    if last_engine_id is not None and cur_engine != last_engine_id:
+        engine_buffer.clear()
+        reset_health_state(95.0)
+    last_engine_id = cur_engine
 
     # 1. Physics-Informed Thermodynamic Evaluation
     physics_results = physics_model.evaluate_performance(data)
@@ -263,8 +271,8 @@ async def ws_handler(websocket):
 
 
 async def run_ws_server():
-    async with websockets.serve(ws_handler, "localhost", 8765):
-        print("[WS]  Defense GCS WebSocket Server Active → ws://localhost:8765")
+    async with websockets.serve(ws_handler, "0.0.0.0", 8765):
+        print("[WS]  Defense GCS WebSocket Server Active → ws://0.0.0.0:8765 (All Interfaces)")
         await asyncio.Future()
 
 

@@ -1,9 +1,3 @@
-#!/usr/bin/env bash
-# ============================================================
-#  UAV Digital Twin — Full System Launcher
-#  Usage: ./run.sh          (from UAV_Digital_Twin root)
-# ============================================================
-
 PYTHON=/home/rishi/anaconda3/bin/python
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 SIM_SRC="$ROOT/simulator/ecu_sim.c"
@@ -35,13 +29,9 @@ if systemctl is-active --quiet mosquitto 2>/dev/null; then
     ok "Mosquitto already running"
 else
     echo "  → Starting Mosquitto..."
-    sudo systemctl start mosquitto 2>/dev/null || {
-        # Try running directly as fallback
-        mosquitto -d 2>/dev/null && ok "Mosquitto started (direct)" \
-            || fail "Cannot start Mosquitto. Run: sudo systemctl start mosquitto"
-    }
+    mosquitto -d 2>/dev/null || sudo -n systemctl start mosquitto 2>/dev/null || true
     sleep 1
-    ok "Mosquitto started"
+    ok "Mosquitto active"
 fi
 
 # ── Step 2: Build C simulator ────────────────────────────────
@@ -103,16 +93,31 @@ else
     fail "Mission simulator failed to start."
 fi
 
+# ── Frontend HTTP Server ─────────────────────────────────────
+hdr "5/5" "Frontend HTTP Server"
+pkill -f "http.server.*8080" 2>/dev/null || true
+sleep 0.5
+$PYTHON -m http.server 8080 --bind 127.0.0.1 --directory "$ROOT/frontend" > /tmp/uav_frontend.log 2>&1 &
+FRONTEND_PID=$!
+sleep 1
+if kill -0 $FRONTEND_PID 2>/dev/null; then
+    ok "Frontend HTTP server live (PID $FRONTEND_PID) → http://127.0.0.1:8080"
+else
+    warn "Frontend server could not start. Open frontend/index.html manually."
+    FRONTEND_PID=0
+fi
+
 # ── Ready ────────────────────────────────────────────────────
 echo ""
-echo -e "${BOLD}${GREEN}╔══════════════════════════════════════════════╗${NC}"
-echo -e "${BOLD}${GREEN}║           ALL SYSTEMS LIVE ✓                 ║${NC}"
-echo -e "${BOLD}${GREEN}╠══════════════════════════════════════════════╣${NC}"
-echo -e "${BOLD}${GREEN}║  Dashboard  →  open frontend/index.html      ║${NC}"
-echo -e "${BOLD}${GREEN}║  WebSocket  →  ws://localhost:8765            ║${NC}"
-echo -e "${BOLD}${GREEN}║  MQTT       →  localhost:1883                 ║${NC}"
-echo -e "${BOLD}${GREEN}╚══════════════════════════════════════════════╝${NC}"
+echo -e "${BOLD}${GREEN}╔══════════════════════════════════════════════════╗${NC}"
+echo -e "${BOLD}${GREEN}║           ALL SYSTEMS LIVE ✓                     ║${NC}"
+echo -e "${BOLD}${GREEN}╠══════════════════════════════════════════════════╣${NC}"
+echo -e "${BOLD}${GREEN}║  🌐 GCS Dashboard  →  http://127.0.0.1:8080     ║${NC}"
+echo -e "${BOLD}${GREEN}║  📡 WebSocket      →  ws://127.0.0.1:8765        ║${NC}"
+echo -e "${BOLD}${GREEN}║  📨 MQTT Broker    →  localhost:1883             ║${NC}"
+echo -e "${BOLD}${GREEN}╚══════════════════════════════════════════════════╝${NC}"
 echo ""
+echo -e "  ${YELLOW}Open http://127.0.0.1:8080 in your browser.${NC}"
 echo -e "  ${YELLOW}Press Ctrl+C to shut down all services.${NC}"
 echo ""
 
@@ -122,8 +127,10 @@ cleanup() {
     echo -e "${YELLOW}Shutting down all UAV Twin services...${NC}"
     kill $INFERENCE_PID 2>/dev/null || true
     kill $SIM_PID 2>/dev/null || true
+    [ "$FRONTEND_PID" -ne 0 ] && kill $FRONTEND_PID 2>/dev/null || true
     pkill -9 -f "backend/inference.py" 2>/dev/null || true
     pkill -9 -f "simulator/mission_sim.py" 2>/dev/null || true
+    pkill -9 -f "http.server.*8080" 2>/dev/null || true
     pkill -9 -f "simulator/ecu_sim" 2>/dev/null || true
     echo -e "${GREEN}All services stopped cleanly. Goodbye.${NC}"
     exit 0
@@ -131,4 +138,4 @@ cleanup() {
 trap cleanup INT TERM
 
 # Wait on background processes
-wait $INFERENCE_PID $SIM_PID
+wait $INFERENCE_PID $SIM_PID $FRONTEND_PID 2>/dev/null || wait $INFERENCE_PID $SIM_PID

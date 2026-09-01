@@ -234,11 +234,18 @@ client.loop_start()
 # ── Main Telemetry Loop ───────────────────────────────────────────────────────
 print(f"[SIM] Loading dataset: {CSV_PATH}")
 df = pd.read_csv(CSV_PATH)
-print(f"[SIM] {len(df):,} cycles loaded. Starting advanced UAV propulsion simulation...\n")
 
-cycle_counter = 1
+# Focus on primary UAV propulsion asset (Engine #1 mission lifespan)
+mission_df = df[df['engine_id'] == 1].reset_index(drop=True)
+if len(mission_df) == 0:
+    mission_df = df.iloc[:192].reset_index(drop=True)
+
+print(f"[SIM] Initialized UAV-07 propulsion lifecycle ({len(mission_df)} flight cycles).")
+print(f"[SIM] Real-time 10 Hz telemetry active. Ingesting environmental & fault commands...\n")
+
 while True:
-    for idx, row in df.iterrows():
+    cycle_counter = 1
+    for idx, row in mission_df.iterrows():
         read_control()
 
         # Handle pause
@@ -255,7 +262,7 @@ while True:
         client.publish(TOPIC, msg, qos=0)
 
         fault_str = f" [FAULTS: {','.join(faults)}]" if faults else ""
-        print(f"Tx [E{payload['engine_id']:02d} C{payload['cycle']:04d}] "
+        print(f"Tx [UAV-07 C{cycle_counter:04d}] "
               f"RUL={payload['true_rul']:3.0f} | "
               f"RPM={payload['rpm']:6.1f} CHT={payload['cht']:5.1f}°F "
               f"EGT={payload['egt']:6.1f}°F OIL={payload['oil_pressure']:4.1f}PSI "
@@ -267,4 +274,5 @@ while True:
         sleep_dur = (1.0 / prof["base_hz"]) / max(0.2, sim_state["speed"])
         time.sleep(sleep_dur)
 
-    print("\n[SIM] Mission complete. Looping dataset...\n")
+    print("\n[SIM] Complete UAV engine lifecycle completed. Scheduled depot overhaul reset...\n")
+    time.sleep(1.0)

@@ -1,8 +1,6 @@
 {
   "mode": "RAPID_THROTTLE",
-  "injected_faults": [
-    "misfire"
-  ],
+  "injected_faults": [],
   "paused": false,
   "speed": 5.0
 }

@@ -14,7 +14,7 @@ hdr()  { echo -e "\n${BOLD}${CYAN}[$1]${NC} $2"; }
 
 echo ""
 echo -e "${BOLD}╔══════════════════════════════════════════════╗${NC}"
-echo -e "${BOLD}║     UAV DIGITAL TWIN — SYSTEM LAUNCHER      ║${NC}"
+echo -e "${BOLD}║     UAV DIGITAL TWIN — SYSTEM LAUNCHER       ║${NC}"
 echo -e "${BOLD}╚══════════════════════════════════════════════╝${NC}"
 echo ""
 
@@ -110,11 +110,11 @@ fi
 # ── Ready ────────────────────────────────────────────────────
 echo ""
 echo -e "${BOLD}${GREEN}╔══════════════════════════════════════════════════╗${NC}"
-echo -e "${BOLD}${GREEN}║           ALL SYSTEMS LIVE ✓                     ║${NC}"
+echo -e "${BOLD}${GREEN}║           ALL SYSTEMS LIVE                       ║${NC}"
 echo -e "${BOLD}${GREEN}╠══════════════════════════════════════════════════╣${NC}"
-echo -e "${BOLD}${GREEN}║  🌐 GCS Dashboard  →  http://127.0.0.1:8080     ║${NC}"
-echo -e "${BOLD}${GREEN}║  📡 WebSocket      →  ws://127.0.0.1:8765        ║${NC}"
-echo -e "${BOLD}${GREEN}║  📨 MQTT Broker    →  localhost:1883             ║${NC}"
+echo -e "${BOLD}${GREEN}║  GCS Dashboard  →  http://127.0.0.1:8080         ║${NC}"
+echo -e "${BOLD}${GREEN}║  WebSocket      →  ws://127.0.0.1:8765           ║${NC}"
+echo -e "${BOLD}${GREEN}║  MQTT Broker    →  localhost:1883                ║${NC}"
 echo -e "${BOLD}${GREEN}╚══════════════════════════════════════════════════╝${NC}"
 echo ""
 echo -e "  ${YELLOW}Open http://127.0.0.1:8080 in your browser.${NC}"

@@ -28,7 +28,7 @@ CONDITION_BANDS = [
 ]
 
 
-# ── Stateful Exponential Moving Average (EMA) Filter ─────────────────────────
+# Stateful Exponential Moving Average (EMA) Filter
 _last_health_state = {
     "composite": 92.0,
     "thermal": 90.0,
@@ -141,15 +141,34 @@ def compute_health_index(
             condition = label
             break
 
+    # ── Failure Probability Estimate ────────────────────────────────────────
+    # Derived from health index + anomaly score — not from LSTM directly
+    # This feeds into mission_risk.py which has its own more detailed computation
+    p_fail_raw = max(0.0, (100.0 - smooth_composite) / 100.0) ** 1.4
+    p_fail_raw = min(0.98, p_fail_raw)
+
+    # Combustion sub-score (EGT balance proxy)
+    egt = float(data.get('egt', 1580.0))
+    fuel_flow = float(data.get('fuel_flow', 8.5))
+    rpm = float(data.get('rpm', 1400.0))
+    # Combustion quality: EGT in normal band + fuel flow consistent with RPM
+    egt_comb_score = 100.0 if 1450 <= egt <= 1620 else max(0.0, 100.0 - abs(egt - 1535.0) * 0.5)
+    ff_expected = (rpm / 1400.0) * 8.5
+    ff_dev = abs(fuel_flow - ff_expected) / max(0.1, ff_expected)
+    ff_score = max(0.0, 100.0 - ff_dev * 150.0)
+    raw_combustion = egt_comb_score * 0.6 + ff_score * 0.4
+
     return {
         "health_index": round(smooth_composite, 1),
         "condition":    condition,
+        "failure_probability": round(p_fail_raw, 3),
         "sub_scores": {
             "rul":         round(rul_score, 1),
             "thermal":     round(smooth_thermal, 1),
             "lubrication": round(smooth_lub, 1),
             "mechanical":  round(smooth_mech, 1),
             "electrical":  round(smooth_elec, 1),
+            "combustion":  round(raw_combustion, 1),
             "anomaly":     round(anomaly_norm, 1),
         }
     }

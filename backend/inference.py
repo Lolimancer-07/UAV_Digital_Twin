@@ -1,17 +1,27 @@
 """
 backend/inference.py
 ---------------------
-Digital Twin Core Intelligence Layer for MALE UAV Aero Piston Engines.
+Digital Twin Core Intelligence Layer — MALE UAV Aero Piston Engine.
 
-Synchronizes:
-  1. MQTT Telemetry Ingestion (14-channel live sensor streams + CAN bursts)
-  2. Physics-Informed Engine Model (Thermodynamic Otto P-V cycle, Power BHP, BSFC, Residuals)
-  3. AI Anomaly Detection & 8-Fault Classifier
-  4. Deep LSTM Remaining Useful Life (RUL) Prediction with Confidence Intervals
-  5. Multi-Subsystem Composite Health Index
-  6. Explainable AI (XAI) Root Cause Attribution
-  7. ATA-Spec Autonomous Maintenance Advisor
-  8. Bidirectional WebSocket GCS Telecommand & Telemetry Server (ws://localhost:8765)
+Extended pipeline integrating all Digital Twin modules:
+  1. MQTT Telemetry Ingestion (14-channel live sensor streams)
+  2. Sensor Integrity Monitoring (7 detection methods per channel)
+  3. Physics-Informed Engine Model (Otto cycle, BHP, BSFC, residuals)
+  4. AI Anomaly Detection & 8-Fault Classifier (Isolation Forest)
+  5. Monte Carlo Dropout RUL Prediction with Uncertainty Estimation
+  6. AI+Physics Twin Consistency Cross-Validation (Cases A-D)
+  7. Multi-Subsystem Composite Health Index + Failure Probability
+  8. Explainable AI (XAI) Root Cause Attribution
+  9. Mission Risk Assessment (completion probability, safe time)
+  10. Counterfactual What-If Simulation Engine
+  11. Operating Point Optimizer (scipy L-BFGS-B)
+  12. Prescriptive Maintenance & Operational Recommendations
+  13. AI Mission Engineer (grounded NL explanations)
+  14. Multi-UAV Fleet State Manager
+  15. Telemetry Integrity Monitoring
+  16. Demo Mode Controller
+  17. ATA-Spec Autonomous Maintenance Advisor
+  18. Bidirectional WebSocket GCS Server (ws://localhost:8765)
 """
 
 import os
@@ -28,7 +38,6 @@ import pandas as pd
 import paho.mqtt.client as mqtt
 import websockets
 
-# Suppress TensorFlow GPU warnings
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import tensorflow as tf
 tf.get_logger().setLevel('ERROR')
@@ -40,6 +49,16 @@ from anomaly_detector    import AnomalyDetector
 from health_index        import compute_health_index, reset_health_state
 from xai_engine          import XAIDiagnosticEngine
 from maintenance_advisor import AutonomousMaintenanceAdvisor
+from sensor_integrity    import sensor_integrity_monitor
+from twin_consistency    import compute_twin_consistency
+from mission_risk        import compute_mission_risk, compute_failure_probability
+from whatif_engine       import simulate_whatif
+from optimizer           import find_optimal_operating_point
+from prescriptive        import generate_prescriptive_recommendations
+from ai_engineer         import answer as ai_engineer_answer
+from fleet_manager       import fleet_manager
+from telemetry_integrity import telemetry_integrity_monitor
+from demo_controller     import demo_controller
 
 # ── Paths & Config ────────────────────────────────────────────────────────────
 ROOT         = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -49,7 +68,7 @@ SCALER_PATH  = os.path.join(ROOT, 'backend', 'scaler.pkl')
 ANOMALY_PATH = os.path.join(ROOT, 'backend', 'anomaly_model.pkl')
 
 print("=" * 60)
-print("  UAV DIGITAL TWIN — DEFENSE GRADE PROPULSION CORE")
+print("  UAV DIGITAL TWIN — DEFENSE GRADE PROPULSION CORE v2.0")
 print("=" * 60)
 
 # ── Load AI Models ────────────────────────────────────────────────────────────
@@ -70,14 +89,36 @@ except Exception as e:
     print(f"      ERROR loading Anomaly Detector: {e}")
     sys.exit(1)
 
-print("[3/3] Initializing Physics-Informed & XAI Layers...")
+print("[3/3] Initializing Extended Digital Twin Pipeline...")
 
 # ── State Buffers ─────────────────────────────────────────────────────────────
 WINDOW_SIZE    = 50
+MC_DROPOUT_SAMPLES = 10  # Monte Carlo dropout passes for uncertainty estimation
 engine_buffer  = deque(maxlen=WINDOW_SIZE)
-latest_payload = json.dumps({"status": "INITIALIZING", "message": "Digital Twin Core starting up..."})
-active_faults_set = set()
+latest_payload = json.dumps({"status": "INITIALIZING", "message": "Digital Twin Core v2.0 starting up..."})
 last_engine_id = None
+
+# Latest full state for AI Engineer and What-If (kept in memory)
+latest_state: Dict[str, Any] = {}
+
+# ── Monte Carlo Dropout RUL Prediction ────────────────────────────────────────
+def predict_rul_with_uncertainty(lstm_input: np.ndarray) -> tuple:
+    """
+    Uses MC Dropout to estimate RUL uncertainty.
+    Runs the model with dropout active (training=True) N times.
+    Returns: (mean_rul, std_rul, ci_lower, ci_upper)
+    """
+    predictions = []
+    for _ in range(MC_DROPOUT_SAMPLES):
+        pred = float(lstm_model(lstm_input, training=True)[0][0])
+        predictions.append(max(0.0, pred))
+    mean_rul = float(np.mean(predictions))
+    std_rul  = float(np.std(predictions))
+    # 90% confidence interval (±1.645σ)
+    ci_lower = max(0.0, mean_rul - 1.645 * std_rul)
+    ci_upper = mean_rul + 1.645 * std_rul
+    return mean_rul, std_rul, ci_lower, ci_upper
+
 
 # ── MQTT Telemetry Consumer ───────────────────────────────────────────────────
 def on_connect(client, userdata, connect_flags, reason_code, properties):
@@ -89,48 +130,65 @@ def on_connect(client, userdata, connect_flags, reason_code, properties):
 
 
 def on_message(client, userdata, msg):
-    global latest_payload, last_engine_id
+    global latest_payload, last_engine_id, latest_state
 
     try:
         data = json.loads(msg.payload.decode('utf-8'))
     except Exception:
         return
 
-    # Handle engine ID transition cleanly
+    # Handle engine ID transition
     cur_engine = data.get("engine_id", 1)
     if last_engine_id is not None and cur_engine != last_engine_id:
         engine_buffer.clear()
         reset_health_state(95.0)
     last_engine_id = cur_engine
 
-    # 1. Physics-Informed Thermodynamic Evaluation
+    # ── 1. Telemetry Integrity Check ─────────────────────────────────────────
+    tel_integrity = telemetry_integrity_monitor.evaluate(data)
+
+    # ── 2. Physics-Informed Thermodynamic Evaluation ──────────────────────────
     physics_results = physics_model.evaluate_performance(data)
 
-    # 2. Anomaly Detection & Intelligent Fault Classification (8 Categories)
+    # ── 3. Sensor Integrity Monitoring ───────────────────────────────────────
+    sensor_integrity = sensor_integrity_monitor.evaluate(
+        data, physics_residuals=physics_results.get("residuals", {})
+    )
+
+    # ── 4. Anomaly Detection & Fault Classification ───────────────────────────
     is_anomaly, anomaly_score, fault_events = anomaly_detector.predict(data)
     fault_names = [f["name"] for f in fault_events]
 
-    # 3. Deep LSTM RUL Prognostics
+    # ── 5. Monte Carlo Dropout LSTM RUL Prediction ────────────────────────────
     raw3 = pd.DataFrame([[data['rpm'], data['cht'], data['egt']]], columns=['rpm', 'cht', 'egt'])
     norm3 = scaler.transform(raw3)[0]
     engine_buffer.append(norm3)
 
     predicted_rul = 0.0
-    rul_lower = 0.0
-    rul_upper = 0.0
+    rul_std       = 0.0
+    rul_lower     = 0.0
+    rul_upper     = 0.0
 
     if len(engine_buffer) == WINDOW_SIZE:
         lstm_input = np.array(engine_buffer).reshape(1, WINDOW_SIZE, 3)
-        raw_pred = float(lstm_model.predict(lstm_input, verbose=0)[0][0])
-        predicted_rul = max(0.0, raw_pred)
-        # 95% Confidence Interval envelope (±8%)
-        rul_lower = max(0.0, predicted_rul * 0.92)
-        rul_upper = predicted_rul * 1.08
+        predicted_rul, rul_std, rul_lower, rul_upper = predict_rul_with_uncertainty(lstm_input)
 
-    # 4. Multi-Subsystem Composite Health Index
+    # ── 6. Multi-Subsystem Composite Health Index ─────────────────────────────
     health_results = compute_health_index(data, predicted_rul, anomaly_score, fault_names)
+    health_index = health_results["health_index"]
+    failure_probability = compute_failure_probability(
+        predicted_rul, is_anomaly, anomaly_score, len(fault_events), health_index
+    )
 
-    # 5. Explainable AI (XAI) Attribution & Diagnostics
+    # ── 7. Twin Consistency Cross-Validation ─────────────────────────────────
+    twin_consistency = compute_twin_consistency(
+        is_anomaly=is_anomaly,
+        anomaly_score=anomaly_score,
+        physics_residuals=physics_results.get("residuals", {}),
+        sensor_integrity_score=sensor_integrity["integrity_score"],
+    )
+
+    # ── 8. Explainable AI (XAI) Attribution ──────────────────────────────────
     xai_results = XAIDiagnosticEngine.explain_anomaly(
         telemetry=data,
         is_anomaly=is_anomaly,
@@ -138,15 +196,33 @@ def on_message(client, userdata, msg):
         active_faults=fault_events
     )
 
-    # 6. ATA-Spec Autonomous Maintenance Advisories
+    # ── 9. Mission Risk Assessment ────────────────────────────────────────────
+    mission_risk = compute_mission_risk(
+        data=data,
+        health_index=health_index,
+        predicted_rul=predicted_rul,
+        failure_probability=failure_probability,
+        fault_events=fault_events,
+    )
+
+    # ── 10. Prescriptive Recommendations ─────────────────────────────────────
+    prescriptive = generate_prescriptive_recommendations(
+        fault_events=fault_events,
+        predicted_rul=predicted_rul,
+        health_index=health_index,
+        twin_consistency=twin_consistency,
+        mission_risk=mission_risk,
+    )
+
+    # ── 11. ATA-Spec Maintenance Advisories ──────────────────────────────────
     maintenance_advisories = AutonomousMaintenanceAdvisor.generate_advisories(
         telemetry=data,
         fault_events=fault_events,
         predicted_rul=predicted_rul,
-        health_index=health_results["health_index"]
+        health_index=health_index
     )
 
-    # 7. Global Airworthiness Alert Status
+    # ── 12. Global Alert Status ───────────────────────────────────────────────
     has_critical = any(f["severity"] == "CRITICAL" for f in fault_events)
     has_warning  = any(f["severity"] == "WARNING"  for f in fault_events)
 
@@ -157,11 +233,15 @@ def on_message(client, userdata, msg):
     else:
         alert_status = "NOMINAL"
 
-    # 8. Complete Synchronized Digital Twin Payload
+    # ── 13. Fleet Update ──────────────────────────────────────────────────────
+    active_uav = f"UAV-0{cur_engine}" if cur_engine in (1, 2, 3, 4) else "UAV-01"
+
+    # ── 14. Complete Synchronized Digital Twin Payload v2.0 ──────────────────
     payload = {
         # Telemetry Channels
         "cycle":                  data.get("cycle", 0),
         "engine_id":              data.get("engine_id", 1),
+        "uav_id":                 data.get("uav_id", "UAV-01"),
         "rpm":                    round(data.get("rpm", 0), 1),
         "cht":                    round(data.get("cht", 0), 1),
         "cht_cyl":                data.get("cht_cyl", [0, 0, 0, 0]),
@@ -186,26 +266,48 @@ def on_message(client, userdata, msg):
         "predicted_rul":          round(predicted_rul, 1),
         "rul_ci_lower":           round(rul_lower, 1),
         "rul_ci_upper":           round(rul_upper, 1),
+        "rul_mc_std":             round(rul_std, 2),
         "buffer_pct":             round(len(engine_buffer) / WINDOW_SIZE * 100),
         "is_anomaly":             bool(is_anomaly),
         "anomaly_score":          round(anomaly_score, 4),
         "fault_events":           fault_events,
         "alert":                  alert_status,
+        "failure_probability":    round(failure_probability, 3),
 
         # Core Subsystems
         "physics":                physics_results,
         "health":                 health_results,
         "xai":                    xai_results,
         "advisories":             maintenance_advisories,
-        "can_frames":             data.get("can_frames", [])
+        "can_frames":             data.get("can_frames", []),
+
+        # NEW: Extended Intelligence
+        "sensor_integrity":       sensor_integrity,
+        "twin_consistency":       twin_consistency,
+        "mission_risk":           mission_risk,
+        "prescriptive":           prescriptive,
+        "telemetry_integrity":    tel_integrity,
+        "fleet_status":           fleet_manager.get_fleet_status(),
+        "demo_state":             demo_controller.get_state(),
+
+        # Cached What-If & Optimize results (updated via commands)
+        "whatif_result":          latest_state.get("whatif_result"),
+        "optimize_result":        latest_state.get("optimize_result"),
+        "ai_engineer_response":   latest_state.get("ai_engineer_response"),
     }
 
+    # Update fleet state for active UAV
+    fleet_manager.update_uav("UAV-01", payload)
+
+    latest_state.update(payload)
     latest_payload = json.dumps(payload)
 
 
 # ── Bidirectional Telecommand Processing ──────────────────────────────────────
 def process_gcs_command(cmd: Dict[str, Any]):
     """Handles commands received from the GCS Web Interface."""
+    global latest_state
+
     action = cmd.get("command")
 
     # Load existing state
@@ -240,6 +342,79 @@ def process_gcs_command(cmd: Dict[str, Any]):
         current_cfg["injected_faults"] = []
         print("[GCS CMD] ALL INJECTED FAULTS CLEARED.")
 
+    elif action == "whatif":
+        # Counterfactual simulation
+        params = cmd.get("params", {})
+        if latest_state:
+            try:
+                result = simulate_whatif(
+                    current_state=latest_state,
+                    overrides=params,
+                    current_rul=latest_state.get("predicted_rul", 0),
+                    current_health=latest_state.get("health", {}).get("health_index", 50),
+                    physics_model=physics_model,
+                    health_fn=compute_health_index,
+                    anomaly_score=latest_state.get("anomaly_score", 0),
+                    fault_names=[f["name"] for f in latest_state.get("fault_events", [])],
+                )
+                latest_state["whatif_result"] = result
+                print(f"[GCS CMD] What-If simulation completed: {params}")
+            except Exception as e:
+                print(f"[GCS CMD] What-If error: {e}")
+
+    elif action == "optimize":
+        # Operating point optimization
+        constraints = cmd.get("constraints", {})
+        if latest_state:
+            try:
+                result = find_optimal_operating_point(
+                    current_state=latest_state,
+                    current_rul=latest_state.get("predicted_rul", 0),
+                    current_health=latest_state.get("health", {}).get("health_index", 50),
+                    failure_probability=latest_state.get("failure_probability", 0.1),
+                    constraints=constraints,
+                )
+                latest_state["optimize_result"] = result
+                print(f"[GCS CMD] Optimization completed: optimal RPM={result.get('optimal_rpm')}")
+            except Exception as e:
+                print(f"[GCS CMD] Optimize error: {e}")
+
+    elif action == "ai_engineer_query":
+        question = cmd.get("question", "")
+        if question and latest_state:
+            try:
+                answer = ai_engineer_answer(question, latest_state)
+                latest_state["ai_engineer_response"] = {
+                    "question": question,
+                    "answer": answer,
+                    "timestamp": latest_state.get("cycle", 0),
+                }
+                print(f"[GCS CMD] AI Engineer query: '{question[:50]}...'")
+            except Exception as e:
+                print(f"[GCS CMD] AI Engineer error: {e}")
+
+    elif action == "select_uav":
+        uav_id = cmd.get("uav_id", "UAV-01")
+        fleet_manager.select_uav(uav_id)
+        print(f"[GCS CMD] Active UAV switched → {uav_id}")
+
+    elif action == "demo_start":
+        demo_controller.start()
+        current_cfg["injected_faults"] = []
+        current_cfg["mode"] = "NORMAL"
+        current_cfg["speed"] = 2.0
+        print("[GCS CMD] Demo mode started")
+
+    elif action == "demo_step":
+        step = cmd.get("step")
+        demo_controller.advance(step)
+        print(f"[GCS CMD] Demo step → {demo_controller.current_step}")
+
+    elif action == "demo_stop":
+        demo_controller.stop()
+        current_cfg["injected_faults"] = []
+        print("[GCS CMD] Demo mode stopped")
+
     # Save to shared control file
     os.makedirs(os.path.dirname(CONTROL_FILE), exist_ok=True)
     with open(CONTROL_FILE, 'w') as f:
@@ -272,7 +447,7 @@ async def ws_handler(websocket):
 
 async def run_ws_server():
     async with websockets.serve(ws_handler, "0.0.0.0", 8765):
-        print("[WS]  Defense GCS WebSocket Server Active → ws://0.0.0.0:8765 (All Interfaces)")
+        print("[WS]  Defense GCS WebSocket Server Active → ws://0.0.0.0:8765")
         await asyncio.Future()
 
 

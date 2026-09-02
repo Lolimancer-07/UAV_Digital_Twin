@@ -276,3 +276,13 @@ while True:
 
     print("\n[SIM] Complete UAV engine lifecycle completed. Scheduled depot overhaul reset...\n")
     time.sleep(1.0)
+
+# ── UAV ID Tagging (appended to build_telemetry_packet output) ─────────────
+# Patch: add uav_id to packet (backward-compatible addition)
+_original_build = build_telemetry_packet
+
+def build_telemetry_packet(row, cycle_idx, prof, faults):
+    packet = _original_build(row, cycle_idx, prof, faults)
+    engine_id = packet.get("engine_id", 1)
+    packet["uav_id"] = f"UAV-0{engine_id}"
+    return packet

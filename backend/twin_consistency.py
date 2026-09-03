@@ -1,31 +1,31 @@
 """
 backend/twin_consistency.py
------------------------------
-AI + Physics Cross-Validation & Twin Consistency Scoring.
 
-Implements the 4-case cross-validation matrix:
-  Case A: AI normal, Physics normal  → NORMAL
-  Case B: AI abnormal, Physics abnormal → HIGH_CONFIDENCE_FAULT
-  Case C: AI normal, Physics abnormal → SENSOR_MODEL_DISAGREEMENT
-  Case D: AI abnormal, Physics normal → POSSIBLE_FALSE_POSITIVE
+Cross-validates the AI anomaly detector against the physics model.
+The idea is simple: if both independently flag a problem, we're very confident.
+If only one does, we need to figure out why they disagree.
 
-Twin Consistency Score = weighted combination of:
-  - AI agreement score (how confident the AI anomaly model is that state is normal)
-  - Physics agreement score (how well measured values match physics predictions)
-  - Sensor integrity score (from sensor_integrity module)
+Four cases (A–D matrix):
+  A: AI normal + physics normal       → everything is fine
+  B: AI abnormal + physics abnormal   → high confidence real fault
+  C: AI normal + physics abnormal     → sensor drift or model calibration issue
+  D: AI abnormal + physics normal     → possible false positive, keep watching
+
+The consistency score is a weighted blend of AI agreement, physics agreement,
+and overall sensor integrity. Low score = something is wrong somewhere.
 """
 
 from typing import Dict, Any
 
-# Physics residual thresholds (beyond which physics disagrees)
+# thresholds for when we say the physics model is "disagreeing"
 PHYSICS_THRESHOLDS = {
-    "delta_egt":   60.0,   # °F
+    "delta_egt":   60.0,   # °F residual before we call it a physics violation
     "delta_cht":   30.0,   # °F
     "delta_oil_p": 12.0,   # PSI
     "delta_fuel":  1.5,    # L/h
 }
 
-# Weights for twin consistency score
+# how much each component contributes to the final consistency score
 CONSISTENCY_WEIGHTS = {
     "ai_agreement":      0.40,
     "physics_agreement": 0.40,
@@ -40,30 +40,26 @@ def compute_twin_consistency(
     sensor_integrity_score: float,
 ) -> dict:
     """
-    Computes the AI+Physics cross-validation matrix and Twin Consistency Score.
+    Computes the AI+Physics cross-validation matrix and twin consistency score.
 
     Parameters
     ----------
-    is_anomaly         : AI anomaly flag
-    anomaly_score      : Isolation Forest decision score (negative = more anomalous)
-    physics_residuals  : dict with delta_egt, delta_cht, delta_oil_p, delta_fuel
-    sensor_integrity_score : overall sensor integrity score (0-100)
-
-    Returns
-    -------
-    dict with consistency_score, ai_agreement, physics_agreement, case, narrative
+    is_anomaly             : whether the AI anomaly detector flagged this packet
+    anomaly_score          : Isolation Forest score (negative = more anomalous)
+    physics_residuals      : delta_egt, delta_cht, delta_oil_p, delta_fuel
+    sensor_integrity_score : overall sensor trust score (0–100)
     """
 
-    # ── AI Agreement Score (0–100) ───────────────────────────────────────────
-    # anomaly_score range: typically -0.5 (very anomalous) to +0.3 (very normal)
-    # Map to 0-100: score=0.3 → 100%, score=-0.5 → 0%
+    # AI agreement score (0–100)
+    # anomaly_score typically ranges from -0.5 (very anomalous) to +0.3 (very normal)
+    # we map this to 0–100: score=0.3 → 100%, score=-0.5 → 0%
     ai_agreement = max(0.0, min(100.0, (anomaly_score + 0.5) / 0.8 * 100.0))
-    # Penalty if hard anomaly flag
+    # if the hard anomaly flag is set, cap agreement at 45% regardless of score
     if is_anomaly:
         ai_agreement = min(ai_agreement, 45.0)
 
-    # ── Physics Agreement Score (0–100) ─────────────────────────────────────
-    # Sum of normalized residual violations
+    # physics agreement score (0–100)
+    # count up how badly each residual exceeds its threshold
     physics_violations = 0.0
     max_possible_violations = len(PHYSICS_THRESHOLDS)
     for key, threshold in PHYSICS_THRESHOLDS.items():
@@ -74,7 +70,7 @@ def compute_twin_consistency(
 
     physics_agreement = max(0.0, 100.0 - (physics_violations / max_possible_violations) * 100.0)
 
-    # ── Twin Consistency Score ───────────────────────────────────────────────
+    # weighted blend
     consistency_score = (
         ai_agreement      * CONSISTENCY_WEIGHTS["ai_agreement"] +
         physics_agreement * CONSISTENCY_WEIGHTS["physics_agreement"] +
@@ -82,7 +78,7 @@ def compute_twin_consistency(
     )
     consistency_score = round(max(0.0, min(100.0, consistency_score)), 1)
 
-    # ── Case Classification ──────────────────────────────────────────────────
+    # classify into Case A/B/C/D
     ai_normal = not is_anomaly and ai_agreement > 55.0
     physics_normal = physics_agreement > 65.0
 

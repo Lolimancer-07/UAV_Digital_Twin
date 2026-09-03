@@ -1,19 +1,17 @@
 """
 backend/ai_engineer.py
-------------------------
-AI Mission Engineer — Template-Based Grounded Explanation Engine.
 
-Generates natural-language explanations from actual Digital Twin state.
-NO external LLM or API calls. All statements are grounded in real data.
+Answers operator questions in plain English using actual Digital Twin state.
+No external LLM, no API calls — everything is grounded in real telemetry values.
 
-The engine answers common operator questions:
-  1. "Why is the engine unhealthy?"
-  2. "What caused the anomaly?"
-  3. "How much RUL is remaining?"
-  4. "Can we complete the mission?"
-  5. "What happens if I reduce RPM?"
-  6. "What should I inspect?"
-  7. "Why did the system recommend X?"
+Supports these question categories:
+  - Why is the engine unhealthy?
+  - What caused the anomaly?
+  - How much RUL is remaining?
+  - Can we complete the mission?
+  - What happens if I reduce RPM?
+  - What should I inspect?
+  - Why did the system recommend X?
 """
 
 from typing import Dict, Any
@@ -67,16 +65,15 @@ def answer(question: str, state: Dict[str, Any]) -> str:
 
     Parameters
     ----------
-    question : operator's natural language question
-    state    : full Digital Twin state dict (from WebSocket payload)
+    question : the operator's question in natural language
+    state    : full Digital Twin state dict from the latest WebSocket payload
 
-    Returns
-    -------
-    str : explanation grounded in real state values
+    Returns a string explanation based entirely on real state values — no
+    hallucinated numbers, no made-up faults.
     """
     q_type = _classify_question(question)
 
-    # Extract key values
+    # pull everything we might need from state up front
     health = state.get("health", {})
     hi = health.get("health_index", 0)
     condition = health.get("condition", "UNKNOWN")
@@ -106,7 +103,7 @@ def answer(question: str, state: Dict[str, Any]) -> str:
     oil  = state.get("oil_pressure", 0)
     vib  = state.get("vibration", 0)
 
-    # ── Answer by question type ──────────────────────────────────────────────
+    # dispatch to the right answer builder based on question type
 
     if q_type == "WHY_UNHEALTHY":
         if hi >= 80:
@@ -176,7 +173,7 @@ def answer(question: str, state: Dict[str, Any]) -> str:
 
     elif q_type == "RPM_ADVICE":
         if not mission:
-            return ("Reducing RPM reduces thermal load on cylinders and bearings. "
+            return (f"Reducing RPM reduces thermal load on cylinders and bearings. "
                     f"Current RPM is {rpm:.0f}. At nominal cruise (1400 RPM), thermal load is minimized. "
                     "Use the What-If tab to simulate a specific RPM reduction.")
         cur_prob = mission.get("mission_completion_probability", 0)

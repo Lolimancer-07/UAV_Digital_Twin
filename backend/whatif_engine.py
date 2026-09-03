@@ -1,28 +1,25 @@
 """
 backend/whatif_engine.py
---------------------------
-Counterfactual What-If Simulation Engine.
 
-Allows the operator to ask: "What happens if I change RPM / altitude / etc.?"
+"What if I reduce RPM by 200?" — this module answers that question.
 
-Method:
-  1. Takes current telemetry state as baseline
-  2. Applies the operator's hypothetical parameter overrides
-  3. Propagates overrides through the existing physics model
-  4. Estimates counterfactual RUL using thermal load ratio scaling
-  5. Computes counterfactual health index and mission risk
-  6. Returns side-by-side comparison with actual state
+The operator picks a parameter to change, we propagate it through the
+physics model to get consistent downstream values (e.g. RPM → CHT/EGT),
+then estimate counterfactual RUL using thermal load ratio scaling.
 
-Mathematical basis for RUL counterfactual:
-  RUL_cf = RUL_current * (thermal_load_current / thermal_load_cf)^alpha
-  where alpha = 1.5 (empirical degradation exponent for thermal cycling)
-  and thermal_load = (CHT / CHT_nominal) * (EGT / EGT_nominal)
+Physics basis for the RUL estimate:
+  RUL_cf = RUL_current × (thermal_load_current / thermal_load_cf)^α
+  where α = 1.5 (empirical thermal cycling degradation exponent)
+  and thermal_load = (CHT / CHT_nominal) × (EGT / EGT_nominal)
+
+The result is a side-by-side comparison of current vs counterfactual state
+so the operator can see exactly what they'd gain (or lose) from the change.
 """
 
 import copy
 from typing import Dict, Any
 
-# Thermal degradation exponent (higher = more sensitive to thermal load)
+# thermal degradation exponent — higher = engine life more sensitive to temperature
 THERMAL_ALPHA = 1.5
 CHT_NOMINAL = 380.0
 EGT_NOMINAL = 1580.0
@@ -32,71 +29,70 @@ MAX_RUL = 260.0
 
 def _estimate_counterfactual_state(baseline: dict, overrides: dict) -> dict:
     """
-    Applies parameter overrides to the baseline telemetry to create
-    a physically consistent counterfactual state.
+    Applies operator overrides and propagates them through physics relationships
+    to produce a physically consistent counterfactual telemetry state.
     """
     cf = copy.deepcopy(baseline)
 
-    # Apply direct overrides
+    # apply the operator's direct overrides first
     for k, v in overrides.items():
         cf[k] = float(v)
 
     rpm = cf.get("rpm", 1400.0)
     baseline_rpm = baseline.get("rpm", 1400.0)
 
-    # RPM change → CHT/EGT/fuel proportional physics response
+    # RPM change drives thermal and fuel changes — these are real physical relationships
     if "rpm" in overrides:
         rpm_ratio = rpm / max(200.0, baseline_rpm)
-        # Thermal response: CHT scales with brake power ∝ RPM^1.3
+        # CHT scales with brake power which goes roughly as RPM^1.3
         cht_scale = rpm_ratio ** 1.3
         egt_scale = rpm_ratio ** 1.1
         cf["cht"] = baseline.get("cht", CHT_NOMINAL) * cht_scale
         cf["egt"] = baseline.get("egt", EGT_NOMINAL) * egt_scale
         cf["fuel_flow"] = baseline.get("fuel_flow", 8.5) * rpm_ratio ** 1.1
         cf["vibration"] = baseline.get("vibration", 0.65) * rpm_ratio ** 0.8
-        # CHT cylinders
+        # scale per-cylinder temps consistently
         cht_cyls = baseline.get("cht_cyl", [cf["cht"]] * 4)
         cf["cht_cyl"] = [c * cht_scale for c in cht_cyls]
         egt_cyls = baseline.get("egt_cyl", [cf["egt"]] * 4)
         cf["egt_cyl"] = [c * egt_scale for c in egt_cyls]
 
-    # Altitude change → MAP and EGT changes
+    # altitude change affects MAP and EGT (leaner at altitude = hotter EGT)
     if "altitude_ft" in overrides:
         alt = cf["altitude_ft"]
-        # ISA: MAP decreases ~1% per 300ft
+        # ISA: MAP drops roughly 1% per 300 ft
         map_ratio = max(0.3, 1.0 - (alt - 3000.0) / 300000.0)
         cf["map_kpa"] = 96.0 * map_ratio
-        # EGT rises at altitude (lean mixture)
+        # EGT rises at altitude because the mixture leans out
         alt_egt_factor = 1.0 + max(0.0, (alt - 10000.0)) / 50000.0
         cf["egt"] = cf.get("egt", EGT_NOMINAL) * alt_egt_factor
-        # Oil temp changes with altitude OAT
         cf["oat_c"] = max(-30.0, 15.0 - (alt - 3000.0) * 0.00198)
 
-    # Oil pressure % reduction
+    # oil pressure percentage change (positive = more pressure)
     if "oil_pressure_pct" in overrides:
         pct = float(overrides["oil_pressure_pct"]) / 100.0
         cf["oil_pressure"] = baseline.get("oil_pressure", 58.0) * (1.0 + pct)
 
-    # Cooling efficiency reduction → CHT increase
+    # cooling efficiency reduction causes CHT to rise
     if "cooling_efficiency_pct" in overrides:
         pct = float(overrides["cooling_efficiency_pct"]) / 100.0  # negative = degraded
         thermal_penalty = 1.0 - pct * 0.5
         cf["cht"] = cf.get("cht", CHT_NOMINAL) * thermal_penalty
         cf["oil_temp"] = cf.get("oil_temp", 185.0) * thermal_penalty
 
-    # Injector efficiency → fuel flow
+    # injector efficiency affects fuel flow and EGT (richer/leaner mixture)
     if "injector_efficiency_pct" in overrides:
         pct = float(overrides["injector_efficiency_pct"]) / 100.0
         cf["fuel_flow"] = cf.get("fuel_flow", 8.5) * (1.0 + pct)
         cf["egt"] = cf.get("egt", EGT_NOMINAL) * (1.0 - pct * 0.3)
 
-    # Ambient temperature
+    # ambient temperature change — hot day = higher CHT and oil temp
     if "ambient_temp_c" in overrides:
         delta_t = cf["ambient_temp_c"] - baseline.get("oat_c", 15.0)
         cf["cht"] = cf.get("cht", CHT_NOMINAL) + delta_t * 0.8
         cf["oil_temp"] = cf.get("oil_temp", 185.0) + delta_t * 0.5
 
-    # Clamp all values to physical limits
+    # clamp everything to physical limits before returning
     cf["rpm"] = max(0.0, min(3200.0, cf.get("rpm", rpm)))
     cf["cht"] = max(50.0, min(600.0, cf.get("cht", CHT_NOMINAL)))
     cf["egt"] = max(200.0, min(2000.0, cf.get("egt", EGT_NOMINAL)))
@@ -118,32 +114,29 @@ def simulate_whatif(
     fault_names: list = None
 ) -> dict:
     """
-    Runs a counterfactual simulation given parameter overrides.
+    Runs a counterfactual simulation and returns a side-by-side comparison.
 
     Parameters
     ----------
-    current_state  : current telemetry dict
-    overrides      : parameter overrides dict (e.g. {"rpm": 2200})
-    current_rul    : current AI-predicted RUL
-    current_health : current health index
+    current_state  : current telemetry dict (baseline)
+    overrides      : what the operator wants to change, e.g. {"rpm": 1200}
+    current_rul    : current AI-predicted RUL in cycles
+    current_health : current health index (0–100)
     physics_model  : AeroEnginePhysicsModel instance
     health_fn      : compute_health_index function
-    anomaly_score  : current anomaly score
-    fault_names    : current active fault names
-
-    Returns
-    -------
-    dict with current and counterfactual state comparison
+    anomaly_score  : current anomaly score (kept constant in simulation)
+    fault_names    : current active fault names (kept constant in simulation)
     """
     fault_names = fault_names or []
 
-    # Build counterfactual state
+    # build the counterfactual state with consistent physics
     cf_state = _estimate_counterfactual_state(current_state, overrides)
 
-    # Run physics on counterfactual
+    # run physics on it to get performance metrics
     cf_physics = physics_model.evaluate_performance(cf_state)
 
-    # Estimate counterfactual RUL using thermal load ratio
+    # estimate counterfactual RUL from the thermal load ratio
+    # lower thermal load → longer life (and vice versa)
     cf_cht = cf_state.get("cht", CHT_NOMINAL)
     cf_egt = cf_state.get("egt", EGT_NOMINAL)
     cur_cht = current_state.get("cht", CHT_NOMINAL)
@@ -160,17 +153,17 @@ def simulate_whatif(
 
     rul_delta = cf_rul - current_rul
 
-    # Compute counterfactual health
+    # compute health index under counterfactual conditions
     cf_health_result = health_fn(cf_state, cf_rul, anomaly_score, fault_names)
     cf_health = cf_health_result["health_index"]
     health_delta = cf_health - current_health
 
-    # Compute fuel consumption change
+    # fuel change as a percentage
     cf_fuel = cf_state.get("fuel_flow", current_state.get("fuel_flow", 8.5))
     cur_fuel = current_state.get("fuel_flow", 8.5)
     fuel_pct_change = ((cf_fuel - cur_fuel) / max(0.1, cur_fuel)) * 100.0
 
-    # Summary label
+    # label the overall outcome
     if rul_delta > 0:
         outcome = "IMPROVEMENT"
         outcome_color = "ok"

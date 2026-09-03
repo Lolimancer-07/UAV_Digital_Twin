@@ -1,18 +1,21 @@
 """
 backend/sensor_integrity.py
-----------------------------
-Per-Channel Sensor Integrity & Confidence Monitoring System.
 
-Independently evaluates the trustworthiness of each telemetry channel
-to distinguish genuine engine faults from sensor anomalies.
+Per-channel sensor trust scoring — figures out whether a telemetry reading
+is actually trustworthy or if the sensor itself might be the problem.
 
-Detection methods per channel:
-  1. Stuck-value detection (value frozen > N consecutive readings)
-  2. Physically impossible value detection (hard bounds)
-  3. Sudden discontinuity (inter-sample delta threshold)
-  4. Excessive noise (rolling variance vs expected noise floor)
-  5. Cross-sensor thermodynamic contradiction
-  6. Physics model inconsistency (measured vs expected residual outlier)
+This matters a lot: if the AI flags an anomaly but the sensor causing it
+is drifted or stuck, the operator needs to know before acting on it.
+
+Six checks per channel:
+  1. Impossible value  — physically can't be right (e.g. RPM = 5000)
+  2. Out of normal range — plausible but outside expected operating band
+  3. Stuck value        — hasn't moved in N samples (wire break, frozen ADC)
+  4. Discontinuity      — jumped too far in one step (EMI, bit flip)
+  5. Excessive noise    — rolling variance way above the normal noise floor
+  6. Cross-sensor contradiction — e.g. EGT cold when CHT is hot
+
+Physics residual outliers (from physics_engine.py) also count against a channel.
 """
 
 import math
@@ -20,7 +23,7 @@ import statistics
 from collections import deque
 from typing import Dict, Any, List, Tuple
 
-# ── Per-Channel Physical Bounds (Absolute Impossible-Value Limits) ─────────────
+# hard limits — values outside these are physically impossible
 CHANNEL_BOUNDS = {
     "rpm":            (0.0,    3200.0),
     "cht":            (50.0,   600.0),
@@ -37,7 +40,7 @@ CHANNEL_BOUNDS = {
     "map_kpa":        (10.0,   130.0),
 }
 
-# ── Normal Operating Bounds (Warning-level, within-envelope) ──────────────────
+# warning-level bounds — values here are plausible but abnormal
 CHANNEL_NORMAL = {
     "rpm":            (600.0,   2800.0),
     "cht":            (150.0,   435.0),
@@ -54,7 +57,7 @@ CHANNEL_NORMAL = {
     "map_kpa":        (25.0,    108.0),
 }
 
-# ── Expected noise floor (1σ) for each channel ────────────────────────────────
+# expected 1-sigma noise for each channel in normal operation
 CHANNEL_NOISE_FLOOR = {
     "rpm": 8.0, "cht": 2.5, "egt": 5.0,
     "oil_pressure": 1.5, "oil_temp": 1.2, "fuel_flow": 0.2,
@@ -63,7 +66,7 @@ CHANNEL_NOISE_FLOOR = {
     "bus_current_a": 0.6, "inj_timing": 0.3, "map_kpa": 1.0,
 }
 
-# ── Max allowed inter-sample delta (discontinuity) ───────────────────────────
+# maximum allowed single-step jump before we call it a discontinuity
 CHANNEL_MAX_DELTA = {
     "rpm": 350.0, "cht": 18.0, "egt": 40.0,
     "oil_pressure": 12.0, "oil_temp": 6.0, "fuel_flow": 1.8,
@@ -72,8 +75,8 @@ CHANNEL_MAX_DELTA = {
     "bus_current_a": 5.0, "inj_timing": 4.0, "map_kpa": 8.0,
 }
 
-STUCK_WINDOW = 8
-NOISE_WINDOW = 20
+STUCK_WINDOW = 8    # samples to look back for stuck detection
+NOISE_WINDOW = 20   # samples to look back for noise estimation
 
 
 class SensorIntegrityMonitor:
@@ -100,6 +103,7 @@ class SensorIntegrityMonitor:
             return 1.0, ""
         spread = max(hist[-STUCK_WINDOW:]) - min(hist[-STUCK_WINDOW:])
         noise = CHANNEL_NOISE_FLOOR.get(ch, 1.0)
+        # if the spread is less than 5% of the expected noise floor, something is frozen
         if spread < noise * 0.05:
             return 0.1, f"STUCK_VALUE (spread={spread:.4f})"
         return 1.0, ""
@@ -125,11 +129,13 @@ class SensorIntegrityMonitor:
             return 1.0, ""
         expected = CHANNEL_NOISE_FLOOR.get(ch, 1.0)
         ratio = std / max(1e-9, expected)
+        # more than 5x the expected noise floor is a red flag
         if ratio > 5.0:
             return max(0.0, 1.0 - (ratio - 5.0) / 10.0), f"EXCESSIVE_NOISE (σ={std:.3f}, ratio={ratio:.1f}x)"
         return 1.0, ""
 
     def _cross_sensor_check(self, data):
+        """Catch thermodynamically impossible sensor combinations."""
         issues = {}
         cht = data.get("cht", 0)
         egt = data.get("egt", 0)
@@ -140,6 +146,7 @@ class SensorIntegrityMonitor:
                 issues["egt"] = (0.4, f"EGT/CHT RATIO LOW ({ratio:.2f} < 1.8)")
             elif ratio > 5.5:
                 issues["cht"] = (0.4, f"EGT/CHT RATIO HIGH ({ratio:.2f} > 5.5)")
+        # EGT should never be this cold when the engine is running
         if rpm > 800 and egt < 900:
             issues["egt"] = (0.15, f"EGT IMPLAUSIBLY LOW ({egt:.0f}°F) at RPM={rpm:.0f}")
         ff = data.get("fuel_flow", 0)
@@ -174,6 +181,7 @@ class SensorIntegrityMonitor:
                 c, msg = cross_issues[ch]
                 confidence = min(confidence, c)
                 issues.append(msg)
+            # if the physics model also disagrees with this channel, dock it
             if physics_residuals and ch in ("egt", "cht", "oil_pressure"):
                 key_map = {"egt": "delta_egt", "cht": "delta_cht", "oil_pressure": "delta_oil_p"}
                 dk = key_map.get(ch)

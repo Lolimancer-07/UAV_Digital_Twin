@@ -1,20 +1,19 @@
 """
 backend/optimizer.py
----------------------
-Counterfactual Operating Point Optimizer.
 
-Finds the optimal operating point that maximizes mission completion probability
-while satisfying engineering constraints.
+Finds the RPM and altitude that maximize mission completion probability
+while staying inside the engineering constraints.
 
-Objective function:
-  maximize: P_mission_completion(RPM, altitude)
+Objective:
+  maximize: P_mission(RPM, altitude)
   subject to:
-    RPM_min <= RPM <= RPM_max
-    ALT_min <= altitude <= ALT_max
-    CHT < CHT_limit
-    fuel_flow > fuel_minimum_viable
+    RPM_min ≤ RPM ≤ RPM_max
+    ALT_min ≤ altitude ≤ ALT_max
+    CHT < CHT_limit (infeasible point if violated)
 
-Method: scipy.optimize.minimize with Nelder-Mead / bounded L-BFGS-B
+We try scipy L-BFGS-B first — it's fast and handles bounds well.
+If scipy isn't installed, we fall back to a grid search which is slower
+but always works.
 """
 
 import math
@@ -27,7 +26,7 @@ except ImportError:
     SCIPY_AVAILABLE = False
 
 
-# Physics constants
+# constants to match what the rest of the pipeline uses
 CHT_NOMINAL   = 380.0
 EGT_NOMINAL   = 1580.0
 CHT_LIMIT     = 430.0
@@ -36,7 +35,7 @@ THERMAL_ALPHA = 1.5
 
 
 def _thermal_load(rpm: float, cht_offset: float = 0.0) -> float:
-    """Approximate CHT and thermal load from RPM and offset."""
+    """Approximate CHT and normalized thermal load at a given RPM."""
     rpm_ratio = rpm / RPM_NOMINAL
     approx_cht = CHT_NOMINAL * (rpm_ratio ** 1.3) + cht_offset
     approx_egt = EGT_NOMINAL * (rpm_ratio ** 1.1)
@@ -52,32 +51,31 @@ def _mission_probability(
     cht_offset: float = 0.0
 ) -> float:
     """
-    Computes mission completion probability for a candidate operating point.
-    Used as the optimization objective (we minimize its negative).
+    Mission completion probability at a candidate operating point.
+    This is the objective function — we minimize its negative.
     """
-    # Thermal load at candidate RPM
     cf_load, approx_cht = _thermal_load(rpm, cht_offset)
     cur_load, _ = _thermal_load(current_rul and RPM_NOMINAL or RPM_NOMINAL, 0.0)
 
-    # CHT constraint penalty
+    # immediately reject any point that exceeds the CHT limit
     if approx_cht > CHT_LIMIT:
-        return 0.001  # Infeasible
+        return 0.001
 
-    # Estimated RUL at candidate point
+    # estimate RUL at the candidate operating point
     if current_rul > 0 and cf_load > 0:
         cur_thermal = (CHT_NOMINAL / CHT_NOMINAL) * (EGT_NOMINAL / EGT_NOMINAL)  # = 1.0 at nominal
         rul_cf = min(260.0, max(0.0, current_rul * (1.0 / max(1e-6, cf_load)) ** THERMAL_ALPHA))
     else:
         rul_cf = current_rul
 
-    # Altitude effect
+    # altitude affects available MAP which affects power and thermal load
     map_ratio = max(0.3, 1.0 - (altitude_ft - 3000.0) / 300000.0)
     altitude_factor = max(0.5, map_ratio)
 
-    # Mission probability components
+    # same probability components as mission_risk.py but simplified for optimization
     p_engine = max(0.01, min(0.999, (current_health / 100.0) * (1.0 - failure_probability * 0.8)))
     p_thermal = min(1.0, max(0.01, (CHT_LIMIT - approx_cht) / CHT_LIMIT + 0.3))
-    mission_cycles = 162.0  # ~4.5 hours
+    mission_cycles = 162.0  # roughly 4.5 hours
     rul_ratio = rul_cf / max(1.0, mission_cycles)
     p_time = min(0.999, max(0.01, 1.0 - math.exp(-rul_ratio * 1.5)))
     p_complete = p_engine * p_thermal * p_time * altitude_factor
@@ -92,20 +90,15 @@ def find_optimal_operating_point(
     constraints: dict = None
 ) -> dict:
     """
-    Searches for the optimal RPM and altitude that maximize mission completion probability.
+    Searches for the RPM and altitude that maximize mission completion probability.
 
     Parameters
     ----------
-    current_state        : current telemetry dict
-    current_rul          : current predicted RUL
-    current_health       : current health index (0-100)
-    failure_probability  : current failure probability (0-1)
-    constraints          : dict with optional keys:
-                           rpm_min, rpm_max, alt_min, alt_max, cht_limit
-
-    Returns
-    -------
-    dict with optimal operating point and expected outcomes
+    current_state        : current telemetry
+    current_rul          : current LSTM-predicted RUL in cycles
+    current_health       : current health index (0–100)
+    failure_probability  : current failure probability (0–1)
+    constraints          : optional overrides for rpm_min, rpm_max, alt_min, alt_max, cht_limit
     """
     constraints = constraints or {}
     rpm_min = float(constraints.get("rpm_min", 1600.0))
@@ -116,17 +109,18 @@ def find_optimal_operating_point(
 
     current_rpm = float(current_state.get("rpm", RPM_NOMINAL))
     current_alt = float(current_state.get("altitude_ft", 3000.0))
+    # compute CHT offset from current readings so we account for degradation-driven heat
     cht_offset = float(current_state.get("cht", CHT_NOMINAL)) - CHT_NOMINAL * (current_rpm / RPM_NOMINAL) ** 1.3
 
     def objective(x):
         rpm, alt = x[0], x[1]
-        # Penalize boundary violations
+        # hard boundary violations — return 1.0 (worst) so optimizer stays in bounds
         if rpm < rpm_min or rpm > rpm_max:
             return 1.0
         if alt < alt_min or alt > alt_max:
             return 1.0
         p = _mission_probability(rpm, alt, current_rul, current_health, failure_probability, cht_offset)
-        return -p  # minimize negative = maximize
+        return -p  # minimize the negative = maximize probability
 
     best_p = -1.0
     best_point = {"rpm": current_rpm, "alt": current_alt}
@@ -144,7 +138,7 @@ def find_optimal_operating_point(
         except Exception as e:
             pass
 
-    # Fallback: grid search over rpm x altitude
+    # fallback grid search — coarse but reliable
     if best_p < 0:
         rpm_steps = [rpm_min + i * (rpm_max - rpm_min) / 10 for i in range(11)]
         alt_steps = [alt_min + i * (alt_max - alt_min) / 5 for i in range(6)]
@@ -159,7 +153,7 @@ def find_optimal_operating_point(
     optimal_alt = best_point["alt"]
     opt_load, opt_cht = _thermal_load(optimal_rpm, cht_offset)
 
-    # RUL estimate at optimal point
+    # RUL estimate at the optimal point
     if current_rul > 0 and opt_load > 0:
         opt_rul = min(260.0, max(0.0, current_rul * (1.0 / max(1e-6, opt_load)) ** THERMAL_ALPHA))
     else:
@@ -169,7 +163,7 @@ def find_optimal_operating_point(
     current_p = _mission_probability(current_rpm, current_alt, current_rul, current_health, failure_probability, cht_offset)
     p_improvement = best_p - current_p
 
-    # Generate natural-language recommendation
+    # generate a simple natural-language recommendation
     rpm_delta = optimal_rpm - current_rpm
     if abs(rpm_delta) < 20:
         action = "Current RPM is near optimal. No RPM adjustment recommended."

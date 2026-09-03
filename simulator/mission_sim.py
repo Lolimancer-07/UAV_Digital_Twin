@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
 """
 simulator/mission_sim.py
---------------------------
-Advanced Multi-Channel UAV Aero Piston Engine Mission & Physics Simulator.
 
-Features:
-  1. Full 14-Channel Telemetry Suite with Multi-Cylinder (Cyl 1..4) CHT & EGT Arrays
-  2. Real-Time Environmental Flight Physics (ISA Altitude, Density Ratio, Hot Day, Endurance)
-  3. Interactive Live Fault Injection System (Misfire, Injector, Cooling, Oil Leak, Sensor Drift)
-  4. Real-Time SAE J1939 / SocketCAN Frame Encoding
-  5. Playback Speed Control (1x, 2x, 5x, 10x, Pause/Resume, Cycle Scrub)
+The main mission simulator — reads the telemetry dataset and streams it
+to the MQTT broker at 10 Hz, simulating a live UAV propulsion system.
+
+Key features:
+  - 14-channel telemetry with per-cylinder CHT and EGT arrays (4 cylinders each)
+  - Environmental profiles: Normal, High Altitude, Hot Weather, Endurance, Rapid Throttle
+  - Live fault injection: misfire, injector clog, cooling degradation, oil leak, etc.
+  - Playback speed control (1x–10x) and pause/resume via shared JSON file
+  - SAE J1939 CAN frame generation via can_bridge.py
+
+The control file (current_profile.json) is how the GCS talks to the simulator —
+the inference engine writes commands to it and we pick them up each loop.
 """
 
 import paho.mqtt.client as mqtt
@@ -19,7 +23,7 @@ import pandas as pd
 
 from can_bridge import AeroCANBridge
 
-# ── Paths ────────────────────────────────────────────────────────────────────
+# figure out the project root from our own path
 ROOT         = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CSV_PATH     = os.path.join(ROOT, 'data', 'telemetry_ready.csv')
 CONTROL_FILE = os.path.join(ROOT, 'simulator', 'current_profile.json')
@@ -28,7 +32,7 @@ MAX_RUL  = 260.0
 ADDRESS  = "tcp://localhost:1883"
 TOPIC    = "uav/engine/telemetry"
 
-# ── Mission Environmental Profiles ───────────────────────────────────────────
+# five mission environments — each tweaks sensor values to reflect real ops conditions
 PROFILES = {
     "NORMAL": dict(
         altitude_ft=3000, oat_c=15.0, rpm_factor=1.00, cht_offset=0.0,
@@ -57,7 +61,7 @@ PROFILES = {
     ),
 }
 
-# ── Global Simulation State ───────────────────────────────────────────────────
+# global simulation state — updated by read_control() each loop
 sim_state = {
     "profile": "NORMAL",
     "speed": 1.0,
@@ -68,7 +72,7 @@ sim_state = {
 
 
 def read_control():
-    """Reads profile, speed, pause state, and injected faults from shared JSON."""
+    """Reads profile, speed, pause state, and injected faults from the shared JSON control file."""
     global sim_state
     try:
         if os.path.exists(CONTROL_FILE):
@@ -88,22 +92,22 @@ def clamp(val, lo, hi):
 
 def build_telemetry_packet(row, cycle_idx: int, prof: dict, faults: set) -> dict:
     """
-    Synthesizes full 14-channel aero engine state with physics interactions and fault injections.
+    Synthesizes a full 14-channel telemetry packet with realistic physics
+    interactions, degradation trends, and any active fault injections.
     """
     rng = np.random
     rul = float(row.get('rul', 150))
-    deg = clamp(1.0 - (rul / MAX_RUL), 0.0, 1.0)
+    deg = clamp(1.0 - (rul / MAX_RUL), 0.0, 1.0)  # 0.0 = new, 1.0 = end of life
 
-    # 1. Base RPM
+    # RPM — with sinusoidal throttle variation in RAPID_THROTTLE mode
     base_rpm = float(row['rpm']) * prof['rpm_factor']
     if "RAPID_THROTTLE" == sim_state["profile"]:
         base_rpm += math.sin(cycle_idx * 0.45) * 160.0
     rpm = clamp(base_rpm + rng.normal(0, 4.0), 600.0, 2800.0)
 
-    # 2. Multi-Cylinder CHT (°F) (Cylinders 1, 2, 3, 4)
-    base_cht = float(row['cht']) * 0.60 + prof['cht_offset']  # Scale to aero piston ~360-420°F
+    # per-cylinder CHT — rear cylinders naturally run a bit hotter
+    base_cht = float(row['cht']) * 0.60 + prof['cht_offset']  # scale raw data into aero piston range
     cht_avg = clamp(base_cht + (deg * 35.0) + rng.normal(0, 1.5), 150.0, 520.0)
-    # Cylinders have minor realistic thermal gradients (rear cylinders run hotter)
     cht_cyl = [
         round(cht_avg - 4.5 + rng.normal(0, 0.8), 1),
         round(cht_avg - 2.0 + rng.normal(0, 0.8), 1),
@@ -111,7 +115,7 @@ def build_telemetry_packet(row, cycle_idx: int, prof: dict, faults: set) -> dict
         round(cht_avg + 5.5 + rng.normal(0, 0.8), 1),
     ]
 
-    # 3. Multi-Cylinder EGT (°F) (Cylinders 1, 2, 3, 4)
+    # per-cylinder EGT — same pattern, slight inter-cylinder variation
     base_egt = float(row['egt']) * prof['egt_factor']
     egt_avg = clamp(base_egt + (deg * 25.0) + rng.normal(0, 4.0), 800.0, 1750.0)
     egt_cyl = [
@@ -121,34 +125,34 @@ def build_telemetry_packet(row, cycle_idx: int, prof: dict, faults: set) -> dict
         round(egt_avg + 7.0 + rng.normal(0, 2.0), 1),
     ]
 
-    # 4. Oil Pressure & Oil Temperature
+    # oil system
     oil_press = clamp((62.0 - deg * 26.0) * prof['oil_factor'] + rng.normal(0, 1.2), 10.0, 85.0)
     oil_temp = clamp((175.0 + deg * 35.0 + (prof['cht_offset'] * 0.4)) + rng.normal(0, 1.0), 100.0, 260.0)
 
-    # 5. Fuel Flow & Rail Pressure
+    # fuel system
     fuel_flow = clamp((rpm / 1400.0) * 8.5 * prof['fuel_factor'] + (deg * 1.5) + rng.normal(0, 0.12), 0.5, 20.0)
     fuel_rail_bar = clamp(3.0 - (deg * 0.4) + rng.normal(0, 0.05), 1.0, 5.0)
 
-    # 6. Vibration Signatures (RMS & Kurtosis)
+    # vibration — kurtosis rises before RMS does when bearing wear starts
     vib_rms = clamp((0.40 + deg * 2.8) * prof['vib_factor'] + rng.normal(0, 0.05), 0.1, 8.0)
     vib_kurt = clamp(3.0 + (deg * 2.0) + rng.normal(0, 0.1), 2.5, 8.0)
 
-    # 7. Electrical Subsystem (Voltage & Bus Current)
+    # electrical
     batt_v = clamp(13.8 - (deg * 0.7) + rng.normal(0, 0.04), 10.5, 15.0)
     bus_current = clamp(18.0 + (rpm / 2000.0) * 8.0 + rng.normal(0, 0.5), 5.0, 45.0)
 
-    # 8. Ignition & Control
+    # ignition timing retards as wear accumulates
     inj_timing = clamp(28.0 - (deg * 7.5) + rng.normal(0, 0.25), 12.0, 36.0)
     map_kpa = clamp(prof['map_kpa'] + rng.normal(0, 0.8), 30.0, 120.0)
 
-    # ── Apply Interactive Fault Injections (On-Demand Demo Capabilities) ──────
+    # apply interactive fault injections — these simulate real failure modes
     misfire_flag = False
     cooling_flag = False
 
     if "misfire" in faults:
         rpm -= 240.0
         egt_avg += 95.0
-        egt_cyl[1] -= 350.0  # Dead cylinder #2
+        egt_cyl[1] -= 350.0  # cylinder 2 goes cold — dead cylinder signature
         vib_rms += 2.2
         vib_kurt += 3.0
         misfire_flag = True
@@ -156,7 +160,7 @@ def build_telemetry_packet(row, cycle_idx: int, prof: dict, faults: set) -> dict
     if "injector_clog" in faults:
         fuel_flow *= 0.45
         fuel_rail_bar = 1.8
-        egt_cyl[0] += 120.0  # Lean cylinder #1 spike
+        egt_cyl[0] += 120.0  # cylinder 1 runs lean and hot
 
     if "cooling_degradation" in faults:
         cht_avg += 65.0
@@ -165,12 +169,12 @@ def build_telemetry_packet(row, cycle_idx: int, prof: dict, faults: set) -> dict
         cooling_flag = True
 
     if "oil_leak" in faults:
-        oil_press = 24.5  # Critical drop
+        oil_press = 24.5  # catastrophic drop
         oil_temp += 45.0
         vib_rms += 0.8
 
     if "sensor_drift" in faults:
-        egt_avg = 950.0  # Thermocouple cold short
+        egt_avg = 950.0  # thermocouple cold short — reads implausibly low
         cht_avg = 480.0
 
     if "bearing_wear" in faults:
@@ -179,11 +183,11 @@ def build_telemetry_packet(row, cycle_idx: int, prof: dict, faults: set) -> dict
         oil_press -= 12.0
 
     if "combustion_instability" in faults:
-        inj_timing = 14.0  # Retarded timing
+        inj_timing = 14.0  # heavily retarded timing
         vib_rms += 1.6
         egt_avg += 80.0
 
-    # Build primary telemetry dictionary
+    # assemble the full telemetry packet
     packet = {
         "engine_id":              int(row.get('engine_id', 1)),
         "cycle":                  int(row.get('cycle', cycle_idx)),
@@ -211,13 +215,13 @@ def build_telemetry_packet(row, cycle_idx: int, prof: dict, faults: set) -> dict
         "cooling_degradation_active": cooling_flag,
     }
 
-    # Generate matching CAN bus frames
+    # attach CAN frames for the bus monitor panel
     packet["can_frames"] = AeroCANBridge.generate_packet_burst(packet)
 
     return packet
 
 
-# ── MQTT Client Setup ─────────────────────────────────────────────────────────
+# set up MQTT
 client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
 
 def on_connect(c, userdata, flags, rc, props):
@@ -231,11 +235,11 @@ client.on_connect = on_connect
 client.connect("localhost", 1883, 60)
 client.loop_start()
 
-# ── Main Telemetry Loop ───────────────────────────────────────────────────────
+# load the dataset and start streaming
 print(f"[SIM] Loading dataset: {CSV_PATH}")
 df = pd.read_csv(CSV_PATH)
 
-# Focus on primary UAV propulsion asset (Engine #1 mission lifespan)
+# use engine #1 as the primary UAV lifecycle — if no engine 1, take the first 192 rows
 mission_df = df[df['engine_id'] == 1].reset_index(drop=True)
 if len(mission_df) == 0:
     mission_df = df.iloc[:192].reset_index(drop=True)
@@ -248,7 +252,7 @@ while True:
     for idx, row in mission_df.iterrows():
         read_control()
 
-        # Handle pause
+        # pause loop — just keep checking until unpaused
         while sim_state["paused"]:
             time.sleep(0.2)
             read_control()
@@ -270,15 +274,15 @@ while True:
 
         cycle_counter += 1
 
-        # Rate control
+        # sleep to hit the target Hz — divide by speed multiplier
         sleep_dur = (1.0 / prof["base_hz"]) / max(0.2, sim_state["speed"])
         time.sleep(sleep_dur)
 
     print("\n[SIM] Complete UAV engine lifecycle completed. Scheduled depot overhaul reset...\n")
     time.sleep(1.0)
 
-# ── UAV ID Tagging (appended to build_telemetry_packet output) ─────────────
-# Patch: add uav_id to packet (backward-compatible addition)
+# patch to tag packets with UAV ID — added after initial implementation
+# wraps the original function so existing call sites don't need changes
 _original_build = build_telemetry_packet
 
 def build_telemetry_packet(row, cycle_idx, prof, faults):

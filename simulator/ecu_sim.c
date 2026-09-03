@@ -11,11 +11,11 @@
 #define TOPIC       "uav/engine/telemetry"
 #define QOS         0
 #define TIMEOUT     10000L
-#define MAX_RUL     260.0f   /* Approximate max life in FD001 dataset */
+#define MAX_RUL     260.0f   /* max life in the FD001 dataset */
 
-/* ---------- Physics helpers ------------------------------------------- */
+/* ---------- helper functions ------------------------------------------ */
 
-/* Box-Muller: Gaussian noise N(mean, stddev) */
+/* Box-Muller transform — gives us Gaussian noise N(mean, stddev) */
 static float gaussian(float mean, float stddev) {
     float u1 = ((float)rand() + 1.0f) / ((float)RAND_MAX + 1.0f);
     float u2 = ((float)rand() + 1.0f) / ((float)RAND_MAX + 1.0f);
@@ -27,7 +27,7 @@ static float clampf(float v, float lo, float hi) {
     return v < lo ? lo : (v > hi ? hi : v);
 }
 
-/* ---------- Main ------------------------------------------------------- */
+/* ---------- main ------------------------------------------------------- */
 
 int main(int argc, char* argv[]) {
     srand((unsigned int)time(NULL));
@@ -48,7 +48,7 @@ int main(int argc, char* argv[]) {
     }
     printf("[ECU] Connected to MQTT Broker at %s\n", ADDRESS);
 
-    /* Path is relative to UAV_Digital_Twin root (run from there) */
+    /* run from the project root so this relative path resolves */
     FILE *file = fopen("data/telemetry_ready.csv", "r");
     if (!file) {
         printf("[ECU] Error: Cannot open 'data/telemetry_ready.csv'\n");
@@ -58,7 +58,7 @@ int main(int argc, char* argv[]) {
     char  line[512];
     char  payload[1024];
 
-    /* Skip CSV header */
+    /* skip the CSV header row */
     fgets(line, sizeof(line), file);
 
     printf("[ECU] Telemetry stream started at 10 Hz\n\n");
@@ -71,40 +71,39 @@ int main(int argc, char* argv[]) {
                    &engine_id, &cycle, &rpm, &cht, &egt, &rul) != 6)
             continue;
 
-        /* ---- Degradation factor: 0.0 (new) → 1.0 (end of life) ---- */
+        /* degradation factor: 0.0 (new engine) → 1.0 (end of life) */
         float deg = clampf(1.0f - (rul / MAX_RUL), 0.0f, 1.0f);
 
-        /* ---- Physics-informed synthetic sensors -------------------- */
+        /* synthesize the remaining channels from physics relationships */
 
-        /* Oil pressure (PSI): 65 when healthy → 35 near failure       */
+        /* oil pressure: 65 PSI healthy → 35 PSI near failure */
         float oil_pressure = clampf(
             65.0f - (deg * 30.0f) + gaussian(0.0f, 1.5f), 10.0f, 80.0f);
 
-        /* Fuel flow (L/hr): proportional to RPM                       */
+        /* fuel flow: scales with RPM, roughly linear */
         float fuel_flow = clampf(
             (rpm / 1400.0f) * 8.5f + gaussian(0.0f, 0.15f), 0.5f, 15.0f);
 
-        /* Vibration (g RMS): 0.3g nominal → 3.5g near failure         */
+        /* vibration: 0.3g nominal → 3.5g near failure */
         float vibration = clampf(
             0.3f + (deg * 3.2f) + gaussian(0.0f, 0.08f), 0.0f, 10.0f);
 
-        /* Battery / alternator voltage (V): 13.8V nominal → drops     */
+        /* battery voltage: 13.8V nominal, sags with alternator wear */
         float battery_v = clampf(
             13.8f - (deg * 0.8f) + gaussian(0.0f, 0.05f), 11.0f, 15.0f);
 
-        /* Injection timing advance (deg BTDC): retards as wear grows   */
+        /* injection timing retards as combustion chamber wear increases */
         float inj_timing = clampf(
             28.0f - (deg * 8.0f) + gaussian(0.0f, 0.3f), 10.0f, 35.0f);
 
-        /* ---- Fault injection at very low RUL for demo realism ------ */
+        /* near end-of-life: occasionally inject a misfire event for realism */
         if (rul < 15.0f && ((rand() % 10) < 2)) {
-            /* Occasional misfire: RPM dip + EGT spike                 */
             rpm  -= gaussian(80.0f, 20.0f);
             egt  += gaussian(50.0f, 15.0f);
             vibration += 1.0f;
         }
 
-        /* ---- Build JSON payload ------------------------------------ */
+        /* build the JSON payload */
         snprintf(payload, sizeof(payload),
             "{"
             "\"engine_id\":%d,"
@@ -135,7 +134,7 @@ int main(int argc, char* argv[]) {
                "OIL=%.1f VIB=%.2f\n",
                engine_id, cycle, rul, rpm, cht, egt, oil_pressure, vibration);
 
-        usleep(100000);   /* 10 Hz */
+        usleep(100000);   /* 10 Hz — 100ms between packets */
     }
 
     fclose(file);

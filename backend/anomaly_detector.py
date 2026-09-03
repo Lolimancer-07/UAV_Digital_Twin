@@ -1,86 +1,83 @@
 """
 backend/anomaly_detector.py
-----------------------------
-Comprehensive Anomaly Detection & Intelligent Fault Diagnostics Layer
-for MALE UAV Aero Piston Engines.
 
-Implements:
-  1. Multivariate Isolation Forest (trained on healthy operational envelope)
-  2. Physics-Residual Anomaly Assessment
-  3. Domain-Specific Intelligent Fault Classifier covering all 8 Problem Statement categories:
-     - Misfire conditions
-     - Injector abnormalities
-     - Cooling system degradation
-     - Lubrication breakdown
-     - Sensor drift / failure
-     - Combustion instability
-     - Overheating runaway trends
-     - Abnormal vibration signatures (bearing / imbalance)
+Two-layer anomaly detection for MALE UAV aero piston engines:
+
+Layer 1 — Isolation Forest trained on healthy telemetry.
+  Gives a continuous score: more negative = more anomalous.
+
+Layer 2 — 8 hand-crafted fault rules based on domain knowledge.
+  Catches specific failure modes the statistical model might miss
+  when only one or two channels deviate.
+
+Both layers run every packet. A fault flag from either one sets
+is_anomaly = True for the full pipeline.
 """
 
 import pickle
 import numpy as np
 from typing import Tuple, List, Dict, Any
 
-# ── 8 Domain Expert Fault Rules (Problem Statement Category C) ────────────────
+# these rules encode what an experienced engine tech would look for
 FAULT_RULES: Dict[str, callable] = {
-    # 1. Overheating Runaway Trends
+    # if both CHT and EGT are climbing together, it's a real thermal runaway
     "OVERHEATING": lambda d: (
         d.get('cht', 0) > 420.0 or
         d.get('egt', 0) > 1650.0 or
         (d.get('cht', 0) > 400.0 and d.get('egt', 0) > 1620.0)
     ),
 
-    # 2. Lubrication Issues & Pressure Loss
+    # below 38 PSI is an immediate emergency — bearing damage starts fast
     "LOW_OIL_PRESSURE": lambda d: (
         d.get('oil_pressure', 60.0) < 38.0
     ),
+    # softer warning — starts when pressure is marginal at high RPM
     "LUBRICATION_ISSUE": lambda d: (
         d.get('oil_pressure', 60.0) < 42.0 or
         d.get('oil_temp', 180.0) > 230.0 or
         (d.get('oil_pressure', 60.0) < 45.0 and d.get('rpm', 0) > 1350.0)
     ),
 
-    # 3. Abnormal Vibration Patterns (Bearing Wear / Mechanical Looseness)
+    # kurtosis > 4.2 is a strong indicator of impulsive bearing faults
     "HIGH_VIBRATION": lambda d: (
         d.get('vibration', 0.0) > 2.2 or
         d.get('vibration_kurtosis', 3.0) > 4.2
     ),
 
-    # 4. Misfire Conditions (Sudden cyclic torque drop + unburned fuel EGT excursion)
+    # low RPM + high EGT = unburned fuel in exhaust = misfire
     "MISFIRE_SUSPECT": lambda d: (
         (d.get('rpm', 9999) < 1250 and d.get('egt', 0) > 1620) or
         d.get('misfire_active', False) is True or
         (d.get('vibration', 0) > 1.8 and d.get('rpm', 0) < 1280)
     ),
 
-    # 5. Injector Abnormalities (Fuel rail pressure drop / Flow-to-RPM mismatch)
+    # fuel rail pressure or flow-to-RPM mismatch — injector blockage or leak
     "INJECTOR_ANOMALY": lambda d: (
         (d.get('fuel_flow', 8.5) < 4.2 and d.get('rpm', 0) > 1200) or
         (d.get('fuel_flow', 8.5) > 12.5 and d.get('rpm', 0) < 1300) or
         d.get('fuel_rail_pressure_bar', 3.0) < 2.2
     ),
 
-    # 6. Sensor Drift / Failure (Physically impossible cross-sensor readings)
+    # cross-sensor contradiction — EGT can't be cold when CHT is hot
     "SENSOR_DRIFT": lambda d: (
         (d.get('egt', 1580) < 1200 and d.get('cht', 0) > 380) or
         (d.get('cht', 0) < 100 and d.get('rpm', 0) > 1000) or
         (d.get('battery_v', 13.8) < 10.0 or d.get('battery_v', 13.8) > 16.5)
     ),
 
-    # 7. Cooling System Degradation (Thermal resistance rising)
+    # CHT and oil temp both rising — cooling system losing ground
     "COOLING_DEGRADATION": lambda d: (
         (d.get('cht', 0) > 410.0 and d.get('oil_temp', 180.0) > 215.0) or
         d.get('cooling_degradation_active', False) is True
     ),
 
-    # 8. Combustion Instability (Mixture fluctuation / flame front speed variations)
+    # timing retard + vibration + rich EGT = flame front instability
     "COMBUSTION_INSTABILITY": lambda d: (
         (d.get('vibration', 0) > 1.6 and abs(d.get('inj_timing', 28) - 28.0) > 7.0) or
         (d.get('egt', 1580) > 1635 and d.get('fuel_flow', 8.5) > 10.8)
     ),
 
-    # Auxiliary electrical warning
+    # alternator output dropping — worth flagging even if not engine-critical
     "ALTERNATOR_LOW": lambda d: (
         d.get('battery_v', 13.8) < 12.6
     )
@@ -102,8 +99,8 @@ FAULT_SEVERITY = {
 
 class AnomalyDetector:
     """
-    Combines Isolation Forest multivariate statistical anomaly detection
-    with rule-based aero engine fault classification.
+    Combines Isolation Forest (learned normal envelope) with
+    rule-based domain fault classification.
     """
 
     def __init__(self, model_path: str = 'backend/anomaly_model.pkl'):
@@ -123,13 +120,12 @@ class AnomalyDetector:
 
     def predict(self, data: dict) -> Tuple[bool, float, List[dict]]:
         """
-        Evaluates live telemetry against the learned multivariate model
-        and expert domain rules.
+        Runs both detection layers on the current telemetry packet.
 
         Returns:
-            is_anomaly   : bool
-            score        : float (negative = more anomalous)
-            fault_events : list of active fault dicts {name, severity}
+          is_anomaly   — True if either layer triggered
+          score        — Isolation Forest score (more negative = worse)
+          fault_events — list of active fault dicts with name and severity
         """
         score = 0.0
         ml_anomaly = False
@@ -143,7 +139,7 @@ class AnomalyDetector:
                 score = 0.0
                 ml_anomaly = False
 
-        # Evaluate domain rules
+        # check every rule — silently skip if the rule itself throws
         fault_events = []
         for name, rule in FAULT_RULES.items():
             try:
@@ -155,7 +151,7 @@ class AnomalyDetector:
             except Exception:
                 continue
 
-        # Force anomaly flag if any critical rule triggered or manual fault injected
+        # any critical rule or any fault at all counts as an anomaly
         has_critical_fault = any(f["severity"] == "CRITICAL" for f in fault_events)
         is_anomaly = bool(ml_anomaly or has_critical_fault or len(fault_events) > 0)
 

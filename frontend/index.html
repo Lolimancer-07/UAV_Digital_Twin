@@ -3,1355 +3,1450 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>UAV Propulsion Ground Control Station</title>
+<title>UAV Digital Twin GCS — AI+Physics Propulsion Intelligence v2.0</title>
+<meta name="description" content="AI + Physics Powered UAV Engine Digital Twin. Real-time fault detection, RUL prediction, mission risk, what-if simulation, and prescriptive maintenance.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
-/* ─── RESET & BASE ──────────────────────────────────────────────────────── */
+/* ─── RESET & BASE ───────────────────────────────────────────────────── */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%;overflow:hidden;background:#000000}
-
-/* ─── COLOR PALETTE TOKENS ──────────────────────────────────────────────── */
-:root, [data-theme="stealth"] {
-  --bg-app:        #000000;
-  --bg-surface:    #0c0d12;
-  --bg-panel:      #13151c;
-  --bg-card:       #181b24;
-  --bg-card-hover: #222634;
-  --bg-dock:       #08090d;
-
-  --border:        rgba(255,255,255,0.12);
-  --border-strong: rgba(255,255,255,0.22);
-  --border-focus:  #38bdf8;
-
-  --accent:        #38bdf8;
-  --accent-light:  #7dd3fc;
-  --accent-glow:   rgba(56,189,248,0.15);
-
-  --ok:            #10b981;
-  --ok-bg:         rgba(16,185,129,0.18);
-  --warn:          #f59e0b;
-  --warn-bg:       rgba(245,158,11,0.18);
-  --crit:          #ef4444;
-  --crit-bg:       rgba(239,68,68,0.22);
-
-  --text-main:     #ffffff;
-  --text-body:     #f1f5f9;
-  --text-muted:    #cbd5e1;
-  --text-label:    #94a3b8;
-  --text-dim:      #64748b;
-
-  --font-ui:       'Inter', system-ui, -apple-system, sans-serif;
-  --font-data:     'JetBrains Mono', monospace;
+html,body{height:100%;overflow:hidden;background:#000}
+:root,[data-theme="stealth"]{
+  --bg-app:#000;--bg-surface:#0c0d12;--bg-panel:#13151c;--bg-card:#181b24;--bg-card-hover:#222634;--bg-dock:#08090d;
+  --border:rgba(255,255,255,.12);--border-strong:rgba(255,255,255,.22);--border-focus:#38bdf8;
+  --accent:#38bdf8;--accent2:#818cf8;--accent-glow:rgba(56,189,248,.15);
+  --ok:#10b981;--ok-bg:rgba(16,185,129,.18);--warn:#f59e0b;--warn-bg:rgba(245,158,11,.18);--crit:#ef4444;--crit-bg:rgba(239,68,68,.22);
+  --text-main:#fff;--text-body:#f1f5f9;--text-muted:#cbd5e1;--text-label:#94a3b8;--text-dim:#64748b;
+  --font-ui:'Inter',system-ui,sans-serif;--font-data:'JetBrains Mono',monospace;
 }
+[data-theme="ice"]{--bg-app:#020617;--bg-surface:#0a1128;--bg-panel:#0f1a3d;--bg-card:#142352;--bg-card-hover:#1d3170;--bg-dock:#070d20;--border:rgba(56,189,248,.18);--border-strong:rgba(56,189,248,.3);--accent:#38bdf8;--text-label:#7dd3fc;}
+[data-theme="emerald"]{--bg-app:#020a06;--bg-surface:#06180e;--bg-panel:#0c2617;--bg-card:#123621;--bg-card-hover:#19482d;--bg-dock:#04120a;--border:rgba(16,185,129,.2);--border-strong:rgba(16,185,129,.32);--accent:#10b981;--text-label:#6ee7b7;}
+[data-theme="amber"]{--bg-app:#0e0b06;--bg-surface:#1a150b;--bg-panel:#2a2112;--bg-card:#3a2e19;--bg-card-hover:#4e3e22;--bg-dock:#141008;--border:rgba(245,158,11,.2);--border-strong:rgba(245,158,11,.32);--accent:#f59e0b;--text-label:#fcd34d;}
 
-/* ─── 2. Deep Space Ice-Blue ─── */
-[data-theme="ice"] {
-  --bg-app:        #020617;
-  --bg-surface:    #0a1128;
-  --bg-panel:      #0f1a3d;
-  --bg-card:       #142352;
-  --bg-card-hover: #1d3170;
-  --bg-dock:       #070d20;
-  --border:        rgba(56,189,248,0.18);
-  --border-strong: rgba(56,189,248,0.30);
-  --border-focus:  #38bdf8;
-  --accent:        #38bdf8;
-  --accent-light:  #93c5fd;
-  --accent-glow:   rgba(56,189,248,0.20);
-  --text-main:     #ffffff;
-  --text-body:     #f0f9ff;
-  --text-muted:    #bae6fd;
-  --text-label:    #7dd3fc;
-  --text-dim:      #3b82f6;
-}
+body{font-family:var(--font-ui);color:var(--text-body);display:grid;
+  grid-template-rows:56px 96px 38px 1fr 52px;
+  grid-template-columns:250px 1fr;
+  grid-template-areas:"hdr hdr""hdr hdr""nav nav""side main""dock dock";
+  font-size:12.5px;}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:2px}
 
-/* ─── 3. Emerald Tactical HUD ─── */
-[data-theme="emerald"] {
-  --bg-app:        #020a06;
-  --bg-surface:    #06180e;
-  --bg-panel:      #0c2617;
-  --bg-card:       #123621;
-  --bg-card-hover: #19482d;
-  --bg-dock:       #04120a;
-  --border:        rgba(16,185,129,0.20);
-  --border-strong: rgba(16,185,129,0.32);
-  --border-focus:  #10b981;
-  --accent:        #10b981;
-  --accent-light:  #6ee7b7;
-  --accent-glow:   rgba(16,185,129,0.20);
-  --text-main:     #ffffff;
-  --text-body:     #ecfdf5;
-  --text-muted:    #a7f3d0;
-  --text-label:    #6ee7b7;
-  --text-dim:      #059669;
-}
+/* ─── HEADER ─────────────────────────────────────────────────────────── */
+header{grid-area:hdr;background:var(--bg-surface);border-bottom:1px solid var(--border-strong);
+  display:grid;grid-template-columns:250px 1fr;grid-template-rows:56px 96px;}
+.hpc{grid-column:1;grid-row:1/3;background:var(--bg-app);border-right:1px solid var(--border-strong);
+  padding:12px 14px;display:flex;flex-direction:column;gap:4px;justify-content:center;}
+.hpc-tail{font-family:var(--font-data);font-size:15px;font-weight:800;color:var(--text-main);letter-spacing:.06em;}
+.hpc-badge{font-family:var(--font-data);font-size:9px;font-weight:700;padding:2px 6px;border-radius:2px;
+  background:var(--ok-bg);color:var(--ok);border:1px solid rgba(16,185,129,.3);}
+.hpc-engine{font-size:10.5px;font-weight:700;color:var(--text-label);font-family:var(--font-data);}
+.hpc-specs{font-size:9px;font-family:var(--font-data);color:var(--text-muted);border-top:1px solid var(--border);
+  padding-top:5px;margin-top:3px;display:flex;flex-direction:column;gap:1px;}
+.hpc-sr{display:flex;justify-content:space-between;}.hpc-sr strong{color:var(--text-main);}
+.hdr-strip{grid-column:2;grid-row:1;display:flex;align-items:center;justify-content:space-between;
+  padding:0 16px;border-bottom:1px solid var(--border);}
+.hdr-title{font-size:11px;font-weight:800;letter-spacing:.1em;color:var(--text-main);text-transform:uppercase;}
+.hdr-controls{display:flex;align-items:center;gap:8px;}
+.kpi-ribbon{grid-column:2;grid-row:2;display:grid;grid-template-columns:repeat(6,1fr);border-left:1px solid var(--border);}
+.kpi-card{padding:10px 14px;border-right:1px solid var(--border);display:flex;flex-direction:column;justify-content:center;
+  position:relative;overflow:hidden;transition:background .15s;}
+.kpi-card:hover{background:var(--bg-card);}
+.kpi-label{font-size:8.5px;font-weight:800;letter-spacing:.12em;color:var(--text-label);text-transform:uppercase;margin-bottom:2px;}
+.kpi-val{font-family:var(--font-data);font-size:24px;font-weight:800;color:var(--text-main);line-height:1;}
+.kpi-val .unit{font-size:11px;font-weight:600;color:var(--text-muted);margin-left:3px;}
+.kpi-sub{font-family:var(--font-data);font-size:9.5px;font-weight:600;color:var(--text-muted);margin-top:3px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
+.mm-row{display:flex;align-items:center;gap:5px;margin-top:2px;}
+.mm-lbl{font-size:7.5px;color:var(--text-label);font-family:var(--font-data);width:32px;font-weight:700;}
+.mm-track{flex:1;height:3px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden;}
+.mm-fill{height:100%;border-radius:2px;background:var(--accent);transition:width .5s,background .3s;}
+.mm-num{font-size:8px;color:var(--text-main);font-family:var(--font-data);width:22px;text-align:right;font-weight:700;}
 
-/* ─── 4. Amber Flight Deck ─── */
-[data-theme="amber"] {
-  --bg-app:        #0e0b06;
-  --bg-surface:    #1a150b;
-  --bg-panel:      #2a2112;
-  --bg-card:       #3a2e19;
-  --bg-card-hover: #4e3e22;
-  --bg-dock:       #141008;
-  --border:        rgba(245,158,11,0.20);
-  --border-strong: rgba(245,158,11,0.32);
-  --border-focus:  #f59e0b;
-  --accent:        #f59e0b;
-  --accent-light:  #fde68a;
-  --accent-glow:   rgba(245,158,11,0.20);
-  --text-main:     #ffffff;
-  --text-body:     #fffbeb;
-  --text-muted:    #fde68a;
-  --text-label:    #fcd34d;
-  --text-dim:      #d97706;
-}
+/* ─── STATUS ELEMENTS ────────────────────────────────────────────────── */
+.status-badge{display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:3px;
+  font-family:var(--font-data);font-size:10px;font-weight:800;letter-spacing:.06em;border:1px solid;}
+.status-badge.nominal{color:var(--ok);border-color:rgba(16,185,129,.4);background:var(--ok-bg);}
+.status-badge.warning{color:var(--warn);border-color:rgba(245,158,11,.4);background:var(--warn-bg);}
+.status-badge.critical{color:var(--crit);border-color:rgba(239,68,68,.5);background:var(--crit-bg);animation:crit-pulse 1s infinite;}
+@keyframes crit-pulse{0%,100%{box-shadow:0 0 0 0 transparent}50%{box-shadow:0 0 0 4px rgba(239,68,68,.25)}}
+.status-dot{width:7px;height:7px;border-radius:50%;background:currentColor;}
+.status-badge.nominal .status-dot,.ws-pip.live{animation:live-blink 2s infinite;}
+@keyframes live-blink{0%,100%{opacity:1}50%{opacity:.3}}
+.ws-pill{display:flex;align-items:center;gap:6px;background:var(--bg-panel);border:1px solid var(--border-strong);
+  border-radius:20px;padding:4px 10px;font-family:var(--font-data);font-size:10px;font-weight:700;
+  letter-spacing:.05em;color:var(--text-main);cursor:pointer;transition:border-color .2s;}
+.ws-pill:hover{border-color:var(--accent);}
+.ws-pip{width:7px;height:7px;border-radius:50%;background:var(--text-dim);}
+.ws-pip.live{background:var(--ok);box-shadow:0 0 8px var(--ok);}
+.ws-pip.dead{background:var(--crit);animation:live-blink .8s infinite;}
+.tag-badge{padding:2px 7px;border-radius:2px;font-size:9px;font-weight:800;letter-spacing:.06em;}
+.tb-ok{color:#000;background:var(--ok);}.tb-warn{color:#000;background:var(--warn);}
+.tb-crit{color:#fff;background:var(--crit);}.tb-dim{color:var(--text-main);background:var(--bg-card);border:1px solid var(--border);}
+.btn-header{height:28px;padding:0 10px;background:var(--bg-panel);border:1px solid var(--border-strong);
+  border-radius:3px;color:var(--text-body);font-family:var(--font-data);font-size:9.5px;font-weight:700;
+  letter-spacing:.04em;cursor:pointer;transition:all .15s;}
+.btn-header:hover{background:var(--bg-card-hover);color:var(--text-main);border-color:var(--border-focus);}
 
-/* ─── APP GRID LAYOUT ──────────────────────────────────────────────────── */
-body {
-  font-family: var(--font-ui);
-  color: var(--text-body);
-  display: grid;
-  grid-template-rows: 56px 104px 38px 1fr 52px;
-  grid-template-columns: 260px 1fr;
-  grid-template-areas:
-    "hdr hdr"
-    "hdr hdr"
-    "nav nav"
-    "side main"
-    "dock dock";
-  font-size: 12.5px;
-}
+/* ─── NAV TABS ───────────────────────────────────────────────────────── */
+nav{grid-area:nav;background:var(--bg-surface);border-bottom:1px solid var(--border-strong);
+  display:flex;align-items:flex-end;padding:0 0 0 250px;overflow-x:auto;}
+.tab-btn{padding:8px 16px;background:none;border:none;border-bottom:2px solid transparent;color:var(--text-label);
+  font-family:var(--font-ui);font-size:11.5px;font-weight:700;cursor:pointer;transition:all .15s;white-space:nowrap;
+  margin-bottom:-1px;letter-spacing:.02em;}
+.tab-btn:hover{color:var(--text-main);}
+.tab-btn.active{color:var(--text-main);border-bottom-color:var(--accent);font-weight:800;}
 
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+/* ─── SIDEBAR ────────────────────────────────────────────────────────── */
+aside{grid-area:side;background:var(--bg-surface);border-right:1px solid var(--border-strong);overflow-y:auto;}
+.sb-hdr{padding:7px 12px;font-size:9px;font-weight:800;letter-spacing:.12em;color:var(--text-main);
+  background:var(--bg-panel);border-bottom:1px solid var(--border);text-transform:uppercase;sticky:top 0;}
+.sb-row{display:grid;grid-template-columns:1fr auto;align-items:center;padding:6px 12px;
+  border-bottom:1px solid var(--border);transition:background .12s;}
+.sb-row:hover{background:var(--bg-card-hover);}
+.sb-lbl{font-size:10px;color:var(--text-label);font-weight:600;}
+.sb-val{font-family:var(--font-data);font-size:11.5px;font-weight:700;color:var(--text-main);text-align:right;}
+.sb-val.ok{color:var(--ok);}.sb-val.warn{color:var(--warn);}.sb-val.crit{color:var(--crit);}
+.sb-sub-card{padding:7px 12px;border-bottom:1px solid var(--border);}
+.sb-sub-head{display:flex;justify-content:space-between;margin-bottom:3px;font-size:9.5px;}
+.sb-sub-track{height:3px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden;}
+.sb-sub-fill{height:100%;border-radius:2px;background:var(--accent);transition:width .5s,background .3s;}
 
-/* ─── 1. HEADER ────────────────────────────────────────────────────────── */
-header {
-  grid-area: hdr;
-  background: var(--bg-surface);
-  border-bottom: 1px solid var(--border-strong);
-  display: grid;
-  grid-template-columns: 260px 1fr auto;
-  grid-template-rows: 56px 104px;
-}
+/* ─── WORKSPACE ──────────────────────────────────────────────────────── */
+.workspace{grid-area:main;overflow-y:auto;background:var(--bg-app);padding:12px;display:flex;flex-direction:column;gap:12px;}
+.tab-pane{display:none;flex-direction:column;gap:12px;}
+.tab-pane.active{display:flex;}
+.panel-card{background:var(--bg-panel);border:1px solid var(--border-strong);border-radius:4px;overflow:hidden;}
+.panel-hdr{display:flex;align-items:center;justify-content:space-between;padding:9px 16px;
+  background:var(--bg-surface);border-bottom:1px solid var(--border);}
+.panel-title{font-size:10.5px;font-weight:800;letter-spacing:.08em;color:var(--text-main);text-transform:uppercase;}
+.panel-meta{font-family:var(--font-data);font-size:9.5px;font-weight:600;color:var(--text-label);}
+.grid-2col{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.grid-3col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+.chart-box{padding:12px;height:220px;}
+.data-table{width:100%;border-collapse:collapse;font-size:11.5px;}
+.data-table th{padding:8px 14px;text-align:left;font-size:9px;font-weight:800;letter-spacing:.1em;color:var(--text-label);
+  text-transform:uppercase;background:var(--bg-surface);border-bottom:1px solid var(--border);white-space:nowrap;}
+.data-table td{padding:8px 14px;border-bottom:1px solid var(--border);color:var(--text-body);white-space:nowrap;}
+.data-table td.mono{font-family:var(--font-data);font-weight:700;color:var(--text-main);}
+.data-table td.muted{color:var(--text-label);font-size:10.5px;}
+.data-table tr:last-child td{border-bottom:none;}
+.data-table tr:hover td{background:var(--bg-card-hover);}
+.tag-stat{display:inline-block;padding:2px 6px;border-radius:2px;font-size:9px;font-family:var(--font-data);font-weight:800;letter-spacing:.04em;}
+.tag-stat.ok{color:#000;background:var(--ok);}.tag-stat.warn{color:#000;background:var(--warn);}.tag-stat.crit{color:#fff;background:var(--crit);}
 
-/* Technical Propulsion Unit Card */
-.hdr-propulsion-card {
-  grid-column: 1; grid-row: 1/3;
-  background: var(--bg-app);
-  border-right: 1px solid var(--border-strong);
-  display: flex; flex-direction: column; justify-content: center;
-  padding: 14px 16px; gap: 6px;
-}
-.hpc-top { display: flex; align-items: center; justify-content: space-between; }
-.hpc-tail { font-family: var(--font-data); font-size: 14px; font-weight: 800; color: var(--text-main); letter-spacing: 0.05em; }
-.hpc-badge {
-  font-family: var(--font-data); font-size: 9px; font-weight: 700; letter-spacing: 0.06em;
-  padding: 2px 6px; border-radius: 2px; background: var(--ok-bg); color: var(--ok); border: 1px solid rgba(16,185,129,0.3);
-}
-.hpc-engine { font-size: 11px; font-weight: 700; color: var(--text-label); font-family: var(--font-data); }
-.hpc-specs {
-  display: flex; flex-direction: column; gap: 2px; font-size: 9.5px; font-family: var(--font-data);
-  color: var(--text-muted); border-top: 1px solid var(--border); padding-top: 6px; margin-top: 2px;
-}
-.hpc-spec-row { display: flex; justify-content: space-between; }
-.hpc-spec-row strong { color: var(--text-main); }
+/* ─── SYNOPTIC ───────────────────────────────────────────────────────── */
+.synoptic-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border-strong);}
+.syn-block{background:var(--bg-panel);padding:12px;text-align:center;transition:background .12s;}
+.syn-block:hover{background:var(--bg-card-hover);}
+.syn-lbl{font-size:9px;font-weight:800;letter-spacing:.1em;color:var(--text-label);text-transform:uppercase;margin-bottom:4px;}
+.syn-val{font-family:var(--font-data);font-size:26px;font-weight:800;color:var(--text-main);}
+.syn-unit{font-size:10px;color:var(--text-muted);font-family:var(--font-data);}
+.syn-prog{height:4px;border-radius:2px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:5px;}
+.syn-prog-fill{height:100%;border-radius:2px;transition:width .4s,background .3s;}
 
-/* Top Header Bar */
-.hdr-strip {
-  grid-column: 2; grid-row: 1;
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 0 20px;
-  border-bottom: 1px solid var(--border);
-}
-.hdr-title-meta { display: flex; align-items: center; gap: 12px; }
-.hdr-main-title { font-size: 11.5px; font-weight: 800; letter-spacing: 0.10em; color: var(--text-main); text-transform: uppercase; }
-.hdr-cert-tag { font-family: var(--font-data); font-size: 9px; font-weight: 700; color: var(--ok); background: var(--ok-bg); padding: 2px 6px; border-radius: 2px; }
+/* ─── SENSOR MATRIX ──────────────────────────────────────────────────── */
+.sensor-matrix-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border-strong);}
+.sensor-cell{background:var(--bg-panel);padding:12px 14px;display:flex;flex-direction:column;gap:3px;
+  border-left:3px solid transparent;transition:all .15s;}
+.sensor-cell:hover{background:var(--bg-card-hover);}
+.sensor-cell.s-ok{border-left-color:transparent;}
+.sensor-cell.s-warn{border-left-color:var(--warn);background:rgba(245,158,11,.04);}
+.sensor-cell.s-crit{border-left-color:var(--crit);background:rgba(239,68,68,.06);}
+.sc-label{font-size:9px;color:var(--text-label);letter-spacing:.08em;text-transform:uppercase;font-weight:800;}
+.sc-val-row{display:flex;align-items:baseline;gap:5px;margin:2px 0;}
+.sc-val{font-family:var(--font-data);font-size:22px;font-weight:800;color:var(--text-main);line-height:1;}
+.sc-unit{font-family:var(--font-data);font-size:10px;font-weight:700;color:var(--text-muted);}
+.sc-foot{display:flex;align-items:center;justify-content:space-between;margin-top:2px;}
 
-.hdr-controls { display: flex; align-items: center; gap: 10px; }
+/* ─── TWIN CONSISTENCY ───────────────────────────────────────────────── */
+.consistency-gauge{padding:20px;text-align:center;}
+.gauge-ring{width:120px;height:120px;border-radius:50%;border:8px solid var(--border);margin:0 auto 12px;
+  position:relative;display:flex;align-items:center;justify-content:center;transition:all .5s;}
+.gauge-ring.ok{border-color:var(--ok);box-shadow:0 0 20px rgba(16,185,129,.25);}
+.gauge-ring.warn{border-color:var(--warn);box-shadow:0 0 20px rgba(245,158,11,.2);}
+.gauge-ring.crit{border-color:var(--crit);box-shadow:0 0 20px rgba(239,68,68,.25);}
+.gauge-val{font-family:var(--font-data);font-size:28px;font-weight:800;color:var(--text-main);}
+.gauge-unit{font-size:12px;color:var(--text-muted);}
+.case-badge{display:inline-block;padding:4px 12px;border-radius:3px;font-family:var(--font-data);font-size:11px;font-weight:800;letter-spacing:.06em;margin-top:4px;}
 
-.status-badge {
-  display: flex; align-items: center; gap: 7px;
-  padding: 5px 12px; border-radius: 3px;
-  font-family: var(--font-data); font-size: 10px; font-weight: 800; letter-spacing: 0.08em;
-  border: 1px solid;
-}
-.status-badge.nominal { color: var(--ok); border-color: rgba(16,185,129,0.4); background: var(--ok-bg); }
-.status-badge.warning { color: var(--warn); border-color: rgba(245,158,11,0.4); background: var(--warn-bg); }
-.status-badge.critical { color: var(--crit); border-color: rgba(239,68,68,0.5); background: var(--crit-bg); animation: crit-pulse 1s infinite; }
-@keyframes crit-pulse { 0%,100%{box-shadow:0 0 0 0 transparent} 50%{box-shadow:0 0 0 4px rgba(239,68,68,0.25)} }
-.status-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
-.status-badge.nominal .status-dot { animation: live-blink 2s infinite; }
-@keyframes live-blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+/* ─── SENSOR INTEGRITY ───────────────────────────────────────────────── */
+.si-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border-strong);}
+.si-cell{background:var(--bg-panel);padding:10px 12px;}
+.si-ch{font-family:var(--font-data);font-size:9.5px;font-weight:800;color:var(--text-label);text-transform:uppercase;margin-bottom:2px;}
+.si-score{font-family:var(--font-data);font-size:20px;font-weight:800;margin-bottom:2px;}
+.si-score.ok{color:var(--ok);}.si-score.warn{color:var(--warn);}.si-score.crit{color:var(--crit);}
+.si-status{font-size:9px;font-weight:700;letter-spacing:.06em;}
 
-.btn-header {
-  height: 30px; padding: 0 12px;
-  background: var(--bg-panel); border: 1px solid var(--border-strong); border-radius: 3px;
-  color: var(--text-body); font-family: var(--font-data); font-size: 10px; font-weight: 700;
-  letter-spacing: 0.06em; cursor: pointer; transition: all 0.15s; white-space: nowrap;
-}
-.btn-header:hover { background: var(--bg-card-hover); color: var(--text-main); border-color: var(--border-focus); }
+/* ─── WHATIF ─────────────────────────────────────────────────────────── */
+.whatif-split{display:grid;grid-template-columns:280px 1fr;gap:0;background:var(--border);}
+.whatif-controls{background:var(--bg-panel);padding:14px;display:flex;flex-direction:column;gap:10px;}
+.wi-label{font-size:9px;font-weight:800;letter-spacing:.1em;color:var(--text-label);text-transform:uppercase;margin-bottom:4px;}
+.wi-slider-row{display:flex;align-items:center;gap:8px;}
+.wi-slider{flex:1;accent-color:var(--accent);}
+.wi-val{font-family:var(--font-data);font-size:11px;font-weight:700;color:var(--text-main);width:60px;text-align:right;}
+.whatif-results{background:var(--bg-panel);padding:14px;}
+.wi-col-label{font-size:10px;color:var(--text-label);font-weight:600;margin-bottom:2px;}
+.wi-col-val{font-family:var(--font-data);font-size:18px;font-weight:800;color:var(--text-main);}
+.wi-delta{font-family:var(--font-data);font-size:12px;font-weight:800;text-align:center;}
+.wi-delta.pos{color:var(--ok);}.wi-delta.neg{color:var(--crit);}.wi-delta.neu{color:var(--text-muted);}
 
-.ws-pill {
-  display: flex; align-items: center; gap: 7px;
-  background: var(--bg-panel); border: 1px solid var(--border-strong);
-  border-radius: 20px; padding: 5px 12px;
-  font-family: var(--font-data); font-size: 10px; font-weight: 700; letter-spacing: 0.05em; color: var(--text-main);
-  cursor: pointer;
-}
-.ws-pip { width: 7px; height: 7px; border-radius: 50%; background: var(--text-dim); }
-.ws-pip.live { background: var(--ok); box-shadow: 0 0 8px var(--ok); animation: live-blink 2s infinite; }
-.ws-pip.dead { background: var(--crit); animation: live-blink 0.8s infinite; }
+/* ─── MISSION RISK ───────────────────────────────────────────────────── */
+.risk-gauge-container{display:flex;align-items:center;justify-content:center;padding:20px;gap:24px;}
+.risk-ring{width:160px;height:160px;border-radius:50%;border:12px solid var(--border);
+  display:flex;align-items:center;justify-content:center;flex-direction:column;transition:all .5s;}
+.risk-ring.low{border-color:var(--ok);box-shadow:0 0 30px rgba(16,185,129,.3);}
+.risk-ring.moderate,.risk-ring.high{border-color:var(--warn);box-shadow:0 0 30px rgba(245,158,11,.3);}
+.risk-ring.critical{border-color:var(--crit);box-shadow:0 0 30px rgba(239,68,68,.3);animation:crit-pulse 1.5s infinite;}
+.risk-pct{font-family:var(--font-data);font-size:36px;font-weight:800;color:var(--text-main);line-height:1;}
+.risk-label{font-size:10px;font-weight:700;letter-spacing:.08em;color:var(--text-muted);}
+.risk-stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border-strong);}
+.risk-stat{background:var(--bg-panel);padding:12px 14px;}
+.risk-stat-lbl{font-size:9px;font-weight:800;letter-spacing:.1em;color:var(--text-label);text-transform:uppercase;margin-bottom:4px;}
+.risk-stat-val{font-family:var(--font-data);font-size:20px;font-weight:800;color:var(--text-main);}
 
-/* ─── 2. KPI RIBBON ────────────────────────────────────────────────────── */
-.kpi-ribbon {
-  grid-column: 2; grid-row: 2;
-  display: grid; grid-template-columns: repeat(5, 1fr);
-  border-left: 1px solid var(--border);
-}
-.kpi-card {
-  padding: 12px 18px;
-  border-right: 1px solid var(--border);
-  display: flex; flex-direction: column; justify-content: center;
-  position: relative; overflow: hidden;
-}
-.kpi-card::after {
-  content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 2px;
-  background: var(--accent); transform: scaleX(0); transform-origin: left; transition: transform 0.3s;
-}
-.kpi-card:hover::after { transform: scaleX(1); }
-.kpi-card:last-child { border-right: none; }
+/* ─── MAINTENANCE WORK ORDERS ────────────────────────────────────────── */
+.wo-item{padding:12px 16px;border-bottom:1px solid var(--border);border-left:4px solid transparent;transition:background .12s;}
+.wo-item:hover{background:var(--bg-card-hover);}
+.wo-item.ok{border-left-color:var(--ok);}.wo-item.warn{border-left-color:var(--warn);}
+.wo-item.crit{border-left-color:var(--crit);background:rgba(239,68,68,.03);}
+.wo-prio{font-size:9px;font-family:var(--font-data);font-weight:800;letter-spacing:.06em;padding:2px 6px;border-radius:2px;}
+.wo-prio.ok{color:#000;background:var(--ok);}.wo-prio.warn{color:#000;background:var(--warn);}.wo-prio.crit{color:#fff;background:var(--crit);}
+.wo-title{font-size:12.5px;font-weight:800;color:var(--text-main);margin:3px 0;}
+.wo-action{font-size:11px;color:var(--text-body);line-height:1.6;margin-bottom:6px;}
+.wo-detail{font-size:10.5px;font-family:var(--font-data);color:var(--text-muted);line-height:1.6;}
 
-.kpi-label { font-size: 9px; font-weight: 800; letter-spacing: 0.12em; color: var(--text-label); text-transform: uppercase; margin-bottom: 3px; }
-.kpi-val { font-family: var(--font-data); font-size: 28px; font-weight: 800; color: var(--text-main); line-height: 1; }
-.kpi-val .unit { font-size: 12px; font-weight: 600; color: var(--text-muted); margin-left: 4px; }
-.kpi-sub { font-family: var(--font-data); font-size: 10px; font-weight: 600; color: var(--text-muted); margin-top: 4px; display: flex; gap: 8px; align-items: center; }
+/* ─── XAI ATTRIBUTION ────────────────────────────────────────────────── */
+.xai-narrative{padding:12px 16px;font-size:11.5px;color:var(--text-body);line-height:1.7;
+  border-bottom:1px solid var(--border);font-style:italic;background:var(--bg-surface);font-weight:500;}
+.att-row{display:grid;grid-template-columns:140px 1fr 48px;align-items:center;gap:12px;
+  padding:8px 16px;border-bottom:1px solid var(--border);}
+.att-name{font-size:11px;color:var(--text-main);font-weight:700;}
+.att-sub{font-size:9px;color:var(--text-label);}
+.att-track{height:4px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden;}
+.att-fill{height:100%;background:var(--accent);border-radius:2px;transition:width .4s;}
+.att-pct{font-family:var(--font-data);font-size:11px;font-weight:800;color:var(--text-main);text-align:right;}
 
-.tag-badge { padding: 2px 7px; border-radius: 2px; font-size: 9px; font-weight: 800; letter-spacing: 0.06em; }
-.tb-ok { color: #000; background: var(--ok); }
-.tb-warn { color: #000; background: var(--warn); }
-.tb-crit { color: #fff; background: var(--crit); }
-.tb-dim { color: var(--text-main); background: var(--bg-card); border: 1px solid var(--border); }
+/* ─── FLEET ──────────────────────────────────────────────────────────── */
+.fleet-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:14px;}
+.fleet-card{background:var(--bg-card);border:1px solid var(--border);border-radius:4px;padding:14px;
+  cursor:pointer;transition:all .2s;position:relative;overflow:hidden;}
+.fleet-card:hover{border-color:var(--accent);background:var(--bg-card-hover);}
+.fleet-card.active-uav{border-color:var(--accent);box-shadow:0 0 12px var(--accent-glow);}
+.fleet-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--ok);transition:background .3s;}
+.fleet-card.fleet-warn::before{background:var(--warn);}
+.fleet-card.fleet-crit::before{background:var(--crit);}
+.fc-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+.fc-id{font-family:var(--font-data);font-size:13px;font-weight:800;color:var(--text-main);}
+.fc-mission{font-size:9px;font-weight:700;letter-spacing:.06em;color:var(--text-label);padding:2px 6px;background:var(--bg-surface);border-radius:2px;}
+.fc-stats{display:grid;grid-template-columns:1fr 1fr;gap:6px;font-family:var(--font-data);font-size:10.5px;}
+.fc-stat-lbl{color:var(--text-label);font-size:8.5px;font-weight:700;text-transform:uppercase;}
+.fc-stat-val{color:var(--text-main);font-weight:800;}
 
-.micro-meters { display: flex; flex-direction: column; gap: 3px; margin-top: 4px; }
-.mm-row { display: flex; align-items: center; gap: 6px; }
-.mm-lbl { font-size: 8px; color: var(--text-label); font-family: var(--font-data); width: 34px; font-weight: 700; }
-.mm-track { flex: 1; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; }
-.mm-fill { height: 100%; border-radius: 2px; background: var(--text-main); transition: width 0.5s ease; }
-.mm-num { font-size: 8.5px; color: var(--text-main); font-family: var(--font-data); width: 24px; text-align: right; font-weight: 700; }
+/* ─── AI ENGINEER CHAT ───────────────────────────────────────────────── */
+.ai-chat-messages{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;min-height:300px;max-height:380px;}
+.ai-msg{padding:10px 14px;border-radius:4px;font-size:12px;line-height:1.65;max-width:90%;}
+.ai-msg.user{background:var(--bg-card);border:1px solid var(--border);align-self:flex-end;color:var(--text-body);}
+.ai-msg.assistant{background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.2);color:var(--text-body);align-self:flex-start;white-space:pre-wrap;}
+.ai-msg.system{text-align:center;color:var(--text-dim);font-size:10px;align-self:center;border:none;background:none;padding:4px;}
+.ai-input-row{display:flex;gap:8px;padding:12px 14px;border-top:1px solid var(--border);background:var(--bg-surface);}
+.ai-input{flex:1;background:var(--bg-card);border:1px solid var(--border-strong);border-radius:3px;
+  color:var(--text-main);font-family:var(--font-data);font-size:12px;padding:8px 12px;outline:none;}
+.ai-input:focus{border-color:var(--border-focus);}
+.quick-q{display:flex;flex-wrap:wrap;gap:6px;padding:10px 14px;border-bottom:1px solid var(--border);background:var(--bg-surface);}
+.quick-q-btn{padding:3px 8px;background:var(--bg-card);border:1px solid var(--border);border-radius:2px;
+  color:var(--text-label);font-size:10px;font-weight:600;cursor:pointer;transition:all .15s;}
+.quick-q-btn:hover{border-color:var(--accent);color:var(--text-main);}
 
-/* ─── 3. TAB NAVIGATION ────────────────────────────────────────────────── */
-nav {
-  grid-area: nav;
-  background: var(--bg-surface);
-  border-bottom: 1px solid var(--border-strong);
-  display: flex; align-items: flex-end; padding: 0 0 0 260px;
-}
-.tab-btn {
-  padding: 10px 22px;
-  background: none; border: none; border-bottom: 2px solid transparent;
-  color: var(--text-label); font-family: var(--font-ui); font-size: 12px; font-weight: 700;
-  cursor: pointer; transition: all 0.15s; white-space: nowrap; margin-bottom: -1px; letter-spacing: 0.02em;
-}
-.tab-btn:hover { color: var(--text-main); }
-.tab-btn.active { color: var(--text-main); border-bottom-color: var(--accent); font-weight: 800; }
+/* ─── ALERT LOG ──────────────────────────────────────────────────────── */
+.alert-log{max-height:140px;overflow-y:auto;}
+.alert-row{display:flex;align-items:center;gap:8px;padding:6px 14px;border-bottom:1px solid var(--border);font-size:10.5px;}
+.al-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+.al-dot.ok{background:var(--ok);}.al-dot.warn{background:var(--warn);}.al-dot.crit{background:var(--crit);}
+.al-ts{font-family:var(--font-data);font-size:9px;color:var(--text-dim);width:45px;flex-shrink:0;}
+.al-badge{font-family:var(--font-data);font-size:8.5px;padding:1px 5px;border-radius:2px;font-weight:800;}
 
-/* ─── 4. PERSISTENT SIDEBAR ────────────────────────────────────────────── */
-aside {
-  grid-area: side;
-  background: var(--bg-surface);
-  border-right: 1px solid var(--border-strong);
-  overflow-y: auto;
-}
-.sb-header {
-  padding: 9px 14px; font-size: 9px; font-weight: 800; letter-spacing: 0.12em;
-  color: var(--text-main); background: var(--bg-panel); border-bottom: 1px solid var(--border); text-transform: uppercase;
-}
-.sb-row {
-  display: grid; grid-template-columns: 1fr auto; align-items: center;
-  padding: 7px 14px; border-bottom: 1px solid var(--border); transition: background 0.12s;
-}
-.sb-row:hover { background: var(--bg-card-hover); }
-.sb-lbl { font-size: 10px; color: var(--text-label); font-weight: 600; }
-.sb-val { font-family: var(--font-data); font-size: 12px; font-weight: 700; color: var(--text-main); text-align: right; }
-.sb-val.ok { color: var(--ok); }
-.sb-val.warn { color: var(--warn); }
-.sb-val.crit { color: var(--crit); }
+/* ─── COMMAND DOCK ───────────────────────────────────────────────────── */
+.cmd-dock{grid-area:dock;background:var(--bg-dock);border-top:1px solid var(--border-strong);display:flex;align-items:center;overflow-x:auto;}
+.dock-group{display:flex;align-items:center;gap:7px;padding:0 14px;height:100%;border-right:1px solid var(--border);flex-shrink:0;}
+.dock-lbl{font-size:8.5px;font-weight:800;letter-spacing:.12em;color:var(--text-label);white-space:nowrap;}
+.dock-select{background:var(--bg-panel);border:1px solid var(--border-strong);border-radius:3px;color:var(--text-main);
+  font-family:var(--font-data);font-size:10.5px;font-weight:700;padding:4px 22px 4px 8px;outline:none;cursor:pointer;
+  -webkit-appearance:none;appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%23cbd5e1'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 7px center;}
+.dock-select:focus{border-color:var(--border-focus);}
+.dock-btn{height:28px;padding:0 12px;background:var(--bg-panel);border:1px solid var(--border-strong);border-radius:3px;
+  color:var(--text-main);font-family:var(--font-data);font-size:10px;font-weight:800;letter-spacing:.06em;
+  cursor:pointer;transition:all .15s;white-space:nowrap;}
+.dock-btn:hover{background:var(--bg-card-hover);border-color:var(--border-focus);}
+.dock-btn.active{background:#fff;color:#000;border-color:#fff;}
+.dock-btn.danger{border-color:rgba(239,68,68,.5);color:var(--crit);}
+.dock-btn.danger:hover{background:var(--crit);color:#fff;border-color:var(--crit);}
+.dock-btn.accent{background:var(--accent);color:#000;border-color:var(--accent);font-weight:900;}
+.dock-btn.accent:hover{opacity:.85;}
 
-.sb-sub-card { padding: 9px 14px; border-bottom: 1px solid var(--border); }
-.sb-sub-head { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 10px; }
-.sb-sub-name { color: var(--text-label); font-weight: 600; }
-.sb-sub-pct { font-family: var(--font-data); color: var(--text-main); font-weight: 700; }
-.sb-sub-track { height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; }
-.sb-sub-fill { height: 100%; border-radius: 2px; background: var(--text-main); transition: width 0.5s; }
+/* ─── DEMO BANNER ────────────────────────────────────────────────────── */
+.demo-banner{position:fixed;top:0;left:0;right:0;background:linear-gradient(135deg,#7c3aed,#4f46e5);
+  padding:6px 16px;z-index:1000;display:none;align-items:center;gap:10px;font-size:11px;color:#fff;font-weight:700;}
+.demo-banner.active{display:flex;}
+.demo-step-badge{background:rgba(255,255,255,.2);padding:2px 8px;border-radius:2px;font-family:var(--font-data);font-size:10px;}
 
-/* ─── 5. WORKSPACE & PANELS ────────────────────────────────────────────── */
-.workspace {
-  grid-area: main;
-  overflow-y: auto;
-  background: var(--bg-app);
-  padding: 14px;
-  display: flex; flex-direction: column; gap: 14px;
-}
-.tab-pane { display: none; }
-.tab-pane.active { display: contents; }
+/* ─── INPUTS ─────────────────────────────────────────────────────────── */
+.input-field{background:var(--bg-card);border:1px solid var(--border-strong);border-radius:3px;
+  color:var(--text-main);font-family:var(--font-data);font-size:11px;padding:6px 10px;outline:none;width:100%;}
+.input-field:focus{border-color:var(--border-focus);}
+.select-field{background:var(--bg-card);border:1px solid var(--border-strong);border-radius:3px;
+  color:var(--text-main);font-family:var(--font-data);font-size:11px;padding:6px 10px;outline:none;width:100%;cursor:pointer;-webkit-appearance:none;appearance:none;}
+.select-field:focus{border-color:var(--border-focus);}
 
-.panel-card {
-  background: var(--bg-panel);
-  border: 1px solid var(--border-strong);
-  border-radius: 4px;
-  overflow: hidden;
-}
-.panel-hdr {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 11px 18px; background: var(--bg-surface); border-bottom: 1px solid var(--border);
-}
-.panel-title { font-size: 11px; font-weight: 800; letter-spacing: 0.08em; color: var(--text-main); text-transform: uppercase; }
-.panel-meta { font-family: var(--font-data); font-size: 10px; font-weight: 600; color: var(--text-label); }
+/* ─── PERF QUAD ──────────────────────────────────────────────────────── */
+.perf-quad{display:grid;grid-template-columns:1fr 1fr;gap:1px;}
+.perf-cell{background:var(--bg-panel);padding:14px;}
+.perf-lbl{font-size:9px;color:var(--text-label);letter-spacing:.08em;text-transform:uppercase;font-weight:800;margin-bottom:3px;}
+.perf-val{font-family:var(--font-data);font-size:20px;font-weight:800;color:var(--text-main);}
 
-/* Data Tables */
-.data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-.data-table th {
-  padding: 9px 16px; text-align: left; font-size: 9px; font-weight: 800; letter-spacing: 0.10em;
-  color: var(--text-label); text-transform: uppercase; background: var(--bg-surface); border-bottom: 1px solid var(--border); white-space: nowrap;
-}
-.data-table td { padding: 9px 16px; border-bottom: 1px solid var(--border); color: var(--text-body); white-space: nowrap; }
-.data-table td.mono { font-family: var(--font-data); font-weight: 700; color: var(--text-main); }
-.data-table td.muted { color: var(--text-label); font-size: 11px; font-weight: 600; }
-.data-table tr:last-child td { border-bottom: none; }
-.data-table tr:hover td { background: var(--bg-card-hover); }
-
-.tag-stat { display: inline-block; padding: 2px 7px; border-radius: 2px; font-size: 9px; font-family: var(--font-data); font-weight: 800; letter-spacing: 0.05em; }
-.tag-stat.ok { color: #000; background: var(--ok); }
-.tag-stat.warn { color: #000; background: var(--warn); }
-.tag-stat.crit { color: #fff; background: var(--crit); }
-
-/* Sensor Matrix 12-Grid */
-.sensor-matrix-grid {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--border-strong);
-}
-.sensor-cell {
-  background: var(--bg-panel); padding: 14px 16px; display: flex; flex-direction: column; gap: 4px;
-  border-left: 4px solid transparent; transition: all 0.15s;
-}
-.sensor-cell:hover { background: var(--bg-card-hover); }
-.sensor-cell.s-ok { border-left-color: transparent; }
-.sensor-cell.s-warn { border-left-color: var(--warn); background: rgba(245,158,11,0.05); }
-.sensor-cell.s-crit { border-left-color: var(--crit); background: rgba(239,68,68,0.07); }
-
-.sc-label { font-size: 9.5px; color: var(--text-label); letter-spacing: 0.08em; text-transform: uppercase; font-weight: 800; }
-.sc-val-row { display: flex; align-items: baseline; gap: 6px; margin: 2px 0; }
-.sc-val { font-family: var(--font-data); font-size: 24px; font-weight: 800; color: var(--text-main); line-height: 1; }
-.sc-unit { font-family: var(--font-data); font-size: 11px; font-weight: 700; color: var(--text-muted); }
-.sc-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 3px; }
-
-/* Grid helpers */
-.grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-.chart-box { padding: 16px; height: 240px; }
-
-.perf-quad { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border-strong); }
-.perf-cell { background: var(--bg-panel); padding: 16px; }
-.perf-lbl { font-size: 9.5px; color: var(--text-label); letter-spacing: 0.08em; text-transform: uppercase; font-weight: 800; margin-bottom: 4px; }
-.perf-val { font-family: var(--font-data); font-size: 21px; font-weight: 800; color: var(--text-main); }
-
-/* XAI Attribution */
-.xai-narrative { padding: 14px 18px; font-size: 12px; color: var(--text-body); line-height: 1.7; border-bottom: 1px solid var(--border); font-style: italic; background: var(--bg-surface); font-weight: 500; }
-.att-row { display: grid; grid-template-columns: 150px 1fr 50px; align-items: center; gap: 14px; padding: 9px 18px; border-bottom: 1px solid var(--border); }
-.att-name { font-size: 11px; color: var(--text-main); font-weight: 700; }
-.att-sub { font-size: 9px; color: var(--text-label); font-weight: 600; }
-.att-track { height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; }
-.att-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.4s; }
-.att-pct { font-family: var(--font-data); font-size: 11px; font-weight: 800; color: var(--text-main); text-align: right; }
-
-/* CAN */
-.can-toolbar { display: flex; align-items: center; gap: 12px; padding: 11px 18px; background: var(--bg-surface); border-bottom: 1px solid var(--border); }
-.can-search-box { background: var(--bg-app); border: 1px solid var(--border-strong); border-radius: 3px; color: var(--text-main); font-family: var(--font-data); font-size: 11.5px; padding: 6px 12px; outline: none; width: 260px; font-weight: 600; }
-.can-search-box::placeholder { color: var(--text-label); }
-.can-search-box:focus { border-color: var(--border-focus); }
-.can-viewport { max-height: 480px; overflow-y: auto; }
-.can-id { font-family: var(--font-data); font-size: 11px; color: #38bdf8; font-weight: 700; }
-.can-hex { font-family: var(--font-data); font-size: 10px; color: var(--text-muted); letter-spacing: 0.05em; font-weight: 600; }
-
-/* Maintenance */
-.wo-item { padding: 14px 18px; border-bottom: 1px solid var(--border); border-left: 4px solid transparent; transition: background 0.12s; }
-.wo-item:hover { background: var(--bg-card-hover); }
-.wo-item:last-child { border-bottom: none; }
-.wo-item.ok { border-left-color: var(--ok); }
-.wo-item.warn { border-left-color: var(--warn); }
-.wo-item.crit { border-left-color: var(--crit); background: rgba(239,68,68,0.04); }
-.wo-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
-.wo-id { font-size: 10px; font-family: var(--font-data); color: var(--text-label); font-weight: 700; }
-.wo-prio { font-size: 9px; font-family: var(--font-data); font-weight: 800; letter-spacing: 0.06em; padding: 2px 7px; border-radius: 2px; }
-.wo-prio.ok { color: #000; background: var(--ok); }
-.wo-prio.warn { color: #000; background: var(--warn); }
-.wo-prio.crit { color: #fff; background: var(--crit); }
-.wo-title { font-size: 13px; font-weight: 800; color: var(--text-main); margin-bottom: 4px; }
-.wo-action { font-size: 11.5px; color: var(--text-body); line-height: 1.6; margin-bottom: 8px; }
-.wo-steps { margin-left: 18px; }
-.wo-steps li { font-size: 10.5px; font-family: var(--font-data); color: var(--text-muted); margin-bottom: 3px; font-weight: 600; }
-.airw-dossier { padding: 18px; font-family: var(--font-data); font-size: 11px; line-height: 2.1; color: var(--text-body); }
-.airw-dossier strong { color: var(--text-main); font-weight: 800; }
-
-/* ─── 6. BOTTOM COMMAND DOCK ───────────────────────────────────────────── */
-.cmd-dock {
-  grid-area: dock;
-  background: var(--bg-dock);
-  border-top: 1px solid var(--border-strong);
-  display: flex; align-items: center; overflow-x: auto;
-}
-.dock-group {
-  display: flex; align-items: center; gap: 8px;
-  padding: 0 16px; height: 100%; border-right: 1px solid var(--border); flex-shrink: 0;
-}
-.dock-lbl { font-size: 9px; font-weight: 800; letter-spacing: 0.12em; color: var(--text-label); white-space: nowrap; }
-.dock-select {
-  background: var(--bg-panel); border: 1px solid var(--border-strong); border-radius: 3px;
-  color: var(--text-main); font-family: var(--font-data); font-size: 11px; font-weight: 700; padding: 5px 10px;
-  outline: none; cursor: pointer;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%23cbd5e1'/%3E%3C/svg%3E");
-  background-repeat: no-repeat; background-position: right 8px center; padding-right: 24px; appearance: none;
-}
-.dock-select:focus { border-color: var(--border-focus); }
-.dock-btn {
-  height: 30px; padding: 0 14px;
-  background: var(--bg-panel); border: 1px solid var(--border-strong); border-radius: 3px;
-  color: var(--text-main); font-family: var(--font-data); font-size: 10px; font-weight: 800;
-  letter-spacing: 0.06em; cursor: pointer; transition: all 0.15s; white-space: nowrap;
-}
-.dock-btn:hover { background: var(--bg-card-hover); color: var(--text-main); border-color: var(--border-focus); }
-.dock-btn.active { background: #ffffff; color: #000000; border-color: #ffffff; font-weight: 800; }
-.dock-btn.danger { border-color: rgba(239,68,68,0.5); color: var(--crit); }
-.dock-btn.danger:hover { background: var(--crit); color: #ffffff; border-color: var(--crit); }
+/* ─── CAN LOG ────────────────────────────────────────────────────────── */
+.can-viewport{max-height:340px;overflow-y:auto;}
+.can-id{font-family:var(--font-data);font-size:10.5px;color:#38bdf8;font-weight:700;}
+.can-hex{font-family:var(--font-data);font-size:9.5px;color:var(--text-muted);letter-spacing:.04em;}
 </style>
 </head>
 <body>
 
-<!-- ══════════════════════════════════════════════════════════════════════════
-     HEADER
-══════════════════════════════════════════════════════════════════════════ -->
+<!-- DEMO BANNER -->
+<div class="demo-banner" id="demo-banner">
+  <span class="demo-step-badge" id="demo-step-label">STEP 1/9</span>
+  <span id="demo-step-name">NORMAL OPERATION</span>
+  <span style="flex:1;font-weight:500;color:rgba(255,255,255,.7)" id="demo-step-desc"></span>
+  <button class="dock-btn" onclick="sendCmd({command:'demo_step',step:(window._demoStep||1)+1})" style="background:rgba(255,255,255,.2);border-color:rgba(255,255,255,.4);color:#fff">NEXT ▶</button>
+  <button class="dock-btn" onclick="stopDemo()" style="background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.3);color:rgba(255,255,255,.7)">✕ END</button>
+</div>
+
 <header>
-  <!-- Technical Propulsion Unit Card -->
-  <div class="hdr-propulsion-card">
-    <div class="hpc-top">
-      <span class="hpc-tail">UAV-07</span>
-      <span class="hpc-badge">PROPULSION UNIT</span>
+  <div class="hpc">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <span class="hpc-tail" id="hpc-uav-id">UAV-01</span>
+      <span class="hpc-badge">ACTIVE TWIN</span>
     </div>
-    <div class="hpc-engine">ROTAX 914 F ENGINE</div>
+    <div class="hpc-engine">ROTAX 914 F · 84.5 kW</div>
     <div class="hpc-specs">
-      <div class="hpc-spec-row"><span>S/N:</span><strong>914-8841</strong></div>
-      <div class="hpc-spec-row"><span>RATING:</span><strong>84.5 kW @ 5800 RPM</strong></div>
-      <div class="hpc-spec-row"><span>STANDARD:</span><strong style="color:var(--ok)">DO-178C LEVEL B</strong></div>
-      <div class="hpc-spec-row"><span>FADEC SAMPLING:</span><strong style="color:var(--accent)">10 Hz SYNC</strong></div>
+      <div class="hpc-sr"><span>S/N:</span><strong>914-8841</strong></div>
+      <div class="hpc-sr"><span>CERT:</span><strong style="color:var(--ok)">DO-178C LVL B</strong></div>
+      <div class="hpc-sr"><span>FADEC:</span><strong style="color:var(--accent)">10 Hz SYNC</strong></div>
     </div>
   </div>
-
-  <!-- Top Strip -->
   <div class="hdr-strip">
-    <div class="hdr-title-meta">
-      <span class="hdr-main-title">UAV PROPULSION GROUND CONTROL STATION</span>
-      <span class="hdr-cert-tag">OPERATIONAL</span>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <span class="hdr-title">UAV Digital Twin — AI+Physics Propulsion GCS v2.0</span>
+      <span class="tag-badge tb-dim" style="font-size:8px;">DEFENSE GRADE</span>
     </div>
     <div class="hdr-controls">
-      <!-- Theme Switcher -->
-      <div style="display: flex; align-items: center; gap: 6px;">
-        <span style="font-family: var(--font-data); font-size: 9.5px; font-weight: 700; color: var(--text-label);">THEME:</span>
-        <select class="dock-select" id="theme-selector" onchange="setDashboardTheme(this.value)" style="padding: 4px 8px;">
-          <option value="stealth">Stealth Titanium (OLED Black)</option>
-          <option value="ice">Deep Space Ice-Blue (SpaceX/Palantir)</option>
-          <option value="emerald">Emerald HUD (Avionics Cockpit)</option>
-          <option value="amber">Amber Flight Deck (Honeywell/Boeing)</option>
-        </select>
-      </div>
-
+      <select class="btn-header" onchange="document.documentElement.setAttribute('data-theme',this.value)" style="cursor:pointer">
+        <option value="stealth">Stealth Titanium</option>
+        <option value="ice">Deep Space Ice</option>
+        <option value="emerald">Emerald HUD</option>
+        <option value="amber">Amber Deck</option>
+      </select>
       <div class="ws-pill" id="ws-pill-box" onclick="connect()" title="Click to reconnect">
         <div class="ws-pip" id="ws-pip"></div>
-        <span id="ws-text">10 Hz · CONNECTING</span>
+        <span id="ws-text">CONNECTING...</span>
       </div>
-
       <div class="status-badge nominal" id="alert-badge">
         <div class="status-dot"></div>
         <span id="alert-text">NOMINAL STATUS</span>
       </div>
-
-      <button class="btn-header" id="audio-btn" onclick="toggleAudio()">🔊 AUDIO ON</button>
-      <button class="btn-header" onclick="exportDossier()">⬇ EXPORT DOSSIER</button>
+      <button class="btn-header" id="audio-btn" onclick="toggleAudio()">🔊 AUDIO</button>
+      <button class="btn-header" onclick="exportDossier()">⬇ EXPORT</button>
     </div>
   </div>
 
-  <!-- Executive KPI Strip -->
+  <!-- KPI RIBBON -->
   <div class="kpi-ribbon">
-    <!-- EHI -->
     <div class="kpi-card">
       <div class="kpi-label">Engine Health Index</div>
       <div class="kpi-val"><span id="k-ehi">--</span><span class="unit">/ 100</span></div>
       <div class="kpi-sub"><span class="tag-badge tb-dim" id="k-cond">NOMINAL</span></div>
-      <div class="micro-meters">
-        <div class="mm-row"><span class="mm-lbl">THRML</span><div class="mm-track"><div class="mm-fill" id="mm-th" style="width:80%"></div></div><span class="mm-num" id="mv-th">80</span></div>
-        <div class="mm-row"><span class="mm-lbl">LUBR</span><div class="mm-track"><div class="mm-fill" id="mm-lb" style="width:85%"></div></div><span class="mm-num" id="mv-lb">85</span></div>
-        <div class="mm-row"><span class="mm-lbl">MECH</span><div class="mm-track"><div class="mm-fill" id="mm-mc" style="width:90%"></div></div><span class="mm-num" id="mv-mc">90</span></div>
-        <div class="mm-row"><span class="mm-lbl">ELEC</span><div class="mm-track"><div class="mm-fill" id="mm-el" style="width:95%"></div></div><span class="mm-num" id="mv-el">95</span></div>
-      </div>
+      <div class="mm-row"><span class="mm-lbl">THRML</span><div class="mm-track"><div class="mm-fill" id="mm-th" style="width:80%"></div></div><span class="mm-num" id="mv-th">80</span></div>
+      <div class="mm-row"><span class="mm-lbl">LUBR</span><div class="mm-track"><div class="mm-fill" id="mm-lb" style="width:85%"></div></div><span class="mm-num" id="mv-lb">85</span></div>
+      <div class="mm-row"><span class="mm-lbl">MECH</span><div class="mm-track"><div class="mm-fill" id="mm-mc" style="width:90%"></div></div><span class="mm-num" id="mv-mc">90</span></div>
+      <div class="mm-row"><span class="mm-lbl">ELEC</span><div class="mm-track"><div class="mm-fill" id="mm-el" style="width:95%"></div></div><span class="mm-num" id="mv-el">95</span></div>
     </div>
-
-    <!-- AI Predicted RUL -->
     <div class="kpi-card">
-      <div class="kpi-label">Estimated Remaining Life</div>
+      <div class="kpi-label">Predicted RUL</div>
       <div class="kpi-val"><span id="k-rul">--</span><span class="unit">cycles</span></div>
-      <div class="kpi-sub">
-        <span>TRUE:</span><span id="k-true-rul" style="color:var(--ok)">--</span>
-        <span>95% CI:</span><span id="k-ci" style="color:var(--text-main)">[--, --]</span>
-      </div>
+      <div class="kpi-sub"><span>REF:</span><span id="k-true-rul" style="color:var(--ok)">--</span><span>CI:</span><span id="k-ci">[--,--]</span></div>
+      <div class="kpi-sub"><span>P_FAIL:</span><span id="k-pfail" style="color:var(--warn)">--%</span></div>
     </div>
-
-    <!-- Brake Power -->
     <div class="kpi-card">
       <div class="kpi-label">Brake Power Output</div>
       <div class="kpi-val"><span id="k-bhp">--</span><span class="unit">BHP</span></div>
-      <div class="kpi-sub">
-        <span>BSFC:</span><span id="k-bsfc" style="color:var(--text-main)">--</span><span>g/kWh</span>
-        <span>η:</span><span id="k-eta" style="color:var(--ok)">--%</span>
-        <span>IMEP:</span><span id="k-imep" style="color:var(--text-main)">--</span><span>bar</span>
-      </div>
+      <div class="kpi-sub"><span>BSFC:</span><span id="k-bsfc">--</span>g/kWh&nbsp;<span>η:</span><span id="k-eta">--%</span></div>
     </div>
-
-    <!-- Diagnostics -->
     <div class="kpi-card">
-      <div class="kpi-label">Diagnostic Alarms</div>
-      <div class="kpi-val" id="k-alarms" style="font-size:22px;padding-top:4px">0 ALARMS</div>
-      <div class="kpi-sub">
-        <span id="k-xai-driver" style="color:var(--ok)">WITHIN 3σ ENVELOPE</span>
-      </div>
+      <div class="kpi-label">Mission Completion</div>
+      <div class="kpi-val"><span id="k-mission-pct">--</span><span class="unit">%</span></div>
+      <div class="kpi-sub"><span class="tag-badge tb-dim" id="k-risk-level">RISK: --</span></div>
+      <div class="kpi-sub"><span>SAFE:</span><span id="k-safe-h" style="color:var(--ok)">-- h</span></div>
     </div>
-
-    <!-- Platform -->
     <div class="kpi-card">
-      <div class="kpi-label">Flight Profile</div>
-      <div class="kpi-val" style="font-size:20px;padding-top:4px" id="k-profile">NORMAL ISR</div>
-      <div class="kpi-sub" style="margin-top:4px">
-        <span>CYCLE:</span><span id="k-cycle" style="color:var(--text-main); font-weight:800;">----</span>
-        <span>MET:</span><span id="k-met" style="color:var(--text-main); font-weight:800;">00:00:00</span>
-      </div>
+      <div class="kpi-label">Twin Consistency</div>
+      <div class="kpi-val"><span id="k-twin">--</span><span class="unit">%</span></div>
+      <div class="kpi-sub"><span class="tag-badge tb-dim" id="k-twin-case">CASE --</span></div>
+      <div class="kpi-sub"><span>SENSOR:</span><span id="k-si-score" style="color:var(--ok)">--</span></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Active Alarms</div>
+      <div class="kpi-val" id="k-alarms" style="font-size:20px;padding-top:4px">0 ALARMS</div>
+      <div class="kpi-sub"><span id="k-xai-driver" style="color:var(--ok)">WITHIN 3σ</span></div>
+      <div class="kpi-sub"><span>CYC:</span><span id="k-cycle">----</span>&nbsp;<span>MET:</span><span id="k-met">00:00:00</span></div>
     </div>
   </div>
 </header>
 
-<!-- ══════════════════════════════════════════════════════════════════════════
-     TAB NAVIGATION
-══════════════════════════════════════════════════════════════════════════ -->
 <nav>
-  <button class="tab-btn active" onclick="switchTab('pane-telemetry',this)">TELEMETRY MATRIX</button>
-  <button class="tab-btn" onclick="switchTab('pane-ai',this)">PROGNOSTICS &amp; ATTRIBUTION</button>
-  <button class="tab-btn" onclick="switchTab('pane-thermo',this)">THERMODYNAMICS &amp; P-V</button>
-  <button class="tab-btn" onclick="switchTab('pane-can',this)">CAN BUS FDR</button>
-  <button class="tab-btn" onclick="switchTab('pane-maint',this)">MAINTENANCE ADVISORIES</button>
+  <button class="tab-btn active" onclick="switchTab('pane-overview',this)" id="tab-overview">① OVERVIEW</button>
+  <button class="tab-btn" onclick="switchTab('pane-telemetry',this)" id="tab-telemetry">② TELEMETRY</button>
+  <button class="tab-btn" onclick="switchTab('pane-twin',this)" id="tab-twin">③ DIGITAL TWIN</button>
+  <button class="tab-btn" onclick="switchTab('pane-ai',this)" id="tab-ai">④ AI / RUL</button>
+  <button class="tab-btn" onclick="switchTab('pane-fault',this)" id="tab-fault">⑤ FAULT INJECTION</button>
+  <button class="tab-btn" onclick="switchTab('pane-whatif',this)" id="tab-whatif">⑥ WHAT-IF SIM</button>
+  <button class="tab-btn" onclick="switchTab('pane-mission',this)" id="tab-mission">⑦ MISSION RISK</button>
+  <button class="tab-btn" onclick="switchTab('pane-maint',this)" id="tab-maint">⑧ MAINTENANCE</button>
+  <button class="tab-btn" onclick="switchTab('pane-fleet',this)" id="tab-fleet">⑨ FLEET</button>
+  <button class="tab-btn" onclick="switchTab('pane-aie',this)" id="tab-aie">⑩ AI ENGINEER</button>
 </nav>
 
-<!-- ══════════════════════════════════════════════════════════════════════════
-     PERSISTENT SIDEBAR
-══════════════════════════════════════════════════════════════════════════ -->
+<!-- SIDEBAR -->
 <aside>
-  <div class="sb-header">Engine Parameter Snapshot</div>
+  <div class="sb-hdr">Live Parameter Snapshot</div>
   <div class="sb-row"><span class="sb-lbl">Engine Speed</span><span class="sb-val" id="sb-rpm">--- RPM</span></div>
   <div class="sb-row"><span class="sb-lbl">CHT Average</span><span class="sb-val" id="sb-cht">--- °F</span></div>
   <div class="sb-row"><span class="sb-lbl">EGT Average</span><span class="sb-val" id="sb-egt">--- °F</span></div>
-  <div class="sb-row"><span class="sb-lbl">Oil Gallery Pressure</span><span class="sb-val" id="sb-oil">--- PSI</span></div>
-  <div class="sb-row"><span class="sb-lbl">Fuel Mass Flow</span><span class="sb-val" id="sb-fuel">--- L/h</span></div>
+  <div class="sb-row"><span class="sb-lbl">Oil Pressure</span><span class="sb-val" id="sb-oil">--- PSI</span></div>
+  <div class="sb-row"><span class="sb-lbl">Fuel Flow</span><span class="sb-val" id="sb-fuel">--- L/h</span></div>
   <div class="sb-row"><span class="sb-lbl">Vibration RMS</span><span class="sb-val" id="sb-vib">--- g</span></div>
-  <div class="sb-row"><span class="sb-lbl">28V Bus Voltage</span><span class="sb-val" id="sb-batt">--- V</span></div>
-
-  <div class="sb-header" style="margin-top:6px">Subsystem Ratings</div>
-  <div class="sb-sub-card"><div class="sb-sub-head"><span class="sb-sub-name">Thermal Circuit</span><span class="sb-sub-pct" id="sbs-th-p">--</span></div><div class="sb-sub-track"><div class="sb-sub-fill" id="sbs-th-f" style="width:80%"></div></div></div>
-  <div class="sb-sub-card"><div class="sb-sub-head"><span class="sb-sub-name">Lubrication Circuit</span><span class="sb-sub-pct" id="sbs-lb-p">--</span></div><div class="sb-sub-track"><div class="sb-sub-fill" id="sbs-lb-f" style="width:85%"></div></div></div>
-  <div class="sb-sub-card"><div class="sb-sub-head"><span class="sb-sub-name">Mechanical Core</span><span class="sb-sub-pct" id="sbs-mc-p">--</span></div><div class="sb-sub-track"><div class="sb-sub-fill" id="sbs-mc-f" style="width:90%"></div></div></div>
-  <div class="sb-sub-card"><div class="sb-sub-head"><span class="sb-sub-name">Electrical Bus</span><span class="sb-sub-pct" id="sbs-el-p">--</span></div><div class="sb-sub-track"><div class="sb-sub-fill" id="sbs-el-f" style="width:95%"></div></div></div>
-
-  <div class="sb-header" style="margin-top:6px">Environmental Operating Envelope</div>
-  <div class="sb-row"><span class="sb-lbl">Altitude (MSL)</span><span class="sb-val" id="sb-alt">3,000 ft</span></div>
-  <div class="sb-row"><span class="sb-lbl">Outside Air (OAT)</span><span class="sb-val" id="sb-oat">15.0 °C</span></div>
-  <div class="sb-row"><span class="sb-lbl">Manifold Pressure</span><span class="sb-val" id="sb-map">-- kPa</span></div>
-  <div class="sb-row"><span class="sb-lbl">Anomaly Metric</span><span class="sb-val" id="sb-anm">--</span></div>
-  <div class="sb-row"><span class="sb-lbl">Sequence Buffer</span><span class="sb-val" id="sb-buf">--</span></div>
-
-  <div class="sb-header" style="margin-top:6px">4-Cylinder CHT Distribution (°F)</div>
+  <div class="sb-row"><span class="sb-lbl">Battery Bus</span><span class="sb-val" id="sb-batt">--- V</span></div>
+  <div class="sb-row"><span class="sb-lbl">Anomaly Score</span><span class="sb-val ok" id="sb-anm">--</span></div>
+  <div class="sb-hdr" style="margin-top:4px">Subsystem Ratings</div>
+  <div class="sb-sub-card"><div class="sb-sub-head"><span style="font-size:9.5px;color:var(--text-label);font-weight:600">Thermal</span><span id="sbs-th-p" style="font-family:var(--font-data);font-size:11px;font-weight:700;color:var(--text-main)">--</span></div><div class="sb-sub-track"><div class="sb-sub-fill" id="sbs-th-f" style="width:80%"></div></div></div>
+  <div class="sb-sub-card"><div class="sb-sub-head"><span style="font-size:9.5px;color:var(--text-label);font-weight:600">Lubrication</span><span id="sbs-lb-p" style="font-family:var(--font-data);font-size:11px;font-weight:700;color:var(--text-main)">--</span></div><div class="sb-sub-track"><div class="sb-sub-fill" id="sbs-lb-f" style="width:85%"></div></div></div>
+  <div class="sb-sub-card"><div class="sb-sub-head"><span style="font-size:9.5px;color:var(--text-label);font-weight:600">Mechanical</span><span id="sbs-mc-p" style="font-family:var(--font-data);font-size:11px;font-weight:700;color:var(--text-main)">--</span></div><div class="sb-sub-track"><div class="sb-sub-fill" id="sbs-mc-f" style="width:90%"></div></div></div>
+  <div class="sb-sub-card"><div class="sb-sub-head"><span style="font-size:9.5px;color:var(--text-label);font-weight:600">Electrical</span><span id="sbs-el-p" style="font-family:var(--font-data);font-size:11px;font-weight:700;color:var(--text-main)">--</span></div><div class="sb-sub-track"><div class="sb-sub-fill" id="sbs-el-f" style="width:95%"></div></div></div>
+  <div class="sb-hdr" style="margin-top:4px">4-Cyl CHT (°F)</div>
   <div class="sb-row"><span class="sb-lbl">Cylinder #1</span><span class="sb-val" id="cy1">--</span></div>
   <div class="sb-row"><span class="sb-lbl">Cylinder #2</span><span class="sb-val" id="cy2">--</span></div>
   <div class="sb-row"><span class="sb-lbl">Cylinder #3</span><span class="sb-val" id="cy3">--</span></div>
   <div class="sb-row"><span class="sb-lbl">Cylinder #4</span><span class="sb-val" id="cy4">--</span></div>
-  <div class="sb-row"><span class="sb-lbl">CHT Variance (Δ)</span><span class="sb-val" id="cy-spread">--</span></div>
+  <div class="sb-row"><span class="sb-lbl">CHT Spread Δ</span><span class="sb-val" id="cy-spread">--</span></div>
+  <div class="sb-hdr" style="margin-top:4px">Environment</div>
+  <div class="sb-row"><span class="sb-lbl">Altitude MSL</span><span class="sb-val" id="sb-alt">3,000 ft</span></div>
+  <div class="sb-row"><span class="sb-lbl">OAT</span><span class="sb-val" id="sb-oat">15.0 °C</span></div>
+  <div class="sb-row"><span class="sb-lbl">MAP</span><span class="sb-val" id="sb-map">-- kPa</span></div>
 </aside>
 
-<!-- ══════════════════════════════════════════════════════════════════════════
-     WORKSPACE CONSOLES
-══════════════════════════════════════════════════════════════════════════ -->
+<!-- WORKSPACE -->
 <div class="workspace">
 
-  <!-- ── TAB 1: TELEMETRY MATRIX ───────────────────────────────────────── -->
-  <div id="pane-telemetry" class="tab-pane active">
+<!-- ═══ TAB 1: OVERVIEW ═══════════════════════════════════════════════ -->
+<div id="pane-overview" class="tab-pane active">
+  <div class="grid-2col">
     <div class="panel-card">
       <div class="panel-hdr">
-        <span class="panel-title">Telemetry Matrix — 12 Synchronized Sensor Channels @ 10 Hz</span>
-        <span class="panel-meta" id="hz-tag">10.0 Hz · LIVE</span>
+        <span class="panel-title">Engine Synoptic — Live</span>
+        <span class="panel-meta">10 Hz · FADEC</span>
       </div>
-      <div class="sensor-matrix-grid">
-        <div class="sensor-cell s-ok" id="sc-rpm"><div class="sc-label">Engine Speed</div><div class="sc-val-row"><span class="sc-val" id="sv-rpm">---</span><span class="sc-unit">RPM</span></div><div class="sc-foot"><canvas id="sp-rpm" height="16"></canvas><span class="tag-stat ok" id="st-rpm">NORM</span></div></div>
-        <div class="sensor-cell s-ok" id="sc-cht"><div class="sc-label">Cyl Head Temp (Avg)</div><div class="sc-val-row"><span class="sc-val" id="sv-cht">---</span><span class="sc-unit">°F</span></div><div class="sc-foot"><canvas id="sp-cht" height="16"></canvas><span class="tag-stat ok" id="st-cht">NORM</span></div></div>
-        <div class="sensor-cell s-ok" id="sc-egt"><div class="sc-label">Exhaust Gas Temp</div><div class="sc-val-row"><span class="sc-val" id="sv-egt">---</span><span class="sc-unit">°F</span></div><div class="sc-foot"><canvas id="sp-egt" height="16"></canvas><span class="tag-stat ok" id="st-egt">NORM</span></div></div>
-        <div class="sensor-cell s-ok" id="sc-oil-p"><div class="sc-label">Oil Gallery Pressure</div><div class="sc-val-row"><span class="sc-val" id="sv-oil-p">---</span><span class="sc-unit">PSI</span></div><div class="sc-foot"><canvas id="sp-oil-p" height="16"></canvas><span class="tag-stat ok" id="st-oil-p">NORM</span></div></div>
-        <div class="sensor-cell s-ok" id="sc-oil-t"><div class="sc-label">Oil Sump Temp</div><div class="sc-val-row"><span class="sc-val" id="sv-oil-t">---</span><span class="sc-unit">°F</span></div><div class="sc-foot"><canvas id="sp-oil-t" height="16"></canvas><span class="tag-stat ok" id="st-oil-t">NORM</span></div></div>
-        <div class="sensor-cell s-ok" id="sc-fuel"><div class="sc-label">Fuel Mass Flow</div><div class="sc-val-row"><span class="sc-val" id="sv-fuel">---</span><span class="sc-unit">L/HR</span></div><div class="sc-foot"><canvas id="sp-fuel" height="16"></canvas><span class="tag-stat ok" id="st-fuel">NORM</span></div></div>
-        <div class="sensor-cell s-ok" id="sc-rail-p"><div class="sc-label">Fuel Rail Pressure</div><div class="sc-val-row"><span class="sc-val" id="sv-rail-p">---</span><span class="sc-unit">BAR</span></div><div class="sc-foot"><canvas id="sp-rail-p" height="16"></canvas><span class="tag-stat ok" id="st-rail-p">NORM</span></div></div>
-        <div class="sensor-cell s-ok" id="sc-vib"><div class="sc-label">Overall Vibration RMS</div><div class="sc-val-row"><span class="sc-val" id="sv-vib">---</span><span class="sc-unit">g</span></div><div class="sc-foot"><canvas id="sp-vib" height="16"></canvas><span class="tag-stat ok" id="st-vib">NORM</span></div></div>
-        <div class="sensor-cell s-ok" id="sc-kurt"><div class="sc-label">Vibration Kurtosis</div><div class="sc-val-row"><span class="sc-val" id="sv-kurt">---</span><span class="sc-unit">K4</span></div><div class="sc-foot"><canvas id="sp-kurt" height="16"></canvas><span class="tag-stat ok" id="st-kurt">NORM</span></div></div>
-        <div class="sensor-cell s-ok" id="sc-batt"><div class="sc-label">28V Electrical Bus</div><div class="sc-val-row"><span class="sc-val" id="sv-batt">---</span><span class="sc-unit">VDC</span></div><div class="sc-foot"><canvas id="sp-batt" height="16"></canvas><span class="tag-stat ok" id="st-batt">NORM</span></div></div>
-        <div class="sensor-cell s-ok" id="sc-current"><div class="sc-label">Alternator Current Load</div><div class="sc-val-row"><span class="sc-val" id="sv-current">---</span><span class="sc-unit">A</span></div><div class="sc-foot"><canvas id="sp-current" height="16"></canvas><span class="tag-stat ok" id="st-current">NORM</span></div></div>
-        <div class="sensor-cell s-ok" id="sc-inj"><div class="sc-label">Injection Timing</div><div class="sc-val-row"><span class="sc-val" id="sv-inj">---</span><span class="sc-unit">°BTDC</span></div><div class="sc-foot"><canvas id="sp-inj" height="16"></canvas><span class="tag-stat ok" id="st-inj">NORM</span></div></div>
+      <div class="synoptic-grid">
+        <div class="syn-block"><div class="syn-lbl">Engine Speed</div><div class="syn-val" id="ov-rpm">---</div><div class="syn-unit">RPM</div><div class="syn-prog"><div class="syn-prog-fill" id="ov-rpm-p" style="width:60%;background:var(--ok)"></div></div></div>
+        <div class="syn-block"><div class="syn-lbl">CHT Avg</div><div class="syn-val" id="ov-cht">---</div><div class="syn-unit">°F</div><div class="syn-prog"><div class="syn-prog-fill" id="ov-cht-p" style="width:70%;background:var(--warn)"></div></div></div>
+        <div class="syn-block"><div class="syn-lbl">EGT Avg</div><div class="syn-val" id="ov-egt">---</div><div class="syn-unit">°F</div><div class="syn-prog"><div class="syn-prog-fill" id="ov-egt-p" style="width:75%;background:var(--warn)"></div></div></div>
+        <div class="syn-block"><div class="syn-lbl">Oil Pressure</div><div class="syn-val" id="ov-oil">---</div><div class="syn-unit">PSI</div><div class="syn-prog"><div class="syn-prog-fill" id="ov-oil-p" style="width:65%;background:var(--ok)"></div></div></div>
+        <div class="syn-block"><div class="syn-lbl">Vibration</div><div class="syn-val" id="ov-vib">---</div><div class="syn-unit">g</div><div class="syn-prog"><div class="syn-prog-fill" id="ov-vib-p" style="width:30%;background:var(--ok)"></div></div></div>
+        <div class="syn-block"><div class="syn-lbl">Fuel Flow</div><div class="syn-val" id="ov-fuel">---</div><div class="syn-unit">L/h</div><div class="syn-prog"><div class="syn-prog-fill" id="ov-fuel-p" style="width:55%;background:var(--ok)"></div></div></div>
+        <div class="syn-block"><div class="syn-lbl">Battery</div><div class="syn-val" id="ov-batt">---</div><div class="syn-unit">VDC</div><div class="syn-prog"><div class="syn-prog-fill" id="ov-batt-p" style="width:85%;background:var(--ok)"></div></div></div>
+        <div class="syn-block"><div class="syn-lbl">Inj Timing</div><div class="syn-val" id="ov-inj">---</div><div class="syn-unit">°BTDC</div><div class="syn-prog"><div class="syn-prog-fill" id="ov-inj-p" style="width:70%;background:var(--ok)"></div></div></div>
       </div>
     </div>
+    <div class="panel-card">
+      <div class="panel-hdr"><span class="panel-title">Live Alert Log</span><span class="panel-meta" id="alert-count-tag">0 EVENTS</span></div>
+      <div class="alert-log" id="alert-log-body">
+        <div class="alert-row"><div class="al-dot ok"></div><span class="al-ts">00:00</span><span>Digital Twin Core v2.0 Online</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="grid-3col">
+    <div class="panel-card">
+      <div class="panel-hdr"><span class="panel-title">AI+Physics Pipeline</span></div>
+      <table class="data-table">
+        <tbody>
+          <tr><td class="muted">Sensor Integrity</td><td class="mono" id="ov-si">--%</td><td><span class="tag-stat ok" id="ov-si-tag">HEALTHY</span></td></tr>
+          <tr><td class="muted">Twin Consistency</td><td class="mono" id="ov-tc">--%</td><td><span class="tag-stat ok" id="ov-tc-tag">NORMAL</span></td></tr>
+          <tr><td class="muted">Telemetry Integrity</td><td class="mono" id="ov-ti">--%</td><td><span class="tag-stat ok" id="ov-ti-tag">SECURE</span></td></tr>
+          <tr><td class="muted">Anomaly Detection</td><td class="mono" id="ov-ad">CLEAR</td><td><span class="tag-stat ok" id="ov-ad-tag">3σ NORM</span></td></tr>
+          <tr><td class="muted">Physics Model</td><td class="mono">ACTIVE</td><td><span class="tag-stat ok">ONLINE</span></td></tr>
+          <tr><td class="muted">LSTM Prognostics</td><td class="mono" id="ov-buf">--% BUFFER</td><td><span class="tag-stat warn" id="ov-lstm-tag">WARMING</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="panel-card">
+      <div class="panel-hdr"><span class="panel-title">Active Advisories</span><span class="panel-meta" id="adv-cnt-tag">0 ADVISORIES</span></div>
+      <div id="ov-adv-body"><div class="wo-item ok"><div class="wo-action">All systems nominal. Cleared for dispatch.</div></div></div>
+    </div>
+    <div class="panel-card">
+      <div class="panel-hdr"><span class="panel-title">RUL Trend</span><span class="panel-meta">LSTM+MC DROPOUT</span></div>
+      <div class="chart-box"><canvas id="chart-rul-ov"></canvas></div>
+    </div>
+  </div>
+</div>
 
-    <!-- 4-Cylinder Balance Table -->
+<!-- ═══ TAB 2: TELEMETRY ══════════════════════════════════════════════ -->
+<div id="pane-telemetry" class="tab-pane">
+  <div class="panel-card">
+    <div class="panel-hdr"><span class="panel-title">12-Channel Telemetry Matrix @ 10 Hz</span><span class="panel-meta">MQTT · SocketCAN</span></div>
+    <div class="sensor-matrix-grid">
+      <div class="sensor-cell s-ok" id="sc-rpm"><div class="sc-label">Engine Speed</div><div class="sc-val-row"><span class="sc-val" id="sv-rpm">---</span><span class="sc-unit">RPM</span></div><div class="sc-foot"><canvas id="sp-rpm" height="16"></canvas><span class="tag-stat ok" id="st-rpm">NORM</span></div></div>
+      <div class="sensor-cell s-ok" id="sc-cht"><div class="sc-label">CHT Average</div><div class="sc-val-row"><span class="sc-val" id="sv-cht">---</span><span class="sc-unit">°F</span></div><div class="sc-foot"><canvas id="sp-cht" height="16"></canvas><span class="tag-stat ok" id="st-cht">NORM</span></div></div>
+      <div class="sensor-cell s-ok" id="sc-egt"><div class="sc-label">EGT Average</div><div class="sc-val-row"><span class="sc-val" id="sv-egt">---</span><span class="sc-unit">°F</span></div><div class="sc-foot"><canvas id="sp-egt" height="16"></canvas><span class="tag-stat ok" id="st-egt">NORM</span></div></div>
+      <div class="sensor-cell s-ok" id="sc-oil-p"><div class="sc-label">Oil Pressure</div><div class="sc-val-row"><span class="sc-val" id="sv-oil-p">---</span><span class="sc-unit">PSI</span></div><div class="sc-foot"><canvas id="sp-oil-p" height="16"></canvas><span class="tag-stat ok" id="st-oil-p">NORM</span></div></div>
+      <div class="sensor-cell s-ok" id="sc-oil-t"><div class="sc-label">Oil Sump Temp</div><div class="sc-val-row"><span class="sc-val" id="sv-oil-t">---</span><span class="sc-unit">°F</span></div><div class="sc-foot"><canvas id="sp-oil-t" height="16"></canvas><span class="tag-stat ok" id="st-oil-t">NORM</span></div></div>
+      <div class="sensor-cell s-ok" id="sc-fuel"><div class="sc-label">Fuel Mass Flow</div><div class="sc-val-row"><span class="sc-val" id="sv-fuel">---</span><span class="sc-unit">L/HR</span></div><div class="sc-foot"><canvas id="sp-fuel" height="16"></canvas><span class="tag-stat ok" id="st-fuel">NORM</span></div></div>
+      <div class="sensor-cell s-ok" id="sc-rail-p"><div class="sc-label">Fuel Rail Pressure</div><div class="sc-val-row"><span class="sc-val" id="sv-rail-p">---</span><span class="sc-unit">BAR</span></div><div class="sc-foot"><canvas id="sp-rail-p" height="16"></canvas><span class="tag-stat ok" id="st-rail-p">NORM</span></div></div>
+      <div class="sensor-cell s-ok" id="sc-vib"><div class="sc-label">Vibration RMS</div><div class="sc-val-row"><span class="sc-val" id="sv-vib">---</span><span class="sc-unit">g</span></div><div class="sc-foot"><canvas id="sp-vib" height="16"></canvas><span class="tag-stat ok" id="st-vib">NORM</span></div></div>
+      <div class="sensor-cell s-ok" id="sc-kurt"><div class="sc-label">Vibration Kurtosis</div><div class="sc-val-row"><span class="sc-val" id="sv-kurt">---</span><span class="sc-unit">K4</span></div><div class="sc-foot"><canvas id="sp-kurt" height="16"></canvas><span class="tag-stat ok" id="st-kurt">NORM</span></div></div>
+      <div class="sensor-cell s-ok" id="sc-batt"><div class="sc-label">28V Bus</div><div class="sc-val-row"><span class="sc-val" id="sv-batt">---</span><span class="sc-unit">VDC</span></div><div class="sc-foot"><canvas id="sp-batt" height="16"></canvas><span class="tag-stat ok" id="st-batt">NORM</span></div></div>
+      <div class="sensor-cell s-ok" id="sc-current"><div class="sc-label">Bus Current</div><div class="sc-val-row"><span class="sc-val" id="sv-current">---</span><span class="sc-unit">A</span></div><div class="sc-foot"><canvas id="sp-current" height="16"></canvas><span class="tag-stat ok" id="st-current">NORM</span></div></div>
+      <div class="sensor-cell s-ok" id="sc-inj"><div class="sc-label">Injection Timing</div><div class="sc-val-row"><span class="sc-val" id="sv-inj">---</span><span class="sc-unit">°BTDC</span></div><div class="sc-foot"><canvas id="sp-inj" height="16"></canvas><span class="tag-stat ok" id="st-inj">NORM</span></div></div>
+    </div>
+  </div>
+  <div class="panel-card">
+    <div class="panel-hdr"><span class="panel-title">4-Cylinder Thermal Balance Matrix</span><span class="panel-meta" id="cyl-spread-tag">Δ 0.0°F · BALANCED</span></div>
+    <table class="data-table">
+      <thead><tr><th>Cylinder</th><th>CHT (°F)</th><th>EGT (°F)</th><th>Δ CHT vs Avg</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td><strong>#1</strong></td><td class="mono" id="c1-cht">--</td><td class="mono" id="c1-egt">--</td><td class="mono" id="c1-d">--</td><td><span class="tag-stat ok" id="c1-s">NORMAL</span></td></tr>
+        <tr><td><strong>#2</strong></td><td class="mono" id="c2-cht">--</td><td class="mono" id="c2-egt">--</td><td class="mono" id="c2-d">--</td><td><span class="tag-stat ok" id="c2-s">NORMAL</span></td></tr>
+        <tr><td><strong>#3</strong></td><td class="mono" id="c3-cht">--</td><td class="mono" id="c3-egt">--</td><td class="mono" id="c3-d">--</td><td><span class="tag-stat ok" id="c3-s">NORMAL</span></td></tr>
+        <tr><td><strong>#4</strong></td><td class="mono" id="c4-cht">--</td><td class="mono" id="c4-egt">--</td><td class="mono" id="c4-d">--</td><td><span class="tag-stat ok" id="c4-s">NORMAL</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══ TAB 3: DIGITAL TWIN ═══════════════════════════════════════════ -->
+<div id="pane-twin" class="tab-pane">
+  <div class="grid-2col">
+    <div class="panel-card">
+      <div class="panel-hdr"><span class="panel-title">AI + Physics Cross-Validation</span><span class="panel-meta" id="twin-case-hdr">CASE A</span></div>
+      <div class="consistency-gauge">
+        <div class="gauge-ring ok" id="twin-ring">
+          <div><div class="gauge-val" id="twin-score">--</div><div class="gauge-unit">TWIN %</div></div>
+        </div>
+        <div style="text-align:center">
+          <span class="case-badge" id="twin-case-badge" style="background:var(--ok-bg);color:var(--ok)">CASE A — NORMAL</span>
+        </div>
+      </div>
+      <div style="padding:12px 16px;border-top:1px solid var(--border);font-size:11.5px;color:var(--text-body);line-height:1.7;font-style:italic" id="twin-narrative">Awaiting telemetry...</div>
+      <table class="data-table">
+        <tbody>
+          <tr><td class="muted">AI Agreement</td><td class="mono" id="twin-ai-agree">--%</td><td><span class="tag-stat ok" id="twin-ai-tag">NORMAL</span></td></tr>
+          <tr><td class="muted">Physics Agreement</td><td class="mono" id="twin-phy-agree">--%</td><td><span class="tag-stat ok" id="twin-phy-tag">NORMAL</span></td></tr>
+          <tr><td class="muted">Sensor Integrity</td><td class="mono" id="twin-si-agree">--%</td><td><span class="tag-stat ok" id="twin-si-tag">HEALTHY</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="panel-card">
+      <div class="panel-hdr"><span class="panel-title">Thermodynamic Residuals (Δ = Measured − Expected)</span></div>
+      <table class="data-table">
+        <thead><tr><th>Parameter</th><th>Measured</th><th>Expected</th><th>Residual Δ</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td class="muted">EGT</td><td class="mono" id="r-m-egt">--</td><td class="mono" id="r-e-egt">--</td><td class="mono" id="r-d-egt">--</td><td><span class="tag-stat ok" id="r-s-egt">TRACKING</span></td></tr>
+          <tr><td class="muted">CHT</td><td class="mono" id="r-m-cht">--</td><td class="mono" id="r-e-cht">--</td><td class="mono" id="r-d-cht">--</td><td><span class="tag-stat ok" id="r-s-cht">TRACKING</span></td></tr>
+          <tr><td class="muted">Oil Pressure</td><td class="mono" id="r-m-oil">--</td><td class="mono" id="r-e-oil">--</td><td class="mono" id="r-d-oil">--</td><td><span class="tag-stat ok" id="r-s-oil">TRACKING</span></td></tr>
+          <tr><td class="muted">Fuel Flow</td><td class="mono" id="r-m-fuel">--</td><td class="mono" id="r-e-fuel">--</td><td class="mono" id="r-d-fuel">--</td><td><span class="tag-stat ok" id="r-s-fuel">TRACKING</span></td></tr>
+        </tbody>
+      </table>
+      <div class="panel-hdr" style="border-top:1px solid var(--border)"><span class="panel-title">Sensor Integrity Per-Channel</span></div>
+      <div class="si-grid" id="si-grid-body">
+        <div style="padding:10px;color:var(--text-dim);font-size:10px;grid-column:1/-1">Awaiting telemetry...</div>
+      </div>
+    </div>
+  </div>
+  <div class="panel-card">
+    <div class="panel-hdr"><span class="panel-title">Thermodynamics — Otto Cycle P-V</span><span class="panel-meta" id="pv-imep">IMEP: -- bar</span></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;background:var(--border-strong)">
+      <div style="background:var(--bg-panel)"><div class="chart-box"><canvas id="chart-pv"></canvas></div></div>
+      <div class="perf-quad" style="background:var(--border-strong)">
+        <div class="perf-cell"><div class="perf-lbl">Brake Power</div><div class="perf-val" id="pq-bhp">-- BHP</div></div>
+        <div class="perf-cell"><div class="perf-lbl">Brake SFC</div><div class="perf-val" id="pq-bsfc">-- g/kWh</div></div>
+        <div class="perf-cell"><div class="perf-lbl">Thermal Efficiency η</div><div class="perf-val" id="pq-eta">--%</div></div>
+        <div class="perf-cell"><div class="perf-lbl">Volumetric Efficiency</div><div class="perf-val" id="pq-vol">--%</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TAB 4: AI / RUL ══════════════════════════════════════════════ -->
+<div id="pane-ai" class="tab-pane">
+  <div class="grid-2col">
     <div class="panel-card">
       <div class="panel-hdr">
-        <span class="panel-title">4-Cylinder Thermal Balance &amp; Spread Matrix</span>
-        <span class="panel-meta" id="cyl-spread-tag">Δ 0.0°F · BALANCED</span>
+        <span class="panel-title">LSTM RUL Forecast + MC Dropout Uncertainty</span>
+        <span class="panel-meta">WINDOW: 50 · 10 MC PASSES</span>
       </div>
+      <div class="chart-box"><canvas id="chart-rul"></canvas></div>
       <table class="data-table">
-        <thead><tr><th>Cylinder</th><th>CHT (°F)</th><th>EGT (°F)</th><th>Δ CHT vs Avg</th><th>Status</th></tr></thead>
         <tbody>
-          <tr><td><strong>Cylinder #1</strong></td><td class="mono" id="c1-cht">--</td><td class="mono" id="c1-egt">--</td><td class="mono" id="c1-d">--</td><td><span class="tag-stat ok" id="c1-s">NORMAL</span></td></tr>
-          <tr><td><strong>Cylinder #2</strong></td><td class="mono" id="c2-cht">--</td><td class="mono" id="c2-egt">--</td><td class="mono" id="c2-d">--</td><td><span class="tag-stat ok" id="c2-s">NORMAL</span></td></tr>
-          <tr><td><strong>Cylinder #3</strong></td><td class="mono" id="c3-cht">--</td><td class="mono" id="c3-egt">--</td><td class="mono" id="c3-d">--</td><td><span class="tag-stat ok" id="c3-s">NORMAL</span></td></tr>
-          <tr><td><strong>Cylinder #4</strong></td><td class="mono" id="c4-cht">--</td><td class="mono" id="c4-egt">--</td><td class="mono" id="c4-d">--</td><td><span class="tag-stat ok" id="c4-s">NORMAL</span></td></tr>
+          <tr><td class="muted">Predicted RUL</td><td class="mono" id="ai-rul">-- cycles</td><td class="muted">Reference RUL</td><td class="mono" id="ai-gt">-- cycles</td></tr>
+          <tr><td class="muted">CI Lower (90%)</td><td class="mono" id="ai-lo">--</td><td class="muted">CI Upper (90%)</td><td class="mono" id="ai-hi">--</td></tr>
+          <tr><td class="muted">MC Dropout σ</td><td class="mono" id="ai-std">-- cycles</td><td class="muted">Failure Probability</td><td class="mono" id="ai-pfail">--%</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="panel-card">
+      <div class="panel-hdr">
+        <span class="panel-title">Feature Attribution & XAI Root Cause Analysis</span>
+        <span class="panel-meta" id="xai-badge" style="color:var(--ok)">NOMINAL</span>
+      </div>
+      <div class="xai-narrative" id="xai-narr">Multivariate evaluation — all channels within 3σ normal operational envelope.</div>
+      <div id="xai-att-rows"></div>
+    </div>
+  </div>
+  <div class="panel-card">
+    <div class="panel-hdr"><span class="panel-title">Active Fault Events</span><span class="panel-meta" id="fault-count-tag">0 ACTIVE FAULTS</span></div>
+    <div id="fault-events-body">
+      <div style="padding:16px;color:var(--text-dim);font-size:11px;text-align:center">No active fault events. Engine within nominal operating envelope.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TAB 5: FAULT INJECTION ═══════════════════════════════════════ -->
+<div id="pane-fault" class="tab-pane">
+  <div class="grid-2col">
+    <div class="panel-card">
+      <div class="panel-hdr"><span class="panel-title">Structured Fault Injection Console</span></div>
+      <div style="padding:14px;display:flex;flex-direction:column;gap:12px;">
+        <div>
+          <div class="wi-label">Fault Type</div>
+          <select class="select-field" id="fault-type-sel">
+            <option value="cooling_degradation">Cylinder 3 Cooling Radiator Fouling</option>
+            <option value="misfire">Ignition Misfire — Dead Cylinder #2</option>
+            <option value="injector_clog">Fuel Injector Partial Clog + Lean Spike</option>
+            <option value="oil_leak">Lubrication Pressure Loss &amp; Leak</option>
+            <option value="bearing_wear">Crankshaft Bearing Spalling (Progressive)</option>
+            <option value="sensor_drift">Thermocouple Drift (CHT Ch1)</option>
+            <option value="combustion_instability">Combustion Flame Instability</option>
+            <option value="alternator_degradation">Alternator Rectifier Degradation</option>
+          </select>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div>
+            <div class="wi-label">Severity (0–100%)</div>
+            <div class="wi-slider-row">
+              <input type="range" class="wi-slider" id="fault-severity" min="10" max="100" value="70" oninput="document.getElementById('fault-sev-val').textContent=this.value+'%'">
+              <span class="wi-val" id="fault-sev-val">70%</span>
+            </div>
+          </div>
+          <div>
+            <div class="wi-label">Duration</div>
+            <select class="select-field" id="fault-duration">
+              <option value="persistent">Persistent</option>
+              <option value="60s">60 seconds</option>
+              <option value="30s">30 seconds</option>
+              <option value="burst">5s Burst</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="dock-btn" onclick="doInjectFault()" style="flex:1;height:32px;background:var(--warn-bg);border-color:var(--warn);color:var(--warn)">▶ INJECT FAULT</button>
+          <button class="dock-btn danger" onclick="doClearFaults()" style="flex:1;height:32px">✕ CLEAR ALL</button>
+        </div>
+        <div style="padding:8px;background:var(--bg-card);border-radius:3px;border:1px solid var(--border);font-size:10.5px;color:var(--text-muted);line-height:1.6;" id="fault-desc-box">
+          Select a fault type to see expected effects.
+        </div>
+      </div>
+    </div>
+    <div class="panel-card">
+      <div class="panel-hdr"><span class="panel-title">Active Injected Faults</span><span class="panel-meta" id="active-faults-tag">0 INJECTED</span></div>
+      <div id="active-faults-body">
+        <div style="padding:20px;color:var(--text-dim);font-size:11px;text-align:center">No faults currently injected.</div>
+      </div>
+    </div>
+  </div>
+  <div class="panel-card">
+    <div class="panel-hdr"><span class="panel-title">SAE J1939 CAN Bus / Flight Data Recorder</span><span class="panel-meta">SocketCAN · 250 kbps</span></div>
+    <div style="display:flex;gap:8px;padding:9px 14px;background:var(--bg-surface);border-bottom:1px solid var(--border);">
+      <input class="input-field" style="width:260px" id="can-search" placeholder="Filter by PGN or name..." oninput="filterCAN()">
+      <button class="dock-btn" onclick="exportCAN()">⬇ EXPORT CSV</button>
+    </div>
+    <div class="can-viewport">
+      <table class="data-table">
+        <thead><tr><th>Timestamp</th><th>CAN ID</th><th>PGN</th><th>Message</th><th>DLC</th><th>Hex</th><th>Decoded</th></tr></thead>
+        <tbody id="can-tbody"><tr><td colspan="7" style="text-align:center;padding:16px;color:var(--text-muted)">Listening on SocketCAN bus...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TAB 6: WHAT-IF SIM ════════════════════════════════════════════ -->
+<div id="pane-whatif" class="tab-pane">
+  <div class="panel-card">
+    <div class="panel-hdr"><span class="panel-title">Counterfactual What-If Simulation Engine</span><span class="panel-meta">PHYSICS-INFORMED THERMAL LOAD SCALING (α=1.5)</span></div>
+    <div class="whatif-split">
+      <div class="whatif-controls">
+        <div><div class="wi-label">RPM Override</div><div class="wi-slider-row"><input type="range" class="wi-slider" id="wi-rpm" min="800" max="2800" value="1400" step="50" oninput="document.getElementById('wi-rpm-val').textContent=this.value"><span class="wi-val" id="wi-rpm-val">1400</span></div></div>
+        <div><div class="wi-label">Altitude (ft MSL)</div><div class="wi-slider-row"><input type="range" class="wi-slider" id="wi-alt" min="1000" max="25000" value="3000" step="500" oninput="document.getElementById('wi-alt-val').textContent=this.value"><span class="wi-val" id="wi-alt-val">3000</span></div></div>
+        <div><div class="wi-label">Cooling Efficiency (%)</div><div class="wi-slider-row"><input type="range" class="wi-slider" id="wi-cool" min="-80" max="0" value="0" step="5" oninput="document.getElementById('wi-cool-val').textContent=this.value+'%'"><span class="wi-val" id="wi-cool-val">0%</span></div></div>
+        <div><div class="wi-label">Ambient Temp (°C)</div><div class="wi-slider-row"><input type="range" class="wi-slider" id="wi-temp" min="-10" max="50" value="15" step="1" oninput="document.getElementById('wi-temp-val').textContent=this.value+'°C'"><span class="wi-val" id="wi-temp-val">15°C</span></div></div>
+        <div><div class="wi-label">Injector Efficiency (%)</div><div class="wi-slider-row"><input type="range" class="wi-slider" id="wi-inj" min="-60" max="20" value="0" step="5" oninput="document.getElementById('wi-inj-val').textContent=this.value+'%'"><span class="wi-val" id="wi-inj-val">0%</span></div></div>
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <button class="dock-btn accent" onclick="runWhatIf()" style="flex:1;height:30px">▶ SIMULATE</button>
+          <button class="dock-btn" onclick="resetWhatIf()" style="flex:1;height:30px">↺ RESET</button>
+        </div>
+      </div>
+      <div class="whatif-results" id="whatif-results-panel">
+        <div style="color:var(--text-dim);font-size:11px;padding:20px;text-align:center">Configure parameters and click SIMULATE.<br><br><span style="font-size:9px">CHT scales with RPM^1.3 · EGT scales with RPM^1.1 · Physics-informed</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="panel-card">
+    <div class="panel-hdr"><span class="panel-title">Operating Point Optimizer</span><span class="panel-meta">scipy L-BFGS-B · OBJECTIVE: MAX P_MISSION</span></div>
+    <div style="padding:14px;display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap;">
+      <div style="display:flex;flex-direction:column;gap:8px;min-width:200px;">
+        <div><div class="wi-label">Min RPM</div><input class="input-field" id="opt-rpm-min" value="1600" style="width:120px"></div>
+        <div><div class="wi-label">Max RPM</div><input class="input-field" id="opt-rpm-max" value="2600" style="width:120px"></div>
+        <div><div class="wi-label">Max Altitude (ft)</div><input class="input-field" id="opt-alt-max" value="25000" style="width:120px"></div>
+        <button class="dock-btn accent" onclick="runOptimize()" style="height:30px;width:160px">⚡ FIND OPTIMAL POINT</button>
+      </div>
+      <div id="optimize-results" style="flex:1;font-size:11.5px;color:var(--text-muted);line-height:1.8;padding:8px">
+        Run optimizer to find RPM + altitude maximizing mission completion probability.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TAB 7: MISSION RISK ═══════════════════════════════════════════ -->
+<div id="pane-mission" class="tab-pane">
+  <div class="grid-2col">
+    <div class="panel-card">
+      <div class="panel-hdr"><span class="panel-title">Mission Reliability Assessment</span><span class="panel-meta">4.5h STANDARD MISSION</span></div>
+      <div class="risk-gauge-container">
+        <div class="risk-ring low" id="risk-ring">
+          <div class="risk-pct" id="risk-pct">--%</div>
+          <div class="risk-label">COMPLETION</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <div><div class="wi-label">Risk Level</div><div id="risk-level-lbl" style="font-family:var(--font-data);font-size:20px;font-weight:800;color:var(--text-main)">--</div></div>
+          <div><div class="wi-label">Safe Operating Time</div><div id="safe-h-val" style="font-family:var(--font-data);font-size:18px;font-weight:800;color:var(--ok)">-- h</div></div>
+          <div><div class="wi-label">Abort Probability</div><div id="abort-pct-val" style="font-family:var(--font-data);font-size:16px;font-weight:800;color:var(--warn)">--%</div></div>
+        </div>
+      </div>
+      <div class="risk-stats-grid">
+        <div class="risk-stat"><div class="risk-stat-lbl">Engine Reliability</div><div class="risk-stat-val" id="rsc-eng">--%</div></div>
+        <div class="risk-stat"><div class="risk-stat-lbl">Thermal Margin</div><div class="risk-stat-val" id="rsc-th">--%</div></div>
+        <div class="risk-stat"><div class="risk-stat-lbl">RUL Time Margin</div><div class="risk-stat-val" id="rsc-rul">--%</div></div>
+        <div class="risk-stat"><div class="risk-stat-lbl">Environmental</div><div class="risk-stat-val" id="rsc-env">--%</div></div>
+        <div class="risk-stat"><div class="risk-stat-lbl">Fault Penalty</div><div class="risk-stat-val" id="rsc-fp">--%</div></div>
+        <div class="risk-stat"><div class="risk-stat-lbl">Critical Failure P</div><div class="risk-stat-val" id="rsc-cf" style="color:var(--crit)">--%</div></div>
+      </div>
+    </div>
+    <div class="panel-card">
+      <div class="panel-hdr"><span class="panel-title">Risk Narrative &amp; Telemetry Integrity</span></div>
+      <div style="padding:14px;font-size:12px;color:var(--text-body);line-height:1.75" id="risk-narrative">Awaiting data...</div>
+      <div class="panel-hdr" style="border-top:1px solid var(--border)"><span class="panel-title">Telemetry Integrity Monitor</span></div>
+      <table class="data-table">
+        <tbody>
+          <tr><td class="muted">Integrity Score</td><td class="mono" id="ti-score">--%</td></tr>
+          <tr><td class="muted">Total Packets</td><td class="mono" id="ti-total">--</td></tr>
+          <tr><td class="muted">Packet Loss</td><td class="mono" id="ti-loss">--%</td></tr>
+          <tr><td class="muted">Duplicate Packets</td><td class="mono" id="ti-dup">--</td></tr>
+          <tr><td class="muted">Sensor Anomalies</td><td class="mono" id="ti-sa">--</td></tr>
         </tbody>
       </table>
     </div>
   </div>
-
-  <!-- ── TAB 2: AI PROGNOSTICS & XAI ───────────────────────────────────── -->
-  <div id="pane-ai" class="tab-pane">
-    <div class="grid-2col">
-      <!-- Deep LSTM RUL Chart -->
-      <div class="panel-card">
-        <div class="panel-hdr">
-          <span class="panel-title">LSTM RUL Degradation Forecast &amp; 95% CI</span>
-          <span class="panel-meta">SEQUENCE WINDOW: 50 CYCLES</span>
-        </div>
-        <div class="chart-box"><canvas id="chart-rul"></canvas></div>
-        <table class="data-table">
-          <tbody>
-            <tr><td class="muted">Predicted RUL</td><td class="mono" id="ai-rul">-- cycles</td><td class="muted">Reference RUL</td><td class="mono" id="ai-gt">-- cycles</td></tr>
-            <tr><td class="muted">95% CI Lower Limit</td><td class="mono" id="ai-lo">--</td><td class="muted">95% CI Upper Limit</td><td class="mono" id="ai-hi">--</td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      <!-- XAI Attribution -->
-      <div class="panel-card">
-        <div class="panel-hdr">
-          <span class="panel-title">Feature Attribution &amp; Root Cause Analysis</span>
-          <span class="panel-meta" id="xai-badge" style="color:var(--ok)">NOMINAL ENVELOPE</span>
-        </div>
-        <div class="xai-narrative" id="xai-narr">
-          Multivariate statistical evaluation indicates that all propulsion channels remain securely within the certified 3-sigma learned normal operational envelope.
-        </div>
-        <div id="xai-att-rows"></div>
-      </div>
-    </div>
+  <div class="panel-card">
+    <div class="panel-hdr"><span class="panel-title">Mission Risk Trend</span></div>
+    <div class="chart-box" style="height:200px"><canvas id="chart-mission-risk"></canvas></div>
   </div>
-
-  <!-- ── TAB 3: THERMODYNAMICS & P-V ───────────────────────────────────── -->
-  <div id="pane-thermo" class="tab-pane">
-    <div class="grid-2col">
-      <!-- P-V Diagram -->
-      <div class="panel-card">
-        <div class="panel-hdr">
-          <span class="panel-title">4-Stroke Otto P-V Indicator Diagram</span>
-          <span class="panel-meta" id="pv-imep">IMEP: -- bar</span>
-        </div>
-        <div class="chart-box"><canvas id="chart-pv"></canvas></div>
-        <div class="perf-quad">
-          <div class="perf-cell"><div class="perf-lbl">Brake Power Output</div><div class="perf-val" id="pq-bhp">-- BHP</div></div>
-          <div class="perf-cell"><div class="perf-lbl">Brake SFC</div><div class="perf-val" id="pq-bsfc">-- g/kWh</div></div>
-          <div class="perf-cell"><div class="perf-lbl">Brake Thermal Efficiency (η_th)</div><div class="perf-val" id="pq-eta">--%</div></div>
-          <div class="perf-cell"><div class="perf-lbl">Volumetric Efficiency (η_v)</div><div class="perf-val" id="pq-vol">--%</div></div>
-        </div>
-      </div>
-
-      <!-- Physics Residuals -->
-      <div class="panel-card">
-        <div class="panel-hdr">
-          <span class="panel-title">Thermodynamic Residual Tracker</span>
-          <span class="panel-meta">Δ = MEASURED − THEORETICAL BASELINE</span>
-        </div>
-        <div style="padding:10px 16px; font-size:11.5px; color:var(--text-label); border-bottom:1px solid var(--border); font-weight:600;">
-          Continuously evaluates physical thermodynamic residuals to identify component drift.
-        </div>
-        <table class="data-table">
-          <thead><tr><th>Parameter</th><th>Measured</th><th>Baseline</th><th>Residual (Δ)</th><th>Status</th></tr></thead>
-          <tbody>
-            <tr><td class="muted">Exhaust Gas Temp (EGT)</td><td class="mono" id="r-m-egt">--</td><td class="mono" id="r-e-egt">--</td><td class="mono" id="r-d-egt">--</td><td><span class="tag-stat ok">TRACKING</span></td></tr>
-            <tr><td class="muted">Cylinder Head Temp (CHT)</td><td class="mono" id="r-m-cht">--</td><td class="mono" id="r-e-cht">--</td><td class="mono" id="r-d-cht">--</td><td><span class="tag-stat ok">TRACKING</span></td></tr>
-            <tr><td class="muted">Oil Gallery Pressure</td><td class="mono" id="r-m-oil">--</td><td class="mono" id="r-e-oil">--</td><td class="mono" id="r-d-oil">--</td><td><span class="tag-stat ok">TRACKING</span></td></tr>
-            <tr><td class="muted">Fuel Mass Consumption</td><td class="mono" id="r-m-fuel">--</td><td class="mono" id="r-e-fuel">--</td><td class="mono" id="r-d-fuel">--</td><td><span class="tag-stat ok">TRACKING</span></td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── TAB 4: SAE J1939 CAN / FDR ────────────────────────────────────── -->
-  <div id="pane-can" class="tab-pane">
-    <div class="panel-card">
-      <div class="panel-hdr">
-        <span class="panel-title">SAE J1939 CAN Flight Data Recorder</span>
-        <span class="panel-meta">SocketCAN Bus · 250 kbps · Continuous Log</span>
-      </div>
-      <div class="can-toolbar">
-        <input class="can-search-box" id="can-search" placeholder="Filter by PGN or message name…" oninput="filterCAN()">
-        <button class="dock-btn" onclick="exportCAN()">⬇ EXPORT CSV LOG</button>
-      </div>
-      <div class="can-viewport">
-        <table class="data-table">
-          <thead><tr><th>Timestamp</th><th>CAN ID (29-Bit)</th><th>PGN</th><th>Message Name</th><th>DLC</th><th>Hex Payload</th><th>Decoded Value</th></tr></thead>
-          <tbody id="can-tbody"><tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted);font-weight:600;">Listening on SocketCAN bus…</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── TAB 5: ATA-100 MAINTENANCE ────────────────────────────────────── -->
-  <div id="pane-maint" class="tab-pane">
-    <div class="grid-2col">
-      <div class="panel-card">
-        <div class="panel-hdr">
-          <span class="panel-title">Active Maintenance Action Items</span>
-          <span class="panel-meta" id="wo-cnt">0 ACTION ITEMS</span>
-        </div>
-        <div id="wo-body">
-          <div class="wo-item ok">
-            <div class="wo-head"><span class="wo-id">ATA 05-00-00</span><span class="wo-prio ok">DISPATCH READY</span></div>
-            <div class="wo-title">Propulsion System Operational for Flight Dispatch</div>
-            <div class="wo-action">All monitored parameters and structural degradation indices remain within certified operating limits. Proceed with standard pre-flight runup.</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="panel-card">
-        <div class="panel-hdr">
-          <span class="panel-title">Airworthiness Compliance Summary</span>
-          <span class="panel-meta" style="color:var(--ok)">DO-178C LEVEL B · EASA PART 21</span>
-        </div>
-        <div class="airw-dossier">
-          <div><strong>PROPULSION UNIT:</strong> ROTAX 914 F 4-STROKE AERO PISTON ENGINE</div>
-          <div><strong>MAX RATING:</strong> 84.5 kW @ 5,800 RPM (5-MIN TAKEOFF), 73.5 kW CONTINUOUS</div>
-          <div><strong>COOLING TYPE:</strong> LIQUID COOLED HEADS / RAM-AIR COOLED CYLINDERS</div>
-          <div><strong>LUBRICATION:</strong> DRY SUMP WITH TROCHOID PUMP &amp; OIL THERMOSTAT</div>
-          <div style="border-top:1px solid var(--border); margin-top:12px; padding-top:12px">
-            <div><strong>TIME SINCE OVERHAUL (TSO):</strong> 428.4 FLIGHT HOURS / 852 CYCLES</div>
-            <div><strong>NEXT SCHEDULED DEPOT INSPECTION:</strong> AT 1,000 FLIGHT HOURS</div>
-            <div><strong>AIRWORTHINESS DIRECTIVES (AD):</strong> 100% COMPLIANT</div>
-            <div><strong>CERTIFICATION:</strong> MIL-STD-1553 · SAE AS9100D · EASA 21.J</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
 </div>
 
-<!-- ══════════════════════════════════════════════════════════════════════════
-     COMMAND DOCK
-══════════════════════════════════════════════════════════════════════════ -->
+<!-- ═══ TAB 8: MAINTENANCE ════════════════════════════════════════════ -->
+<div id="pane-maint" class="tab-pane">
+  <div class="grid-2col">
+    <div class="panel-card">
+      <div class="panel-hdr"><span class="panel-title">Prescriptive Maintenance Recommendations</span><span class="panel-meta" id="presc-cnt-tag">0 ADVISORIES</span></div>
+      <div id="prescriptive-body"><div class="wo-item ok"><div class="wo-title">Engine Cleared for Full Mission Dispatch</div><div class="wo-action">All monitored parameters within certified limits.</div></div></div>
+    </div>
+    <div class="panel-card">
+      <div class="panel-hdr"><span class="panel-title">ATA-100 Work Orders</span><span class="panel-meta" id="wo-cnt">0 ACTION ITEMS</span></div>
+      <div id="wo-body"><div class="wo-item ok"><div class="wo-title">Propulsion System — Dispatch Ready</div><div class="wo-action">All parameters within certified operating limits.</div></div></div>
+    </div>
+  </div>
+  <div class="panel-card">
+    <div class="panel-hdr"><span class="panel-title">Airworthiness Compliance Summary</span><span class="panel-meta" style="color:var(--ok)">DO-178C LEVEL B · EASA PART 21</span></div>
+    <div style="padding:14px;font-family:var(--font-data);font-size:11px;line-height:2;color:var(--text-body)">
+      <div><strong>PROPULSION UNIT:</strong> ROTAX 914 F 4-STROKE TURBOCHARGED AERO PISTON ENGINE</div>
+      <div><strong>MAX RATING:</strong> 84.5 kW @ 5,800 RPM (5-MIN TAKEOFF) · 73.5 kW CONTINUOUS</div>
+      <div><strong>COOLING:</strong> LIQUID COOLED HEADS / RAM-AIR CYLINDERS</div>
+      <div><strong>LUBRICATION:</strong> DRY SUMP TROCHOID PUMP · OIL THERMOSTAT</div>
+      <div style="border-top:1px solid var(--border);margin-top:8px;padding-top:8px">
+        <div><strong>TSO:</strong> 428.4 FLIGHT HOURS / 852 CYCLES</div>
+        <div><strong>NEXT DEPOT:</strong> AT 1,000 FLIGHT HOURS</div>
+        <div><strong>ADs:</strong> 100% COMPLIANT</div>
+        <div><strong>CERT BASIS:</strong> MIL-STD-1553 · SAE AS9100D · EASA 21.J</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TAB 9: FLEET ══════════════════════════════════════════════════ -->
+<div id="pane-fleet" class="tab-pane">
+  <div class="panel-card">
+    <div class="panel-hdr"><span class="panel-title">Multi-UAV Fleet — 4 Active Digital Twins</span><span class="panel-meta" id="fleet-hdr-tag">FLEET OVERVIEW</span></div>
+    <div class="fleet-grid" id="fleet-grid"><div style="padding:20px;color:var(--text-dim);grid-column:1/-1;text-align:center">Awaiting fleet data...</div></div>
+  </div>
+  <div class="grid-2col">
+    <div class="panel-card">
+      <div class="panel-hdr"><span class="panel-title">Fleet Health Comparison</span></div>
+      <div class="chart-box" style="height:200px"><canvas id="chart-fleet-health"></canvas></div>
+    </div>
+    <div class="panel-card">
+      <div class="panel-hdr"><span class="panel-title">Fleet RUL Comparison</span></div>
+      <div class="chart-box" style="height:200px"><canvas id="chart-fleet-rul"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TAB 10: AI ENGINEER ═══════════════════════════════════════════ -->
+<div id="pane-aie" class="tab-pane" style="gap:0">
+  <div class="panel-card" style="flex:1;display:flex;flex-direction:column;">
+    <div class="panel-hdr">
+      <span class="panel-title">AI Mission Engineer — Grounded Digital Twin Explanation</span>
+      <span class="panel-meta" style="color:var(--ok)">GROUNDED IN LIVE STATE · NO FABRICATION</span>
+    </div>
+    <div class="quick-q">
+      <span style="font-size:9px;font-weight:800;letter-spacing:.1em;color:var(--text-label);text-transform:uppercase;align-self:center">QUICK:</span>
+      <button class="quick-q-btn" onclick="askAI('Why is the engine unhealthy?')">Why unhealthy?</button>
+      <button class="quick-q-btn" onclick="askAI('What caused the anomaly?')">What caused anomaly?</button>
+      <button class="quick-q-btn" onclick="askAI('How much RUL is remaining?')">RUL status?</button>
+      <button class="quick-q-btn" onclick="askAI('Can we complete the mission?')">Mission safe?</button>
+      <button class="quick-q-btn" onclick="askAI('What should I inspect?')">Inspection items?</button>
+      <button class="quick-q-btn" onclick="askAI('What happens if I reduce RPM?')">Reduce RPM?</button>
+      <button class="quick-q-btn" onclick="askAI('Sensor status?')">Sensor health?</button>
+      <button class="quick-q-btn" onclick="askAI('What is the overall status?')">Status summary</button>
+    </div>
+    <div class="ai-chat-messages" id="ai-messages">
+      <div class="ai-msg system">AI Mission Engineer ready. Grounded in live Digital Twin state.</div>
+      <div class="ai-msg assistant">Hello. I'm your AI Mission Engineer, operating on live Digital Twin data. I can explain engine health, RUL predictions, anomalies, fault events, physics residuals, and mission risk — all grounded in actual model outputs. How can I assist you?</div>
+    </div>
+    <div class="ai-input-row">
+      <input class="ai-input" id="ai-input" placeholder="Ask about engine health, anomalies, RUL, mission risk..." onkeydown="if(event.key==='Enter')sendAIQuery()">
+      <button class="dock-btn accent" onclick="sendAIQuery()" style="height:34px;padding:0 14px">ASK</button>
+    </div>
+  </div>
+</div>
+
+</div><!-- /workspace -->
+
+<!-- COMMAND DOCK -->
 <div class="cmd-dock">
   <div class="dock-group">
     <span class="dock-lbl">MISSION PROFILE:</span>
     <select class="dock-select" id="sel-profile" onchange="sendCmd({command:'set_profile',profile:this.value})">
-      <option value="NORMAL">Normal ISR Cruise (3,000 ft MSL)</option>
-      <option value="HIGH_ALTITUDE">High Altitude Loiter (18,000 ft MSL)</option>
-      <option value="HOT_WEATHER">Hot Desert Operation (45°C ISA+25)</option>
-      <option value="ENDURANCE">Maximum Endurance (Lean of Peak)</option>
-      <option value="RAPID_THROTTLE">Dynamic Agility / Rapid Throttle</option>
+      <option value="NORMAL">Normal ISR Cruise (3,000 ft)</option>
+      <option value="HIGH_ALTITUDE">High Altitude Loiter (18,000 ft)</option>
+      <option value="HOT_WEATHER">Hot Desert Ops (45°C)</option>
+      <option value="ENDURANCE">Max Endurance (Lean of Peak)</option>
+      <option value="RAPID_THROTTLE">Dynamic Agility</option>
     </select>
   </div>
-
   <div class="dock-group">
-    <span class="dock-lbl">FAULT INJECTION:</span>
+    <span class="dock-lbl">QUICK FAULT:</span>
     <select class="dock-select" id="sel-fault">
-      <option value="misfire">Ignition Misfire (Dead Cyl #2)</option>
-      <option value="injector_clog">Fuel Injector Clog &amp; Lean Spike</option>
-      <option value="cooling_degradation">Cooling Radiator Matrix Fouling</option>
-      <option value="oil_leak">Lubrication Pressure Loss &amp; Leak</option>
-      <option value="sensor_drift">Thermocouple Sensor Drift</option>
-      <option value="bearing_wear">Crankshaft Bearing Spalling</option>
-      <option value="combustion_instability">Combustion Flame Instability</option>
+      <option value="misfire">Ignition Misfire</option>
+      <option value="injector_clog">Injector Clog</option>
+      <option value="cooling_degradation">Cooling Degradation</option>
+      <option value="oil_leak">Oil Pressure Loss</option>
+      <option value="bearing_wear">Bearing Wear</option>
+      <option value="sensor_drift">Sensor Drift</option>
     </select>
-    <button class="dock-btn" onclick="doInjectFault()">INJECT FAULT</button>
-    <button class="dock-btn danger" onclick="doClearFaults()">CLEAR ALL FAULTS</button>
+    <button class="dock-btn" onclick="doInjectFaultQuick()">INJECT</button>
+    <button class="dock-btn danger" onclick="doClearFaults()">CLEAR ALL</button>
   </div>
-
   <div class="dock-group">
-    <span class="dock-lbl">REPLAY SPEED:</span>
-    <select class="dock-select" id="sel-speed" onchange="sendCmd({command:'set_speed',speed:parseFloat(this.value)})">
-      <option value="1.0">1.0× (Real-Time 10 Hz)</option>
-      <option value="2.0">2.0× (Accelerated 20 Hz)</option>
-      <option value="5.0">5.0× (Fast Forward 50 Hz)</option>
+    <span class="dock-lbl">SIM SPEED:</span>
+    <select class="dock-select" onchange="sendCmd({command:'set_speed',speed:parseFloat(this.value)})">
+      <option value="1.0">1.0× Real-Time</option>
+      <option value="2.0">2.0× Fast</option>
+      <option value="5.0">5.0× Ultra</option>
     </select>
     <button class="dock-btn" id="pause-btn" onclick="doTogglePause()">PAUSE</button>
   </div>
+  <div class="dock-group">
+    <span class="dock-lbl">DEMO:</span>
+    <button class="dock-btn accent" onclick="startDemo()">▶ DEMO MODE</button>
+  </div>
 </div>
 
-<!-- ══════════════════════════════════════════════════════════════════════════
-     CORE GCS JAVASCRIPT
-══════════════════════════════════════════════════════════════════════════ -->
 <script>
-/* ─── 0. Helper Functions (Available everywhere) ────────────────────────── */
-function $(id, v){ const e = document.getElementById(id); if(e) e.textContent = v; }
-function fmtResidual(v){ if(v == null) return '--'; return `${v >= 0 ? '+' : ''}${v}`; }
+/* ─── GLOBAL STATE ───────────────────────────────────────────────────── */
+let ws=null,reconn=null,sessionStart=null,paused=false,audioOn=true;
+let latestData={},rulHistory=[],missionHistory=[];
+let canRows=[],alertLog=[];
+const sparks={};
+['rpm','cht','egt','oil-p','oil-t','fuel','rail-p','vib','kurt','batt','current','inj'].forEach(k=>sparks[k]=[]);
+let fleetHealthChart=null,fleetRulChart=null,rulChart=null,rulOvChart=null,pvChart=null,missionChart=null;
 
-let ws = null, reconn = null, sessionStart = null, paused = false, audioOn = true;
-let lastMsg = '', lastMsgAt = 0;
-let canLog = [], telLog = [];
-const sparks = {};
-['rpm','cht','egt','oil-p','oil-t','fuel','rail-p','vib','kurt','batt','current','inj']
-  .forEach(k => sparks[k] = []);
+/* ─── UTILITIES ──────────────────────────────────────────────────────── */
+function $(id,v){const e=document.getElementById(id);if(e)e.textContent=v;}
+function el(id){return document.getElementById(id);}
 
-function setPip(live){
-  const d = document.getElementById('ws-pip');
-  if(d) d.className = 'ws-pip' + (live ? ' live' : ' dead');
+function speak(txt){
+  if(!audioOn)return;
+  try{const u=new SpeechSynthesisUtterance(txt);u.rate=1.1;window.speechSynthesis.speak(u);}catch(e){}
+}
+function toggleAudio(){audioOn=!audioOn;$('audio-btn',audioOn?'🔊 AUDIO':'🔇 MUTED');}
+
+/* ─── ALERT LOG ──────────────────────────────────────────────────────── */
+function addAlert(msg,level='ok',badge=''){
+  const now=new Date();
+  const ts=String(now.getMinutes()).padStart(2,'0')+':'+String(now.getSeconds()).padStart(2,'0');
+  alertLog.unshift({msg,level,badge,ts});
+  if(alertLog.length>50)alertLog.pop();
+  renderAlertLog();
+}
+function renderAlertLog(){
+  const body=el('alert-log-body');if(!body)return;
+  $('alert-count-tag',`${alertLog.length} EVENTS`);
+  body.innerHTML=alertLog.map(a=>`
+    <div class="alert-row">
+      <div class="al-dot ${a.level}"></div>
+      <span class="al-ts">${a.ts}</span>
+      <span style="flex:1">${a.msg}</span>
+      ${a.badge?`<span class="al-badge" style="background:rgba(16,185,129,.2);color:var(--ok)">${a.badge}</span>`:''}
+    </div>`).join('');
 }
 
-/* ─── 1. WebSocket Ingestion Engine (Runs First & Reliably) ─────────────── */
+/* ─── WEBSOCKET ──────────────────────────────────────────────────────── */
+function setPip(live){const d=el('ws-pip');if(d)d.className='ws-pip'+(live?' live':' dead');}
 function connect(){
   clearTimeout(reconn);
-  if(ws){
-    try { ws.close(); } catch(e){}
-    ws = null;
-  }
-
-  const endpoint = 'ws://127.0.0.1:8765';
-  console.log('[GCS WS] Connecting to:', endpoint);
-  $('ws-text', '10 Hz · CONNECTING');
-  setPip(false);
-
-  try {
-    ws = new WebSocket(endpoint);
-  } catch(e) {
-    console.error('[GCS WS Init Error]', e);
-    $('ws-text', 'RECONNECTING...');
-    reconn = setTimeout(connect, 1000);
-    return;
-  }
-
-  ws.onopen = () => {
-    console.log('[GCS WS] Connected successfully!');
-    setPip(true);
-    $('ws-text', '10 Hz · LIVE');
-    if(!sessionStart) sessionStart = Date.now();
+  if(ws){try{ws.close();}catch(e){}ws=null;}
+  $('ws-text','CONNECTING...');setPip(false);
+  try{ws=new WebSocket('ws://127.0.0.1:8765');}
+  catch(e){$('ws-text','RECONNECTING...');reconn=setTimeout(connect,2000);return;}
+  ws.onopen=()=>{
+    setPip(true);$('ws-text','10 Hz · LIVE');
+    if(!sessionStart)sessionStart=Date.now();
+    addAlert('Digital Twin Core v2.0 connected — live telemetry streaming.','ok','LIVE');
   };
-
-  ws.onmessage = ev => {
-    let d;
-    try { d = JSON.parse(ev.data); } catch(e) { return; }
-    if(!d || !d.cycle) return;
-    setPip(true);
-    $('ws-text', '10 Hz · LIVE');
-    telLog.push(d);
-    if(telLog.length > 500) telLog.shift();
-    try {
-      render(d);
-    } catch(renderErr) {
-      console.error("[Render Error]", renderErr);
-    }
+  ws.onmessage=ev=>{
+    let d;try{d=JSON.parse(ev.data);}catch(e){return;}
+    if(!d||d.status==='INITIALIZING')return;
+    latestData=d;
+    try{render(d);}catch(err){console.error('[Render]',err);}
   };
-
-  ws.onclose = (ev) => {
-    setPip(false);
-    $('ws-text', 'RECONNECTING...');
-    clearTimeout(reconn);
-    reconn = setTimeout(connect, 1000);
-  };
-
-  ws.onerror = (err) => {
-    setPip(false);
-    $('ws-text', 'RECONNECTING...');
-  };
+  ws.onclose=()=>{setPip(false);$('ws-text','RECONNECTING...');clearTimeout(reconn);reconn=setTimeout(connect,2000);};
+  ws.onerror=()=>{setPip(false);};
 }
-
-// Start WebSocket Immediately
+function sendCmd(cmd){if(ws&&ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify(cmd));}
 connect();
+setInterval(()=>{if(!ws||ws.readyState>1)connect();},4000);
 
-// Watchdog timer to ensure continuous connection
-setInterval(() => {
-  if(!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING){
-    connect();
-  }
-}, 3000);
+/* ─── MET TIMER ──────────────────────────────────────────────────────── */
+setInterval(()=>{
+  if(!sessionStart)return;
+  const s=Math.floor((Date.now()-sessionStart)/1000);
+  const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;
+  $('k-met',[h,m,sec].map(x=>String(x).padStart(2,'0')).join(':'));
+},1000);
 
-/* ─── 2. Master Render Function ─────────────────────────────────────────── */
-function render(d){
-  // Header Meta
-  $('k-cycle', String(d.cycle).padStart(4, '0'));
-  if(d.mission_mode) $('k-profile', d.mission_mode.replace(/_/g, ' '));
-
-  // Master Alert Badge
-  const badge = document.getElementById('alert-badge');
-  const at = document.getElementById('alert-text');
-  if(badge && at){
-    const al = d.alert || 'NOMINAL';
-    badge.className = 'status-badge ' + (al === 'CRITICAL' ? 'critical' : al === 'WARNING' ? 'warning' : 'nominal');
-    if(al === 'CRITICAL'){
-      const fn = (d.fault_events?.[0]?.name || 'PARAMETER ANOMALY').replace(/_/g, ' ');
-      at.textContent = `ALERT: ${fn}`;
-      speak(`Alert: ${fn}`);
-    } else if(al === 'WARNING'){
-      const fn = (d.fault_events?.[0]?.name || 'PARAMETER CAUTION').replace(/_/g, ' ');
-      at.textContent = `CAUTION: ${fn}`;
-      speak(`Caution: ${fn}`);
-    } else {
-      at.textContent = 'NOMINAL STATUS';
-    }
-  }
-
-  // Executive KPI Ribbon
-  if(d.health){
-    const hi = d.health.health_index;
-    $('k-ehi', Math.round(hi));
-    const cond = document.getElementById('k-cond');
-    if(cond){
-      cond.textContent = d.health.condition;
-      cond.className = 'tag-badge ' + (hi >= 70 ? 'tb-ok' : hi >= 40 ? 'tb-warn' : 'tb-crit');
-    }
-    const sub = d.health.sub_scores || {};
-    setMicroBar('th', sub.thermal ?? 80); setMicroBar('lb', sub.lubrication ?? 85);
-    setMicroBar('mc', sub.mechanical ?? 90); setMicroBar('el', sub.electrical ?? 95);
-    setSbBar('th', sub.thermal ?? 80); setSbBar('lb', sub.lubrication ?? 85);
-    setSbBar('mc', sub.mechanical ?? 90); setSbBar('el', sub.electrical ?? 95);
-  }
-
-  if(d.predicted_rul > 0){
-    $('k-rul', Math.round(d.predicted_rul));
-    $('k-true-rul', Math.round(d.true_rul));
-    $('k-ci', `[${d.rul_ci_lower}, ${d.rul_ci_upper}]`);
-  } else {
-    $('k-rul', `BUF ${d.buffer_pct || 0}%`);
-  }
-
-  if(d.physics){
-    const p = d.physics;
-    $('k-bhp', p.brake_power_hp); $('k-bsfc', p.bsfc_g_kwh);
-    $('k-eta', `${p.thermal_efficiency}%`); $('k-imep', p.imep_bar);
-  }
-
-  const fc = d.fault_events?.length || 0;
-  const ael = document.getElementById('k-alarms');
-  if(ael){
-    ael.textContent = `${fc} ACTIVE ${fc === 1 ? 'ALARM' : 'ALARMS'}`;
-    ael.style.color = fc > 0 ? (d.alert === 'CRITICAL' ? 'var(--crit)' : 'var(--warn)') : 'var(--text-main)';
-  }
-
-  if(d.xai){
-    const xd = document.getElementById('k-xai-driver');
-    if(xd){
-      xd.textContent = d.xai.is_anomaly ? `DRIVER: ${d.xai.top_driver}` : 'WITHIN 3σ ENVELOPE';
-      xd.style.color = d.xai.is_anomaly ? 'var(--crit)' : 'var(--ok)';
-    }
-  }
-
-  // Sidebar Snapshot
-  $('sb-rpm', `${d.rpm?.toFixed(0) || '---'} RPM`);
-  $('sb-cht', `${d.cht?.toFixed(1) || '---'} °F`);
-  $('sb-egt', `${d.egt?.toFixed(1) || '---'} °F`);
-  $('sb-oil', `${d.oil_pressure?.toFixed(1) || '---'} PSI`);
-  $('sb-fuel', `${d.fuel_flow?.toFixed(2) || '---'} L/h`);
-  $('sb-vib', `${d.vibration?.toFixed(3) || '---'} g`);
-  $('sb-batt', `${d.battery_v?.toFixed(2) || '---'} V`);
-  $('sb-alt', `${(d.altitude_ft || 3000).toLocaleString()} ft`);
-  $('sb-oat', `${d.oat_c ?? 15} °C`);
-  $('sb-map', d.map_kpa ? `${d.map_kpa} kPa` : '--');
-  $('sb-anm', d.anomaly_score != null ? d.anomaly_score.toFixed(4) : '--');
-  $('sb-buf', `${d.buffer_pct || 0}%`);
-
-  // 12-Channel Sensor Grid
-  SENSOR_DEFS.forEach(s => {
-    const v = s.v(d);
-    if(v == null) return;
-    $(s.val, s.fmt(v));
-    const isCrit = s.inv ? v < s.crit : v > s.crit;
-    const isWarn = s.inv ? v < s.warn : v > s.warn;
-    const tag = document.getElementById(s.tag);
-    const cell = document.getElementById(s.cell);
-    if(tag && cell){
-      if(isCrit){
-        tag.className = 'tag-stat crit'; tag.textContent = 'CRIT';
-        cell.className = 'sensor-cell s-crit';
-      } else if(isWarn){
-        tag.className = 'tag-stat warn'; tag.textContent = 'WARN';
-        cell.className = 'sensor-cell s-warn';
-      } else {
-        tag.className = 'tag-stat ok'; tag.textContent = 'NORM';
-        cell.className = 'sensor-cell s-ok';
-      }
-    }
-    pushSpark(s.k, v);
-    drawSpark(s.sp, sparks[s.k], s.c);
-  });
-
-  // 4-Cylinder Balance
-  const ccht = d.cht_cyl || [d.cht, d.cht, d.cht, d.cht];
-  const cegt = d.egt_cyl || [d.egt, d.egt, d.egt, d.egt];
-  const avgC = ccht.reduce((a,b) => a + b, 0) / 4;
-  const spread = (Math.max(...ccht) - Math.min(...ccht)).toFixed(1);
-  for(let i=0; i<4; i++){
-    $(`c${i+1}-cht`, `${ccht[i]}°F`);
-    $(`c${i+1}-egt`, `${cegt[i]}°F`);
-    $(`c${i+1}-d`, `${(ccht[i]-avgC >= 0 ? '+' : '') + (ccht[i]-avgC).toFixed(1)}°F`);
-    const si = document.getElementById(`c${i+1}-s`);
-    if(si){
-      if(ccht[i] > 420 || cegt[i] > 1650){ si.className = 'tag-stat crit'; si.textContent = 'HIGH'; }
-      else if(ccht[i] < 300){ si.className = 'tag-stat warn'; si.textContent = 'LOW'; }
-      else { si.className = 'tag-stat ok'; si.textContent = 'NORMAL'; }
-    }
-    $(`cy${i+1}`, `${ccht[i]}°F`);
-  }
-  const st = document.getElementById('cyl-spread-tag');
-  if(st){
-    st.textContent = `Δ ${spread}°F · ${parseFloat(spread) > 35 ? 'UNBALANCED' : 'BALANCED'}`;
-    st.style.color = parseFloat(spread) > 35 ? 'var(--warn)' : 'var(--text-muted)';
-  }
-  $('cy-spread', `${spread}°F`);
-
-  // AI Tab Forecast
-  if(d.predicted_rul > 0){
-    $('ai-rul', `${Math.round(d.predicted_rul)} cycles`);
-    $('ai-gt', `${Math.round(d.true_rul)} cycles`);
-    $('ai-lo', String(d.rul_ci_lower)); $('ai-hi', String(d.rul_ci_upper));
-    if(cRUL){
-      try {
-        cRUL.data.labels.push(d.cycle);
-        cRUL.data.datasets[0].data.push(d.predicted_rul);
-        cRUL.data.datasets[1].data.push(d.rul_ci_upper);
-        cRUL.data.datasets[2].data.push(d.rul_ci_lower);
-        cRUL.data.datasets[3].data.push(d.true_rul);
-        if(cRUL.data.labels.length > 80){
-          cRUL.data.datasets.forEach(ds => ds.data.shift());
-          cRUL.data.labels.shift();
-        }
-        cRUL.update('none');
-      } catch(e){}
-    }
-  }
-  if(d.xai){
-    const badge = document.getElementById('xai-badge');
-    const narr = document.getElementById('xai-narr');
-    if(badge){
-      badge.textContent = d.xai.is_anomaly ? `ANOMALY: ${d.xai.top_driver}` : 'NOMINAL ENVELOPE';
-      badge.style.color = d.xai.is_anomaly ? 'var(--crit)' : 'var(--ok)';
-    }
-    if(narr) narr.textContent = d.xai.narrative || '';
-    const rows = document.getElementById('xai-att-rows');
-    if(rows && d.xai.attributions){
-      rows.innerHTML = d.xai.attributions.map(a => `
-        <div class="att-row">
-          <div><div class="att-name">${a.label}</div><div class="att-sub">${a.subsystem}</div></div>
-          <div class="att-track"><div class="att-fill" style="width:${a.attribution}%"></div></div>
-          <div class="att-pct">${a.attribution}%</div>
-        </div>`).join('');
-    }
-  }
-
-  // Thermodynamics Tab
-  if(d.physics){
-    const p = d.physics;
-    $('pq-bhp', `${p.brake_power_hp} BHP`); $('pq-bsfc', `${p.bsfc_g_kwh} g/kWh`);
-    $('pq-eta', `${p.thermal_efficiency}%`); $('pq-vol', `${p.volumetric_eff}%`);
-    $('pv-imep', `IMEP: ${p.imep_bar} bar`);
-    if(cPV && p.pv_diagram){
-      try {
-        cPV.data.datasets[0].data = p.pv_diagram.map(pt => ({ x: pt.volume_cc, y: pt.pressure_bar }));
-        cPV.update('none');
-      } catch(e){}
-    }
-    const eb = p.expected_baselines || {}, res = p.residuals || {};
-    $('r-m-egt', `${d.egt}°F`); $('r-e-egt', `${eb.egt || '--'}°F`); $('r-d-egt', fmtResidual(res.delta_egt));
-    $('r-m-cht', `${d.cht}°F`); $('r-e-cht', `${eb.cht || '--'}°F`); $('r-d-cht', fmtResidual(res.delta_cht));
-    $('r-m-oil', `${d.oil_pressure} PSI`); $('r-e-oil', `${eb.oil_p || '--'} PSI`); $('r-d-oil', fmtResidual(res.delta_oil_p));
-    $('r-m-fuel', `${d.fuel_flow} L/h`); $('r-e-fuel', `${eb.fuel_flow || '--'} L/h`); $('r-d-fuel', fmtResidual(res.delta_fuel));
-  }
-
-  // CAN Bus FDR
-  if(d.can_frames?.length){
-    d.can_frames.forEach(f => {
-      canLog.push({ ...f, cycle: d.cycle });
-      if(canLog.length > 200) canLog.shift();
-    });
-    renderCAN();
-  }
-
-  // ATA Maintenance
-  if(d.advisories?.length){
-    $('wo-cnt', `${d.advisories.length} WORK ORDERS`);
-    const wb = document.getElementById('wo-body');
-    if(wb) wb.innerHTML = d.advisories.map(a => {
-      const cls = a.priority === 'CRITICAL' ? 'crit' : a.priority === 'WARNING' ? 'warn' : 'ok';
-      return `<div class="wo-item ${cls}">
-        <div class="wo-head"><span class="wo-id">${a.task_id} [${a.ata_chapter}]</span><span class="wo-prio ${cls}">${a.priority} · ${a.urgency_hours}H</span></div>
-        <div class="wo-title">${a.title}</div>
-        <div class="wo-action">${a.action}</div>
-        <ul class="wo-steps">${(a.steps || []).map(s => `<li>${s}</li>`).join('')}</ul>
-      </div>`;
-    }).join('');
-  }
+/* ─── TAB SWITCHING ──────────────────────────────────────────────────── */
+function switchTab(id,btn){
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  const p=document.getElementById(id);if(p)p.classList.add('active');
+  if(btn)btn.classList.add('active');
 }
 
-/* ─── 3. Micro Sparklines (High Visibility) ──────────────────────────────── */
-function pushSpark(k, v){ sparks[k].push(v); if(sparks[k].length > 40) sparks[k].shift(); }
-function drawSpark(id, data, color){
-  const cv = document.getElementById(id);
-  if(!cv || data.length < 2) return;
-  const w = cv.parentElement.offsetWidth * 0.55 || 75, h = 16;
-  cv.width = w; cv.height = h;
-  const ctx = cv.getContext('2d'); ctx.clearRect(0, 0, w, h);
-  const mn = Math.min(...data), mx = Math.max(...data), rng = (mx - mn) || 1;
-  ctx.beginPath();
-  ctx.strokeStyle = color || '#38bdf8';
-  ctx.lineWidth = 1.6;
-  data.forEach((v, i) => {
-    const x = (i / (data.length - 1)) * w;
-    const y = h - ((v - mn) / rng) * (h - 4) - 2;
-    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-  });
+/* ─── CHART INITIALIZATION ───────────────────────────────────────────── */
+const CD={responsive:true,maintainAspectRatio:false,animation:{duration:0},
+  plugins:{legend:{display:false}},
+  scales:{x:{ticks:{color:'rgba(255,255,255,.4)',maxTicksLimit:8,font:{size:9}},grid:{color:'rgba(255,255,255,.05)'}},
+          y:{ticks:{color:'rgba(255,255,255,.6)',font:{size:9}},grid:{color:'rgba(255,255,255,.08)'}}}};
+function mkChart(id,type,data,extra={}){
+  const c=el(id);if(!c)return null;
+  return new Chart(c,{type,data,options:{...CD,...extra}});
+}
+
+rulChart=mkChart('chart-rul','line',{labels:[],datasets:[
+  {label:'Pred RUL',data:[],borderColor:'#38bdf8',borderWidth:2,pointRadius:0,tension:.3,fill:false},
+  {label:'True RUL',data:[],borderColor:'rgba(16,185,129,.6)',borderWidth:1,borderDash:[4,4],pointRadius:0,fill:false},
+  {label:'CI Upper',data:[],borderColor:'rgba(56,189,248,.2)',borderWidth:1,pointRadius:0,fill:2,backgroundColor:'rgba(56,189,248,.08)'},
+  {label:'CI Lower',data:[],borderColor:'rgba(56,189,248,.2)',borderWidth:1,pointRadius:0,fill:false},
+]},{...CD,plugins:{legend:{display:true,labels:{color:'rgba(255,255,255,.6)',font:{size:9,family:'JetBrains Mono'}}}}});
+
+rulOvChart=mkChart('chart-rul-ov','line',{labels:[],datasets:[
+  {label:'RUL',data:[],borderColor:'#38bdf8',borderWidth:2,pointRadius:0,tension:.3,fill:true,backgroundColor:'rgba(56,189,248,.06)'},
+  {label:'CI+',data:[],borderColor:'rgba(56,189,248,.15)',borderWidth:1,pointRadius:0,fill:false},
+  {label:'CI-',data:[],borderColor:'rgba(56,189,248,.15)',borderWidth:1,pointRadius:0,fill:false},
+]},{...CD});
+
+pvChart=mkChart('chart-pv','line',{labels:[],datasets:[
+  {label:'Otto P-V',data:[],borderColor:'#818cf8',borderWidth:2,pointRadius:0,tension:.4,fill:true,backgroundColor:'rgba(129,140,248,.08)'},
+]},{...CD,scales:{
+  x:{title:{display:true,text:'Volume (rel.)',color:'rgba(255,255,255,.5)',font:{size:9}},ticks:{color:'rgba(255,255,255,.4)',font:{size:8}},grid:{color:'rgba(255,255,255,.05)'}},
+  y:{title:{display:true,text:'Pressure (bar)',color:'rgba(255,255,255,.5)',font:{size:9}},ticks:{color:'rgba(255,255,255,.6)',font:{size:8}},grid:{color:'rgba(255,255,255,.08)'}}}});
+
+missionChart=mkChart('chart-mission-risk','line',{labels:[],datasets:[
+  {label:'Mission P%',data:[],borderColor:'#10b981',borderWidth:2,pointRadius:0,tension:.3,fill:false},
+  {label:'Engine P%',data:[],borderColor:'#38bdf8',borderWidth:1,pointRadius:0,fill:false},
+]},{...CD,plugins:{legend:{display:true,labels:{color:'rgba(255,255,255,.6)',font:{size:9,family:'JetBrains Mono'}}}}});
+
+fleetHealthChart=mkChart('chart-fleet-health','bar',{
+  labels:['UAV-01','UAV-02','UAV-03','UAV-04'],
+  datasets:[{label:'Health',data:[92,80,62,40],backgroundColor:['rgba(16,185,129,.7)','rgba(16,185,129,.7)','rgba(245,158,11,.7)','rgba(239,68,68,.7)'],borderWidth:0}]
+},{...CD,scales:{x:{ticks:{color:'rgba(255,255,255,.6)',font:{size:9}},grid:{display:false}},y:{min:0,max:100,ticks:{color:'rgba(255,255,255,.6)',font:{size:9}},grid:{color:'rgba(255,255,255,.08)'}}}});
+
+fleetRulChart=mkChart('chart-fleet-rul','bar',{
+  labels:['UAV-01','UAV-02','UAV-03','UAV-04'],
+  datasets:[{label:'RUL',data:[142,112,52,18],backgroundColor:['rgba(16,185,129,.7)','rgba(16,185,129,.7)','rgba(245,158,11,.7)','rgba(239,68,68,.7)'],borderWidth:0}]
+},{...CD,scales:{x:{ticks:{color:'rgba(255,255,255,.6)',font:{size:9}},grid:{display:false}},y:{min:0,ticks:{color:'rgba(255,255,255,.6)',font:{size:9}},grid:{color:'rgba(255,255,255,.08)'}}}});
+
+/* ─── SPARKLINES ─────────────────────────────────────────────────────── */
+function pushSpark(k,v){sparks[k].push(v);if(sparks[k].length>50)sparks[k].shift();}
+function drawSpark(id,vals,color='rgba(56,189,248,.8)'){
+  const c=el(id);if(!c||vals.length<2)return;
+  const ctx=c.getContext('2d');const w=c.offsetWidth||100;const h=c.offsetHeight||16;
+  c.width=w;c.height=h;ctx.clearRect(0,0,w,h);
+  const mn=Math.min(...vals),mx=Math.max(...vals),rng=mx-mn||1;
+  ctx.strokeStyle=color;ctx.lineWidth=1.5;ctx.beginPath();
+  vals.forEach((v,i)=>{const x=i/(vals.length-1)*w;const y=h-(v-mn)/rng*h;i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});
   ctx.stroke();
 }
 
-/* ─── 4. Sensor Definitions ─────────────────────────────────────────────── */
-const SENSOR_DEFS = [
-  { k:'rpm', val:'sv-rpm', tag:'st-rpm', cell:'sc-rpm', sp:'sp-rpm', v:d=>d.rpm, fmt:v=>v.toFixed(0), warn:2600, crit:2750, inv:false, c:'#38bdf8' },
-  { k:'cht', val:'sv-cht', tag:'st-cht', cell:'sc-cht', sp:'sp-cht', v:d=>d.cht, fmt:v=>v.toFixed(1), warn:410, crit:435, inv:false, c:'#10b981' },
-  { k:'egt', val:'sv-egt', tag:'st-egt', cell:'sc-egt', sp:'sp-egt', v:d=>d.egt, fmt:v=>v.toFixed(1), warn:1630, crit:1670, inv:false, c:'#f59e0b' },
-  { k:'oil-p', val:'sv-oil-p', tag:'st-oil-p', cell:'sc-oil-p', sp:'sp-oil-p', v:d=>d.oil_pressure, fmt:v=>v.toFixed(1), warn:42, crit:35, inv:true, c:'#38bdf8' },
-  { k:'oil-t', val:'sv-oil-t', tag:'st-oil-t', cell:'sc-oil-t', sp:'sp-oil-t', v:d=>d.oil_temp, fmt:v=>v.toFixed(1), warn:215, crit:240, inv:false, c:'#f59e0b' },
-  { k:'fuel', val:'sv-fuel', tag:'st-fuel', cell:'sc-fuel', sp:'sp-fuel', v:d=>d.fuel_flow, fmt:v=>v.toFixed(2), warn:14, crit:18, inv:false, c:'#10b981' },
-  { k:'rail-p', val:'sv-rail-p', tag:'st-rail-p', cell:'sc-rail-p', sp:'sp-rail-p', v:d=>d.fuel_rail_pressure_bar, fmt:v=>v.toFixed(2), warn:2.3, crit:1.9, inv:true, c:'#38bdf8' },
-  { k:'vib', val:'sv-vib', tag:'st-vib', cell:'sc-vib', sp:'sp-vib', v:d=>d.vibration, fmt:v=>v.toFixed(3), warn:1.8, crit:2.8, inv:false, c:'#ef4444' },
-  { k:'kurt', val:'sv-kurt', tag:'st-kurt', cell:'sc-kurt', sp:'sp-kurt', v:d=>d.vibration_kurtosis, fmt:v=>v.toFixed(2), warn:4.2, crit:5.5, inv:false, c:'#f59e0b' },
-  { k:'batt', val:'sv-batt', tag:'st-batt', cell:'sc-batt', sp:'sp-batt', v:d=>d.battery_v, fmt:v=>v.toFixed(2), warn:12.6, crit:12.0, inv:true, c:'#38bdf8' },
-  { k:'current', val:'sv-current', tag:'st-current', cell:'sc-current', sp:'sp-current', v:d=>d.bus_current_a, fmt:v=>v.toFixed(1), warn:35, crit:42, inv:false, c:'#10b981' },
-  { k:'inj', val:'sv-inj', tag:'st-inj', cell:'sc-inj', sp:'sp-inj', v:d=>d.inj_timing, fmt:v=>v.toFixed(1), warn:16, crit:12, inv:true, c:'#a855f7' },
+/* ─── SENSOR DEFINITIONS ─────────────────────────────────────────────── */
+const SDEFS=[
+  {k:'rpm',  vs:'sv-rpm',  sp:'sp-rpm',  tag:'st-rpm',  cell:'sc-rpm',   fmt:v=>v.toFixed(0),  gv:d=>d.rpm,                  hi:2400,crit:2700,inv:false,c:'rgba(56,189,248,.8)'},
+  {k:'cht',  vs:'sv-cht',  sp:'sp-cht',  tag:'st-cht',  cell:'sc-cht',   fmt:v=>v.toFixed(1),  gv:d=>d.cht,                  hi:400, crit:430, inv:false,c:'rgba(245,158,11,.8)'},
+  {k:'egt',  vs:'sv-egt',  sp:'sp-egt',  tag:'st-egt',  cell:'sc-egt',   fmt:v=>v.toFixed(1),  gv:d=>d.egt,                  hi:1620,crit:1660,inv:false,c:'rgba(239,68,68,.8)'},
+  {k:'oil-p',vs:'sv-oil-p',sp:'sp-oil-p',tag:'st-oil-p',cell:'sc-oil-p', fmt:v=>v.toFixed(1),  gv:d=>d.oil_pressure,         hi:40,  crit:30,  inv:true, c:'rgba(16,185,129,.8)'},
+  {k:'oil-t',vs:'sv-oil-t',sp:'sp-oil-t',tag:'st-oil-t',cell:'sc-oil-t', fmt:v=>v.toFixed(1),  gv:d=>d.oil_temp,             hi:210, crit:240, inv:false,c:'rgba(251,191,36,.8)'},
+  {k:'fuel', vs:'sv-fuel', sp:'sp-fuel', tag:'st-fuel', cell:'sc-fuel',  fmt:v=>v.toFixed(2),  gv:d=>d.fuel_flow,            hi:15,  crit:19,  inv:false,c:'rgba(96,165,250,.8)'},
+  {k:'rail-p',vs:'sv-rail-p',sp:'sp-rail-p',tag:'st-rail-p',cell:'sc-rail-p',fmt:v=>v.toFixed(2),gv:d=>d.fuel_rail_pressure_bar,hi:4.0,crit:4.8,inv:false,c:'rgba(139,92,246,.8)'},
+  {k:'vib',  vs:'sv-vib',  sp:'sp-vib',  tag:'st-vib',  cell:'sc-vib',   fmt:v=>v.toFixed(3),  gv:d=>d.vibration,            hi:2.0, crit:3.0, inv:false,c:'rgba(248,113,113,.8)'},
+  {k:'kurt', vs:'sv-kurt', sp:'sp-kurt', tag:'st-kurt', cell:'sc-kurt',  fmt:v=>v.toFixed(2),  gv:d=>d.vibration_kurtosis,   hi:5.0, crit:7.0, inv:false,c:'rgba(249,115,22,.8)'},
+  {k:'batt', vs:'sv-batt', sp:'sp-batt', tag:'st-batt', cell:'sc-batt',  fmt:v=>v.toFixed(2),  gv:d=>d.battery_v,            hi:12.5,crit:11.5,inv:true, c:'rgba(52,211,153,.8)'},
+  {k:'current',vs:'sv-current',sp:'sp-current',tag:'st-current',cell:'sc-current',fmt:v=>v.toFixed(1),gv:d=>d.bus_current_a,hi:40,crit:52,inv:false,c:'rgba(34,211,238,.8)'},
+  {k:'inj',  vs:'sv-inj',  sp:'sp-inj',  tag:'st-inj',  cell:'sc-inj',   fmt:v=>v.toFixed(1),  gv:d=>d.inj_timing,           hi:35,  crit:40,  inv:false,c:'rgba(167,139,250,.8)'},
 ];
 
-/* ─── 5. UI Controls & Helpers ──────────────────────────────────────────── */
-function setMicroBar(k, val){
-  const f = document.getElementById(`mm-${k}`);
-  const n = document.getElementById(`mv-${k}`);
-  if(f){
-    f.style.width = `${val}%`;
-    f.style.background = val < 40 ? 'var(--crit)' : val < 65 ? 'var(--warn)' : 'var(--text-main)';
+/* ─── MASTER RENDER ──────────────────────────────────────────────────── */
+let lastAlertLevel='NOMINAL';
+function render(d){
+  $('k-cycle',String(d.cycle||0).padStart(4,'0'));
+  if(d.uav_id)$('hpc-uav-id',d.uav_id||'UAV-01');
+
+  // Alert badge
+  const badge=el('alert-badge'),at=el('alert-text');
+  if(badge&&at){
+    const al=d.alert||'NOMINAL';
+    badge.className='status-badge '+(al==='CRITICAL'?'critical':al==='WARNING'?'warning':'nominal');
+    const fname=(d.fault_events?.[0]?.name||'ANOMALY').replace(/_/g,' ');
+    at.textContent=al==='CRITICAL'?`ALERT: ${fname}`:al==='WARNING'?`CAUTION: ${fname}`:'NOMINAL STATUS';
+    if(al!==lastAlertLevel){
+      if(al==='CRITICAL'){speak(`Alert: ${fname}`);addAlert(`CRITICAL: ${fname}`,'crit','CRITICAL');}
+      else if(al==='WARNING'){speak(`Caution: ${fname}`);addAlert(`WARNING: ${fname}`,'warn','WARNING');}
+      else if(lastAlertLevel!=='NOMINAL')addAlert('System returned to nominal state.','ok');
+      lastAlertLevel=al;
+    }
   }
-  if(n) n.textContent = Math.round(val);
-}
 
-function setSbBar(k, val){
-  const f = document.getElementById(`sbs-${k}-f`);
-  const p = document.getElementById(`sbs-${k}-p`);
-  if(f){
-    f.style.width = `${val}%`;
-    f.style.background = val < 40 ? 'var(--crit)' : val < 65 ? 'var(--warn)' : 'var(--text-main)';
+  // Health KPI
+  if(d.health){
+    const hi=d.health.health_index;
+    $('k-ehi',Math.round(hi));
+    const cond=el('k-cond');
+    if(cond){cond.textContent=d.health.condition;cond.className='tag-badge '+(hi>=70?'tb-ok':hi>=40?'tb-warn':'tb-crit');}
+    const sub=d.health.sub_scores||{};
+    setMM('th',sub.thermal??80);setMM('lb',sub.lubrication??85);setMM('mc',sub.mechanical??90);setMM('el',sub.electrical??95);
+    setSbBar('th',sub.thermal??80);setSbBar('lb',sub.lubrication??85);setSbBar('mc',sub.mechanical??90);setSbBar('el',sub.electrical??95);
   }
-  if(p) p.textContent = `${val.toFixed(1)}%`;
+
+  // RUL KPI
+  const rul=d.predicted_rul||0;
+  if(rul>0){
+    $('k-rul',Math.round(rul));$('k-true-rul',Math.round(d.true_rul||0));
+    $('k-ci',`[${Math.round(d.rul_ci_lower||0)}, ${Math.round(d.rul_ci_upper||0)}]`);
+  }else{$('k-rul',`BUF ${d.buffer_pct||0}%`);}
+  const pfail=d.failure_probability||0;
+  const pf=el('k-pfail');
+  if(pf){pf.textContent=`${(pfail*100).toFixed(1)}%`;pf.style.color=pfail>0.5?'var(--crit)':pfail>0.2?'var(--warn)':'var(--ok)';}
+
+  // Physics KPI
+  if(d.physics){$('k-bhp',d.physics.brake_power_hp);$('k-bsfc',d.physics.bsfc_g_kwh);$('k-eta',`${d.physics.thermal_efficiency}%`);}
+
+  // Mission KPI
+  if(d.mission_risk){
+    const mr=d.mission_risk;
+    $('k-mission-pct',`${mr.mission_completion_probability?.toFixed(0)||'--'}`);
+    const rl=el('k-risk-level');
+    if(rl){rl.textContent=`RISK: ${mr.risk_level||'--'}`;rl.className='tag-badge '+(mr.risk_level==='LOW'?'tb-ok':mr.risk_level==='CRITICAL'?'tb-crit':'tb-warn');}
+    $('k-safe-h',`${mr.safe_operating_time_h?.toFixed(1)||'--'} h`);
+    const sh=el('k-safe-h');if(sh)sh.style.color=mr.risk_level==='LOW'?'var(--ok)':mr.risk_level==='CRITICAL'?'var(--crit)':'var(--warn)';
+  }
+
+  // Twin Consistency KPI
+  if(d.twin_consistency){
+    const tc=d.twin_consistency;
+    $('k-twin',tc.consistency_score?.toFixed(0)||'--');
+    const ce=el('k-twin-case');if(ce){ce.textContent=`CASE ${tc.case||'?'}`;ce.className='tag-badge '+(tc.case==='A'?'tb-ok':tc.case==='B'?'tb-crit':'tb-warn');}
+  }
+  if(d.sensor_integrity)$('k-si-score',`${d.sensor_integrity.integrity_score?.toFixed(1)||'--'}%`);
+
+  // Alarms KPI
+  const fc=d.fault_events?.length||0;
+  const ae=el('k-alarms');if(ae){ae.textContent=`${fc} ACTIVE ${fc===1?'ALARM':'ALARMS'}`;ae.style.color=fc>0?(d.alert==='CRITICAL'?'var(--crit)':'var(--warn)'):'var(--text-main)';}
+  if(d.xai){const xd=el('k-xai-driver');if(xd){xd.textContent=d.xai.is_anomaly?`DRIVER: ${d.xai.top_driver}`:'WITHIN 3σ ENVELOPE';xd.style.color=d.xai.is_anomaly?'var(--crit)':'var(--ok)';}}
+
+  // Sidebar
+  $('sb-rpm',`${d.rpm?.toFixed(0)||'---'} RPM`);$('sb-cht',`${d.cht?.toFixed(1)||'---'} °F`);
+  $('sb-egt',`${d.egt?.toFixed(1)||'---'} °F`);$('sb-oil',`${d.oil_pressure?.toFixed(1)||'---'} PSI`);
+  $('sb-fuel',`${d.fuel_flow?.toFixed(2)||'---'} L/h`);$('sb-vib',`${d.vibration?.toFixed(3)||'---'} g`);
+  $('sb-batt',`${d.battery_v?.toFixed(2)||'---'} V`);
+  $('sb-alt',`${(d.altitude_ft||3000).toLocaleString()} ft`);$('sb-oat',`${d.oat_c??15} °C`);
+  if(d.map_kpa)$('sb-map',`${d.map_kpa} kPa`);
+  const anmE=el('sb-anm');if(anmE){anmE.textContent=d.anomaly_score!=null?d.anomaly_score.toFixed(4):'--';anmE.className='sb-val '+(d.is_anomaly?'warn':'ok');}
+
+  // Cylinder balance
+  const chts=d.cht_cyl||[];const egts=d.egt_cyl||[];
+  const avgCHT=chts.length?chts.reduce((a,b)=>a+b,0)/chts.length:d.cht||0;
+  chts.forEach((v,i)=>{
+    const n=i+1;
+    $(`cy${n}`,`${v?.toFixed(1)||'--'}°F`);
+    $(`c${n}-cht`,v?.toFixed(1)||'--');$(`c${n}-egt`,egts[i]?.toFixed(1)||'--');
+    const delta=v-avgCHT;
+    $(`c${n}-d`,delta>=0?`+${delta.toFixed(1)}`:delta.toFixed(1));
+    const sE=el(`c${n}-s`);if(sE){const abs=Math.abs(delta);sE.className='tag-stat '+(abs>25?'crit':abs>12?'warn':'ok');sE.textContent=abs>25?'HOT':abs>12?'BIAS':'NORMAL';}
+  });
+  if(chts.length){
+    const spread=Math.max(...chts)-Math.min(...chts);$('cy-spread',`${spread.toFixed(1)}°F`);
+    const st=el('cyl-spread-tag');if(st)st.textContent=`Δ ${spread.toFixed(1)}°F · ${spread>25?'UNBALANCED':spread>12?'SPREAD':'BALANCED'}`;
+  }
+
+  // Sensor matrix
+  SDEFS.forEach(s=>{
+    const v=s.gv(d);if(v==null)return;
+    $(s.vs,s.fmt(v));
+    const isCrit=s.inv?v<s.crit:v>s.crit;const isWarn=s.inv?v<s.hi:v>s.hi;
+    const tag=el(s.tag);const cell=el(s.cell);
+    if(tag&&cell){
+      if(isCrit){tag.className='tag-stat crit';tag.textContent='CRIT';cell.className='sensor-cell s-crit';}
+      else if(isWarn){tag.className='tag-stat warn';tag.textContent='WARN';cell.className='sensor-cell s-warn';}
+      else{tag.className='tag-stat ok';tag.textContent='NORM';cell.className='sensor-cell s-ok';}
+    }
+    pushSpark(s.k,v);drawSpark(s.sp,sparks[s.k],s.c);
+  });
+
+  // Overview synoptic
+  $('ov-rpm',d.rpm?.toFixed(0)||'---');$('ov-cht',d.cht?.toFixed(1)||'---');
+  $('ov-egt',d.egt?.toFixed(1)||'---');$('ov-oil',d.oil_pressure?.toFixed(1)||'---');
+  $('ov-vib',d.vibration?.toFixed(3)||'---');$('ov-fuel',d.fuel_flow?.toFixed(2)||'---');
+  $('ov-batt',d.battery_v?.toFixed(2)||'---');$('ov-inj',d.inj_timing?.toFixed(1)||'---');
+  function progr(id,v,max,rev=false){const e=el(id);if(!e||v==null)return;const p=Math.min(100,Math.max(0,(v/max)*100));e.style.width=p+'%';e.style.background=rev?(p>80?'var(--crit)':p>60?'var(--warn)':'var(--ok)'):(p<50?'var(--ok)':p<80?'var(--warn)':'var(--crit)');}
+  if(d.rpm)progr('ov-rpm-p',d.rpm,2800);if(d.cht)progr('ov-cht-p',d.cht,450,true);
+  if(d.egt)progr('ov-egt-p',d.egt,1680,true);if(d.oil_pressure)progr('ov-oil-p',100-d.oil_pressure,100);
+  if(d.vibration)progr('ov-vib-p',d.vibration,4,true);if(d.fuel_flow)progr('ov-fuel-p',d.fuel_flow,18);
+  if(d.battery_v)progr('ov-batt-p',d.battery_v,15);if(d.inj_timing)progr('ov-inj-p',d.inj_timing,40);
+
+  // Overview pipeline status
+  if(d.sensor_integrity){const si=d.sensor_integrity;$('ov-si',`${si.integrity_score?.toFixed(1)}%`);const t=el('ov-si-tag');if(t){t.className='tag-stat '+(si.integrity_score>=90?'ok':si.integrity_score>=70?'warn':'crit');t.textContent=si.integrity_score>=90?'HEALTHY':si.integrity_score>=70?'DEGRADED':'FAULT';}}
+  if(d.twin_consistency){const tc=d.twin_consistency;$('ov-tc',`${tc.consistency_score?.toFixed(1)}%`);const t=el('ov-tc-tag');if(t){t.className='tag-stat '+(tc.case==='A'?'ok':tc.case==='B'?'crit':'warn');t.textContent=tc.case_label||tc.case;}}
+  if(d.telemetry_integrity){const ti=d.telemetry_integrity;$('ov-ti',`${ti.integrity_score?.toFixed(1)}%`);const t=el('ov-ti-tag');if(t){t.className='tag-stat '+(ti.integrity_score>=95?'ok':ti.integrity_score>=80?'warn':'crit');t.textContent=ti.integrity_score>=95?'SECURE':'DEGRADED';}}
+  $('ov-ad',d.is_anomaly?'ANOMALY':'CLEAR');const adt=el('ov-ad-tag');if(adt){adt.className='tag-stat '+(d.is_anomaly?'crit':'ok');adt.textContent=d.is_anomaly?'FLAGGED':'3σ NORM';}
+  const bp=d.buffer_pct||0;$('ov-buf',`${bp}% BUFFER`);const lt=el('ov-lstm-tag');if(lt){lt.className='tag-stat '+(bp>=100?'ok':'warn');lt.textContent=bp>=100?'ACTIVE':'WARMING';}
+
+  renderOverviewAdv(d.prescriptive||[]);
+
+  // Physics tab
+  if(d.physics){
+    const p=d.physics;
+    $('pq-bhp',`${p.brake_power_hp} BHP`);$('pq-bsfc',`${p.bsfc_g_kwh} g/kWh`);$('pq-eta',`${p.thermal_efficiency}%`);$('pq-vol',`${p.volumetric_efficiency}%`);$('pv-imep',`IMEP: ${p.imep_bar} bar`);
+    updatePV(p);
+    const res=p.residuals||{};
+    setRes('egt',d.egt,res.expected_egt,res.delta_egt,80);
+    setRes('cht',d.cht,res.expected_cht,res.delta_cht,40);
+    setRes('oil',d.oil_pressure,res.expected_oil_p,res.delta_oil_p,12,true);
+    setRes('fuel',d.fuel_flow,res.expected_fuel,res.delta_fuel,1.5);
+  }
+
+  // Twin consistency tab
+  if(d.twin_consistency){
+    const tc=d.twin_consistency;
+    $('twin-score',tc.consistency_score?.toFixed(0)||'--');
+    const ring=el('twin-ring');if(ring)ring.className='gauge-ring '+(tc.case==='A'?'ok':tc.case==='B'?'crit':'warn');
+    $('twin-case-hdr',`CASE ${tc.case||'?'}`);
+    const cb=el('twin-case-badge');if(cb){cb.textContent=`CASE ${tc.case} — ${tc.case_label}`;cb.style.background=tc.case==='A'?'var(--ok-bg)':tc.case==='B'?'var(--crit-bg)':'var(--warn-bg)';cb.style.color=tc.case==='A'?'var(--ok)':tc.case==='B'?'var(--crit)':'var(--warn)';}
+    $('twin-narrative',tc.narrative||'');
+    $('twin-ai-agree',`${tc.ai_agreement?.toFixed(1)}%`);$('twin-phy-agree',`${tc.physics_agreement?.toFixed(1)}%`);$('twin-si-agree',`${tc.sensor_integrity?.toFixed(1)}%`);
+    setTwinTag('twin-ai-tag',tc.ai_agreement);setTwinTag('twin-phy-tag',tc.physics_agreement);setTwinTag('twin-si-tag',tc.sensor_integrity);
+  }
+  if(d.sensor_integrity)renderSIGrid(d.sensor_integrity.per_channel||{});
+
+  // AI/RUL tab charts
+  if(rul>0){
+    pushChart(rulChart,d.cycle,d.predicted_rul,d.true_rul,d.rul_ci_upper,d.rul_ci_lower);
+    pushChart(rulOvChart,d.cycle,d.predicted_rul,null,d.rul_ci_upper,d.rul_ci_lower);
+    $('ai-rul',`${Math.round(rul)} cycles`);$('ai-gt',`${Math.round(d.true_rul||0)} cycles`);
+    $('ai-lo',`${Math.round(d.rul_ci_lower||0)}`);$('ai-hi',`${Math.round(d.rul_ci_upper||0)}`);
+    $('ai-std',`${(d.rul_mc_std||0).toFixed(2)} cycles`);
+    $('ai-pfail',`${((pfail)*100).toFixed(1)}%`);
+    const pfe=el('ai-pfail');if(pfe)pfe.style.color=pfail>0.5?'var(--crit)':pfail>0.2?'var(--warn)':'var(--ok)';
+  }
+  if(d.xai){$('xai-narr',d.xai.narrative||'');const xb=el('xai-badge');if(xb){xb.textContent=d.xai.is_anomaly?`ANOMALY — ${d.xai.top_driver}`:'NOMINAL';xb.style.color=d.xai.is_anomaly?'var(--crit)':'var(--ok)';}renderXAI(d.xai.attributions||[]);}
+  renderFaultEvents(d.fault_events||[]);
+  $('fault-count-tag',`${fc} ACTIVE FAULT${fc!==1?'S':''}`);
+  renderActiveFaultsTab(d.fault_events||[]);
+
+  // Mission risk
+  if(d.mission_risk){
+    renderMissionRisk(d.mission_risk);
+    pushChart(missionChart,d.cycle,d.mission_risk.mission_completion_probability,d.mission_risk.components?.engine_reliability);
+  }
+
+  // Prescriptive / maintenance
+  if(d.prescriptive)renderPrescriptive(d.prescriptive);
+  if(d.advisories)renderMaintenanceAdv(d.advisories);
+
+  // Fleet
+  if(d.fleet_status)renderFleet(d.fleet_status);
+
+  // Telemetry integrity
+  if(d.telemetry_integrity){
+    const ti=d.telemetry_integrity;
+    $('ti-score',`${ti.integrity_score?.toFixed(1)}%`);$('ti-total',ti.total_packets?.toLocaleString()||'--');
+    $('ti-loss',`${ti.packet_loss_pct?.toFixed(3)||'0'}%`);$('ti-dup',ti.duplicate_packets||0);$('ti-sa',ti.sensor_anomalies||0);
+  }
+
+  // CAN frames
+  if(d.can_frames?.length)d.can_frames.forEach(f=>pushCAN(f));
+
+  // AI Engineer response
+  if(d.ai_engineer_response?.answer){
+    const lastQ=d.ai_engineer_response.question,lastA=d.ai_engineer_response.answer;
+    if(window._pendingAIQ===lastQ){window._pendingAIQ=null;removeSysMsg();appendAIMsg('assistant',lastA);}
+  }
+
+  // Demo
+  if(d.demo_state?.active){
+    window._demoStep=d.demo_state.step;
+    const banner=el('demo-banner');if(banner)banner.className='demo-banner active';
+    $('demo-step-label',`STEP ${d.demo_state.step}/${d.demo_state.total_steps}`);
+    $('demo-step-name',d.demo_state.name||'');$('demo-step-desc',d.demo_state.description||'');
+    if(d.demo_state.highlight){const t=el('tab-'+d.demo_state.highlight);if(t)t.click();}
+  }else{const b=el('demo-banner');if(b)b.className='demo-banner';}
 }
 
-function toggleAudio(){
-  audioOn = !audioOn;
-  $('audio-btn', audioOn ? '🔊 AUDIO ON' : '🔇 AUDIO OFF');
+/* ─── HELPER RENDER FUNCTIONS ────────────────────────────────────────── */
+function setMM(k,v){const f=el(`mm-${k}`),n=el(`mv-${k}`);if(f){f.style.width=`${Math.min(100,Math.max(0,v))}%`;f.style.background=v>=70?'var(--accent)':v>=40?'var(--warn)':'var(--crit)';}if(n)n.textContent=Math.round(v);}
+function setSbBar(k,v){const f=el(`sbs-${k}-f`),p=el(`sbs-${k}-p`);if(f){f.style.width=`${Math.min(100,Math.max(0,v))}%`;f.style.background=v>=70?'var(--accent)':v>=40?'var(--warn)':'var(--crit)';}if(p)p.textContent=`${Math.round(v)}%`;}
+function setTwinTag(id,v){const e=el(id);if(!e)return;e.className='tag-stat '+(v>=80?'ok':v>=55?'warn':'crit');e.textContent=v>=80?'NORMAL':v>=55?'DEGRADED':'ANOMALY';}
+function setRes(key,meas,exp,delta,thresh,inv=false){
+  if(exp!=null)$(`r-m-${key}`,(meas||0).toFixed?.(key==='fuel'?2:1)||'--');
+  if(exp!=null)$(`r-e-${key}`,(exp||0).toFixed(key==='fuel'?2:1));
+  if(delta!=null){$(`r-d-${key}`,(delta>=0?'+':'')+delta.toFixed(key==='fuel'?2:1));}
+  const bad=inv?(delta<-thresh):(Math.abs(delta||0)>thresh);
+  const t=el(`r-s-${key}`);if(t){t.className='tag-stat '+(bad?'warn':'ok');t.textContent=bad?'DRIFT':'TRACKING';}
 }
-
-function speak(msg){
-  if(!audioOn || !('speechSynthesis' in window)) return;
-  const now = Date.now();
-  if(msg === lastMsg && now - lastMsgAt < 9000) return;
-  lastMsg = msg; lastMsgAt = now;
-  try {
-    const u = new SpeechSynthesisUtterance(msg);
-    u.rate = 1.0; u.pitch = 0.95; u.volume = 0.8;
-    speechSynthesis.speak(u);
-  } catch(e){}
+function pushChart(chart,lbl,...vals){
+  if(!chart)return;
+  chart.data.labels.push(lbl);
+  vals.forEach((v,i)=>{if(chart.data.datasets[i])chart.data.datasets[i].data.push(v??null);});
+  if(chart.data.labels.length>80){chart.data.labels.shift();chart.data.datasets.forEach(ds=>ds.data.shift());}
+  chart.update();
 }
-
-function renderCAN(){
-  const f = (document.getElementById('can-search')?.value || '').toUpperCase();
-  const tbody = document.getElementById('can-tbody');
-  if(!tbody) return;
-  const rows = f ? canLog.filter(r => r.name?.includes(f) || String(r.pgn).includes(f)) : canLog.slice(-20);
-  tbody.innerHTML = rows.map(r => `
-    <tr>
-      <td class="muted">${new Date().toLocaleTimeString()}</td>
-      <td class="can-id">${r.can_id}</td>
-      <td class="mono">${r.pgn}</td>
-      <td style="font-weight:700; color:var(--text-main);">${r.name}</td>
-      <td class="mono">${r.dlc}</td>
-      <td class="can-hex">${r.hex}</td>
-      <td class="muted">${r.decoded}</td>
-    </tr>`).join('');
+function updatePV(p){
+  if(!pvChart)return;
+  const pts=60,vs=[],ps=[];
+  for(let i=0;i<=pts;i++){
+    const theta=(i/pts)*2*Math.PI;
+    const V=1+Math.sin(theta)*0.4+0.5;
+    const P=((p.imep_bar||7)*1.8)/(V**1.35)+Math.sin(theta)*0.5;
+    vs.push(V.toFixed(3));ps.push(Math.max(0,P).toFixed(2));
+  }
+  pvChart.data.labels=vs;pvChart.data.datasets[0].data=ps;pvChart.update();
 }
-function filterCAN(){ renderCAN(); }
+function renderXAI(attrs){
+  const body=el('xai-att-rows');if(!body)return;
+  if(!attrs.length){body.innerHTML='<div style="padding:12px 16px;color:var(--text-dim);font-size:11px">No attribution data yet.</div>';return;}
+  body.innerHTML=attrs.slice(0,8).map(a=>`
+    <div class="att-row">
+      <div><div class="att-name">${a.label}</div><div class="att-sub">${a.value?.toFixed?.(2)||a.value} ${a.unit||''}</div></div>
+      <div class="att-track"><div class="att-fill" style="width:${Math.min(100,a.attribution||0)}%"></div></div>
+      <div class="att-pct">${(a.attribution||0).toFixed(1)}%</div>
+    </div>`).join('');
+}
+function renderFaultEvents(faults){
+  const body=el('fault-events-body');if(!body)return;
+  if(!faults.length){body.innerHTML='<div style="padding:16px;color:var(--text-dim);font-size:11px;text-align:center">No active fault events.</div>';return;}
+  body.innerHTML=faults.map(f=>`<div class="wo-item ${f.severity==='CRITICAL'?'crit':'warn'}"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><strong>${(f.name||'FAULT').replace(/_/g,' ')}</strong><span class="tag-stat ${f.severity==='CRITICAL'?'crit':'warn'}">${f.severity}</span></div><div style="font-size:10.5px;color:var(--text-muted);font-family:var(--font-data)">${f.detail||f.description||''}</div></div>`).join('');
+}
+function renderActiveFaultsTab(faults){
+  const body=el('active-faults-body');if(!body)return;
+  $('active-faults-tag',`${faults.length} INJECTED`);
+  body.innerHTML=faults.length?faults.map(f=>`<div class="wo-item ${f.severity==='CRITICAL'?'crit':'warn'}"><div style="display:flex;justify-content:space-between;margin-bottom:3px"><strong>${(f.name||'FAULT').replace(/_/g,' ')}</strong><span class="tag-stat ${f.severity==='CRITICAL'?'crit':'warn'}">${f.severity}</span></div><div style="font-size:10.5px;color:var(--text-muted);font-family:var(--font-data)">${f.detail||''}</div></div>`).join(''):'<div style="padding:20px;color:var(--text-dim);font-size:11px;text-align:center">No faults currently active.</div>';
+}
+function renderMissionRisk(mr){
+  const ring=el('risk-ring');if(ring)ring.className=`risk-ring ${(mr.risk_level||'LOW').toLowerCase()}`;
+  $('risk-pct',`${mr.mission_completion_probability?.toFixed(0)||'--'}%`);
+  $('risk-level-lbl',mr.risk_level||'--');$('safe-h-val',`${mr.safe_operating_time_h?.toFixed(1)||'--'} h`);$('abort-pct-val',`${mr.abort_probability?.toFixed(1)||'--'}%`);
+  const c=mr.components||{};
+  $('rsc-eng',`${c.engine_reliability?.toFixed(1)||'--'}%`);$('rsc-th',`${c.thermal_margin?.toFixed(1)||'--'}%`);
+  $('rsc-rul',`${c.rul_time_margin?.toFixed(1)||'--'}%`);$('rsc-env',`${c.environmental?.toFixed(1)||'--'}%`);
+  $('rsc-fp',`${c.fault_penalty?.toFixed(1)||'--'}%`);$('rsc-cf',`${mr.critical_failure_probability?.toFixed(1)||'--'}%`);
+  $('risk-narrative',mr.risk_narrative||'');
+}
+function renderPrescriptive(items){
+  const body=el('prescriptive-body');if(!body)return;
+  $('presc-cnt-tag',`${items.length} ADVISOR${items.length!==1?'IES':'Y'}`);
+  const SM={INFO:'ok',WARNING:'warn',CRITICAL:'crit',EMERGENCY:'crit'};
+  body.innerHTML=items.length?items.map(r=>`<div class="wo-item ${SM[r.severity]||'ok'}"><div style="display:flex;justify-content:space-between;margin-bottom:3px"><span class="wo-prio ${SM[r.severity]||'ok'}">${r.severity}</span><span style="font-size:9px;color:var(--text-dim);font-family:var(--font-data)">${r.source||''}</span></div><div class="wo-title">${r.action||''}</div>${r.operational?`<div class="wo-action">${r.operational}</div>`:''}${r.maintenance?`<div class="wo-detail">${r.maintenance}</div>`:''}${r.expected_benefit?`<div class="wo-detail" style="color:var(--ok);margin-top:3px">Benefit: ${r.expected_benefit}</div>`:''}</div>`).join(''):'<div class="wo-item ok"><div class="wo-title">Engine Cleared for Dispatch</div><div class="wo-action">All parameters nominal.</div></div>';
+}
+function renderMaintenanceAdv(advs){
+  const body=el('wo-body');if(!body)return;
+  $('wo-cnt',`${advs.length} ACTION ITEM${advs.length!==1?'S':''}`);
+  const SM={LOW:'ok',MEDIUM:'warn',HIGH:'crit',CRITICAL:'crit'};
+  body.innerHTML=advs.length?advs.map(a=>`<div class="wo-item ${SM[a.priority]||'ok'}"><div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="font-size:9px;font-family:var(--font-data);color:var(--text-label)">${a.ata_code||''}</span><span class="wo-prio ${SM[a.priority]||'ok'}">${a.priority||'LOW'}</span></div><div class="wo-title">${a.title||''}</div><div class="wo-action">${a.action||''}</div></div>`).join(''):'<div class="wo-item ok"><div class="wo-title">Dispatch Ready</div><div class="wo-action">All within limits.</div></div>';
+}
+function renderOverviewAdv(items){
+  const body=el('ov-adv-body');if(!body)return;
+  $('adv-cnt-tag',`${items.length} ADVISOR${items.length!==1?'IES':'Y'}`);
+  const SM={INFO:'ok',WARNING:'warn',CRITICAL:'crit',EMERGENCY:'crit'};
+  body.innerHTML=items.length?items.slice(0,3).map(r=>`<div class="wo-item ${SM[r.severity]||'ok'}"><div style="display:flex;justify-content:space-between"><span class="wo-prio ${SM[r.severity]||'ok'}">${r.severity}</span></div><div class="wo-action">${r.action||''}</div></div>`).join(''):'<div class="wo-item ok"><div class="wo-action">All systems nominal. Cleared for dispatch.</div></div>';
+}
+function renderSIGrid(ch){
+  const body=el('si-grid-body');if(!body)return;
+  const entries=Object.entries(ch).slice(0,12);
+  body.innerHTML=entries.length?entries.map(([k,info])=>{const c=info.confidence;const s=c>=90?'ok':c>=70?'warn':'crit';return `<div class="si-cell"><div class="si-ch">${k.replace(/_/g,' ')}</div><div class="si-score ${s}">${c?.toFixed(0)||'--'}%</div><div class="si-status" style="color:var(--${s})">${info.status||''}</div></div>`;}).join(''):'<div style="padding:10px;color:var(--text-dim);font-size:10px;grid-column:1/-1">No per-channel data.</div>';
+}
+function renderFleet(fleet){
+  const grid=el('fleet-grid');if(!grid)return;
+  const act=(fleet.find(f=>f.is_active)||fleet[0]);if(act)$('fleet-hdr-tag',`FLEET: ${act.uav_id} ACTIVE`);
+  grid.innerHTML=fleet.map(f=>`<div class="fleet-card ${f.is_active?'active-uav':''} ${f.status_color==='crit'?'fleet-crit':f.status_color==='warn'?'fleet-warn':''}" onclick="selectUAV('${f.uav_id}')"><div class="fc-head"><span class="fc-id">${f.uav_id}${f.is_active?' ⬤':''}</span><span class="fc-mission">${f.mission}</span></div><div class="fc-stats"><div><div class="fc-stat-lbl">Call Sign</div><div class="fc-stat-val">${f.call_sign}</div></div><div><div class="fc-stat-lbl">Health</div><div class="fc-stat-val" style="color:${f.status_color==='ok'?'var(--ok)':f.status_color==='warn'?'var(--warn)':'var(--crit)'}">${f.health?.toFixed(0)}%</div></div><div><div class="fc-stat-lbl">RUL</div><div class="fc-stat-val">${f.rul?.toFixed(0)} cycles</div></div><div><div class="fc-stat-lbl">Mission P</div><div class="fc-stat-val">${f.mission_probability?.toFixed(0)}%</div></div><div><div class="fc-stat-lbl">Condition</div><div class="fc-stat-val" style="font-size:10px">${f.condition}</div></div><div><div class="fc-stat-lbl">Alert</div><div class="fc-stat-val" style="color:${f.alert==='CRITICAL'?'var(--crit)':f.alert==='WARNING'?'var(--warn)':'var(--ok)'}">${f.alert}</div></div></div></div>`).join('');
+  if(fleetHealthChart){fleetHealthChart.data.labels=fleet.map(f=>f.uav_id);fleetHealthChart.data.datasets[0].data=fleet.map(f=>f.health);fleetHealthChart.data.datasets[0].backgroundColor=fleet.map(f=>f.status_color==='ok'?'rgba(16,185,129,.7)':f.status_color==='warn'?'rgba(245,158,11,.7)':'rgba(239,68,68,.7)');fleetHealthChart.update();}
+  if(fleetRulChart){fleetRulChart.data.labels=fleet.map(f=>f.uav_id);fleetRulChart.data.datasets[0].data=fleet.map(f=>f.rul);fleetRulChart.data.datasets[0].backgroundColor=fleet.map(f=>f.status_color==='ok'?'rgba(16,185,129,.7)':f.status_color==='warn'?'rgba(245,158,11,.7)':'rgba(239,68,68,.7)');fleetRulChart.update();}
+}
+function selectUAV(id){sendCmd({command:'select_uav',uav_id:id});addAlert(`Switched Digital Twin to ${id}.`,'ok','UAV SWITCH');}
 
+/* ─── CAN BUS ────────────────────────────────────────────────────────── */
+function pushCAN(f){canRows.unshift(f);if(canRows.length>200)canRows.pop();renderCAN(el('can-search')?.value?.toLowerCase()||'');}
+function filterCAN(){renderCAN(el('can-search')?.value?.toLowerCase()||'');}
+function renderCAN(q=''){
+  const body=el('can-tbody');if(!body)return;
+  const rows=q?canRows.filter(r=>(r.pgn||'').toLowerCase().includes(q)||(r.name||'').toLowerCase().includes(q)):canRows;
+  if(!rows.length){body.innerHTML='<tr><td colspan="7" style="text-align:center;padding:16px;color:var(--text-muted)">Listening on SocketCAN bus...</td></tr>';return;}
+  body.innerHTML=rows.slice(0,50).map(r=>`<tr><td class="mono" style="font-size:10px">${r.ts||''}</td><td><span class="can-id">${r.can_id||''}</span></td><td style="font-size:10px;color:var(--accent)">${r.pgn||''}</td><td style="font-size:10.5px">${r.name||''}</td><td class="mono" style="font-size:10px">${r.dlc||8}</td><td><span class="can-hex">${r.hex||''}</span></td><td style="font-size:10.5px;color:var(--text-muted)">${r.decoded||''}</td></tr>`).join('');
+}
 function exportCAN(){
-  if(!canLog.length){ alert('No CAN frames recorded yet.'); return; }
-  let csv = 'Timestamp,Cycle,CAN_ID,PGN,Message,DLC,Hex,Decoded\n';
-  canLog.forEach(r => { csv += `"${r.timestamp}","${r.cycle}","${r.can_id}","${r.pgn}","${r.name}","${r.dlc}","${r.hex}","${r.decoded}"\n`; });
-  const a = Object.assign(document.createElement('a'), {
-    href: URL.createObjectURL(new Blob([csv], { type: 'text/csv' })),
-    download: `SAE_J1939_CAN_Log_${Date.now()}.csv`
-  });
-  a.click();
+  const csv=['Timestamp,CAN_ID,PGN,Name,DLC,Hex,Decoded',...canRows.map(r=>`${r.ts},${r.can_id},${r.pgn},"${r.name}",${r.dlc},"${r.hex}","${r.decoded}"`)].join('\n');
+  const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);a.download='uav_can_fdr.csv';a.click();
 }
 
-function sendCmd(o){ if(ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
-function doInjectFault(){ sendCmd({ command: 'inject_fault', fault: document.getElementById('sel-fault').value }); }
-function doClearFaults(){ sendCmd({ command: 'clear_faults' }); }
-function doTogglePause(){
-  paused = !paused;
-  const b = document.getElementById('pause-btn');
-  if(b){
-    b.textContent = paused ? 'RESUME' : 'PAUSE';
-    b.className = paused ? 'dock-btn active' : 'dock-btn';
-  }
-  sendCmd({ command: 'set_paused', paused });
+/* ─── FAULT INJECTION ────────────────────────────────────────────────── */
+const FDESC={
+  cooling_degradation:'Degrades Cylinder 3 cooling. CHT rises progressively. Twin Consistency diverges Case A→C→B.',
+  misfire:'Cylinder #2 ignition dropout. EGT drops on affected cylinder. Vibration kurtosis spikes.',
+  injector_clog:'Partial injector block → lean mixture → EGT spike → fuel flow drops relative to RPM.',
+  oil_leak:'Oil gallery pressure falls progressively. Lubrication subsystem health drops. EMERGENCY if <30 PSI.',
+  bearing_wear:'Vibration RMS and kurtosis increase progressively. Mechanical health subscore degrades.',
+  sensor_drift:'CHT Ch1 drifts +15°F/step. Sensor integrity detects and flags. Twin shows Case C disagreement.',
+  combustion_instability:'EGT oscillations + vibration increase. Anomaly detector activates.',
+  alternator_degradation:'Bus voltage drops. Electrical subscore degrades. Advisory triggered.',
+};
+function doInjectFault(){
+  const fault=el('fault-type-sel')?.value||'cooling_degradation';
+  sendCmd({command:'inject_fault',fault});
+  addAlert(`Fault injected: ${fault.replace(/_/g,' ').toUpperCase()}`,'warn','INJECTED');
+  el('tab-ai')?.click();
+}
+function doInjectFaultQuick(){const f=el('sel-fault')?.value;if(f){sendCmd({command:'inject_fault',fault:f});addAlert(`Fault: ${f.replace(/_/g,' ').toUpperCase()}`,'warn','INJECTED');}}
+function doClearFaults(){sendCmd({command:'clear_faults'});addAlert('All injected faults cleared.','ok','CLEARED');}
+function doTogglePause(){paused=!paused;sendCmd({command:'set_paused',paused});const btn=el('pause-btn');if(btn){btn.textContent=paused?'RESUME':'PAUSE';btn.className=paused?'dock-btn active':'dock-btn';}}
+el('fault-type-sel')?.addEventListener('change',e=>{$('fault-desc-box',FDESC[e.target.value]||'');});
+
+/* ─── WHAT-IF ────────────────────────────────────────────────────────── */
+function runWhatIf(){
+  const params={rpm:+el('wi-rpm')?.value,altitude_ft:+el('wi-alt')?.value,cooling_efficiency_pct:+el('wi-cool')?.value,ambient_temp_c:+el('wi-temp')?.value,injector_efficiency_pct:+el('wi-inj')?.value};
+  sendCmd({command:'whatif',params});
+  el('whatif-results-panel').innerHTML='<div style="padding:20px;text-align:center;color:var(--text-label);font-size:11px">⚙️ Simulating physics-informed counterfactual...</div>';
+  setTimeout(renderWhatIfResult,900);
+}
+function resetWhatIf(){el('wi-rpm').value=1400;$('wi-rpm-val','1400');el('wi-alt').value=3000;$('wi-alt-val','3000');el('wi-cool').value=0;$('wi-cool-val','0%');el('wi-temp').value=15;$('wi-temp-val','15°C');el('wi-inj').value=0;$('wi-inj-val','0%');el('whatif-results-panel').innerHTML='<div style="padding:20px;text-align:center;color:var(--text-dim);font-size:11px">Configure parameters and click SIMULATE.</div>';}
+function renderWhatIfResult(){
+  const wr=latestData.whatif_result;const panel=el('whatif-results-panel');if(!panel||!wr)return;
+  const {current:cur,counterfactual:cf,delta:dl,outcome}=wr;
+  const oc=outcome==='IMPROVEMENT'?'var(--ok)':outcome==='DEGRADATION'?'var(--crit)':'var(--warn)';
+  function vrow(lbl,cv,cfv,unit=''){return `<div style="margin-bottom:8px"><div class="wi-col-label">${lbl}</div><div style="display:flex;gap:14px;align-items:baseline"><div style="font-family:var(--font-data);font-size:15px;font-weight:800;color:var(--text-muted)">${cv??'--'}${unit}</div><div style="font-family:var(--font-data);font-size:18px;font-weight:800;color:var(--text-main)">${cfv??'--'}${unit}</div></div></div>`;}
+  panel.innerHTML=`
+    <div style="padding:8px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <span style="font-size:9px;font-weight:800;letter-spacing:.1em;color:var(--text-label);text-transform:uppercase">COUNTERFACTUAL RESULT</span>
+      <span style="font-family:var(--font-data);font-size:12px;font-weight:800;color:${oc}">${outcome}</span>
+    </div>
+    <div style="font-size:9px;font-weight:800;color:var(--text-label);text-transform:uppercase;display:grid;grid-template-columns:1fr 1fr;margin-bottom:6px;padding:0 2px"><span>CURRENT → COUNTERFACTUAL</span><span style="text-align:right">Δ IMPACT</span></div>
+    ${vrow('RPM',cur?.rpm?.toFixed(0),cf?.rpm?.toFixed(0),'')}
+    ${vrow('CHT',cur?.cht?.toFixed(1),cf?.cht?.toFixed(1),'°F')}
+    ${vrow('EGT',cur?.egt?.toFixed(1),cf?.egt?.toFixed(1),'°F')}
+    ${vrow('Health',cur?.health?.toFixed(1),cf?.health?.toFixed(1),'%')}
+    ${vrow('RUL',cur?.rul?.toFixed(1),cf?.rul?.toFixed(1),' cyc')}
+    <div style="display:flex;gap:14px;margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">
+      <div class="wi-delta ${(dl?.rul||0)>0?'pos':'neg'}">ΔRUL ${(dl?.rul||0)>0?'+':''}${(dl?.rul||0).toFixed(1)}</div>
+      <div class="wi-delta ${(dl?.health||0)>0?'pos':'neg'}">ΔHI ${(dl?.health||0)>0?'+':''}${(dl?.health||0).toFixed(1)}</div>
+      <div class="wi-delta ${(dl?.fuel_pct||0)<0?'pos':'neg'}">ΔFUEL ${(dl?.fuel_pct||0).toFixed(1)}%</div>
+    </div>
+    <div style="margin-top:8px;font-size:9.5px;color:var(--text-dim);font-style:italic">${wr.method||''}</div>`;
+}
+function runOptimize(){
+  const c={rpm_min:+el('opt-rpm-min').value,rpm_max:+el('opt-rpm-max').value,alt_max:+el('opt-alt-max').value};
+  sendCmd({command:'optimize',constraints:c});
+  el('optimize-results').innerHTML='⚙️ Running scipy L-BFGS-B optimization...';
+  setTimeout(()=>{
+    const or=latestData.optimize_result;if(!or){el('optimize-results').innerHTML='No result yet. Ensure backend is connected.';return;}
+    el('optimize-results').innerHTML=`
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:12px">
+        <div><div style="font-size:9px;font-weight:800;color:var(--text-label);text-transform:uppercase;margin-bottom:3px">Optimal RPM</div><div style="font-family:var(--font-data);font-size:22px;font-weight:800;color:var(--accent)">${or.optimal_rpm} RPM</div></div>
+        <div><div style="font-size:9px;font-weight:800;color:var(--text-label);text-transform:uppercase;margin-bottom:3px">Altitude</div><div style="font-family:var(--font-data);font-size:22px;font-weight:800;color:var(--accent)">${or.optimal_altitude_ft?.toLocaleString()} ft</div></div>
+        <div><div style="font-size:9px;font-weight:800;color:var(--text-label);text-transform:uppercase;margin-bottom:3px">Mission P</div><div style="font-family:var(--font-data);font-size:22px;font-weight:800;color:var(--ok)">${or.mission_probability?.toFixed(1)}%</div></div>
+      </div>
+      <strong>${or.recommendation||''}</strong><br>
+      <span style="font-size:10.5px;color:var(--text-label)">Current P: ${or.current_probability?.toFixed(1)}% → Optimal: ${or.mission_probability?.toFixed(1)}% (Δ +${or.probability_improvement?.toFixed(1)}%) | Predicted CHT: ${or.predicted_cht}°F | RUL +${or.rul_improvement?.toFixed(1)} cycles</span>`;
+  },1000);
 }
 
-function switchTab(id, btn){
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-  btn.classList.add('active');
-  const p = document.getElementById(id);
-  if(p) p.classList.add('active');
-  initCharts();
+/* ─── AI ENGINEER ────────────────────────────────────────────────────── */
+function appendAIMsg(role,text){
+  const msgs=el('ai-messages');if(!msgs)return;
+  const d=document.createElement('div');d.className=`ai-msg ${role}`;d.textContent=text;
+  msgs.appendChild(d);msgs.scrollTop=msgs.scrollHeight;
+}
+function removeSysMsg(){const msgs=el('ai-messages');if(!msgs)return;msgs.querySelectorAll('.ai-msg.system').forEach(i=>i.remove());}
+function askAI(q){const inp=el('ai-input');if(inp)inp.value=q;sendAIQuery();el('tab-aie')?.click();}
+function sendAIQuery(){
+  const inp=el('ai-input');if(!inp)return;
+  const q=inp.value.trim();if(!q)return;
+  inp.value='';appendAIMsg('user',q);appendAIMsg('system','AI Mission Engineer processing...');
+  window._pendingAIQ=q;
+  sendCmd({command:'ai_engineer_query',question:q});
+  setTimeout(()=>{if(window._pendingAIQ===q){window._pendingAIQ=null;removeSysMsg();appendAIMsg('assistant','Processing... if backend is connected the response will arrive shortly.');}},3000);
 }
 
-function setDashboardTheme(name){
-  document.documentElement.setAttribute('data-theme', name);
-  localStorage.setItem('uav_stealth_theme', name);
-  const sel = document.getElementById('theme-selector');
-  if(sel) sel.value = name;
-  updateChartColors();
-}
-const initialTheme = localStorage.getItem('uav_stealth_theme') || 'stealth';
-setDashboardTheme(initialTheme);
+/* ─── DEMO MODE ──────────────────────────────────────────────────────── */
+function startDemo(){sendCmd({command:'demo_start'});addAlert('Demo mode started — 9-step AI+Physics showcase.','ok','DEMO');}
+function stopDemo(){sendCmd({command:'demo_stop'});const b=el('demo-banner');if(b)b.className='demo-banner';}
 
-// MET Timer
-setInterval(() => {
-  if(!sessionStart) return;
-  const s = Math.floor((Date.now() - sessionStart) / 1000);
-  $('k-met', `${pad(Math.floor(s/3600))}:${pad(Math.floor((s%3600)/60))}:${pad(s%60)}`);
-}, 1000);
-function pad(n){ return String(n).padStart(2,'0'); }
-
-/* ─── 6. Safe Chart.js Initialization ───────────────────────────────────── */
-let cRUL = null, cPV = null;
-
-function initCharts(){
-  if(typeof Chart === 'undefined') return;
-  const base = { responsive: true, maintainAspectRatio: false, animation: { duration: 0 }, plugins: { legend: { display: false } } };
-  const grid = { color: 'rgba(255,255,255,0.08)' };
-  const tick = { color: '#cbd5e1', font: { size: 9, family: 'JetBrains Mono', weight: 'bold' } };
-
-  try {
-    const e1 = document.getElementById('chart-rul');
-    if(e1 && !cRUL && e1.offsetParent !== null){
-      cRUL = new Chart(e1, {
-        type: 'line',
-        data: {
-          labels: [],
-          datasets: [
-            { label: 'Pred RUL', data: [], borderColor: '#38bdf8', borderWidth: 2.0, tension: 0.3, pointRadius: 0, fill: false },
-            { label: '95% Hi', data: [], borderColor: 'rgba(56,189,248,0.25)', borderDash: [3,3], borderWidth: 1.2, pointRadius: 0, fill: '+1', backgroundColor: 'rgba(56,189,248,0.05)' },
-            { label: '95% Lo', data: [], borderColor: 'rgba(56,189,248,0.25)', borderDash: [3,3], borderWidth: 1.2, pointRadius: 0, fill: false },
-            { label: 'True RUL', data: [], borderColor: '#10b981', borderDash: [4,4], borderWidth: 1.5, pointRadius: 0, fill: false }
-          ]
-        },
-        options: { ...base, scales: { x: { display: false }, y: { grid, ticks: tick } } }
-      });
-    }
-  } catch(e){}
-
-  try {
-    const e2 = document.getElementById('chart-pv');
-    if(e2 && !cPV && e2.offsetParent !== null){
-      cPV = new Chart(e2, {
-        type: 'line',
-        data: {
-          datasets: [{ label: 'P-V', data: [], borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.08)', borderWidth: 2.0, pointRadius: 0, tension: 0.35, fill: true }]
-        },
-        options: {
-          ...base,
-          scales: {
-            x: { type: 'linear', title: { display: true, text: 'Volume (cc)', color: '#cbd5e1', font: { size: 9.5, weight: 'bold' } }, grid, ticks: tick },
-            y: { title: { display: true, text: 'Pressure (bar)', color: '#cbd5e1', font: { size: 9.5, weight: 'bold' } }, grid, ticks: tick }
-          }
-        }
-      });
-    }
-  } catch(e){}
-}
-
-function updateChartColors(){
-  const theme = document.documentElement.getAttribute('data-theme') || 'stealth';
-  let lineCol = '#38bdf8';
-  if(theme === 'ice') lineCol = '#38bdf8';
-  if(theme === 'emerald') lineCol = '#10b981';
-  if(theme === 'amber') lineCol = '#f59e0b';
-  if(theme === 'stealth') lineCol = '#ffffff';
-
-  if(cRUL && cRUL.data.datasets[0]){
-    cRUL.data.datasets[0].borderColor = lineCol;
-    cRUL.update('none');
-  }
-}
-
-window.addEventListener('DOMContentLoaded', () => {
-  setTimeout(initCharts, 200);
-});
-
+/* ─── EXPORT ─────────────────────────────────────────────────────────── */
 function exportDossier(){
-  const last = telLog.slice(-1)[0] || {};
-  const now = new Date().toISOString();
-  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>UAV Propulsion Dossier</title>
-<style>
-body{font-family:'Helvetica Neue',Arial,sans-serif;background:#ffffff;color:#09090b;padding:40px;font-size:13px;line-height:1.6}
-.hdr{border-bottom:2px solid #000000;padding-bottom:12px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:flex-end}
-h1{font-size:18px;color:#000000;font-weight:800;letter-spacing:0.05em}
-h2{font-size:12px;text-transform:uppercase;margin:24px 0 10px;border-bottom:1px solid #e4e4e7;padding-bottom:4px;font-weight:700}
-table{width:100%;border-collapse:collapse}
-th,td{border:1px solid #e4e4e7;padding:8px 12px;text-align:left}
-th{background:#f4f4f5;font-weight:700;color:#52525b;font-size:11px}
-.ok{color:#10b981;font-weight:700}.cr{color:#ef4444;font-weight:700}
-.sign{margin-top:40px;display:flex;justify-content:space-between;border-top:1px solid #71717a;padding-top:12px;font-size:12px}
-</style></head><body>
-<div class="hdr"><div><h1>MALE UAV PROPULSION AIRWORTHINESS DOSSIER</h1>
-<div style="font-size:11px;color:#71717a">MIL-STD-1553 · DO-178C LEVEL B CERTIFICATION</div></div>
-<div style="font-family:monospace;font-size:11px;text-align:right">DATE: ${now}<br>TAIL: UAV-07 | S/N: 914-8841</div></div>
-<h2>1. Executive Propulsion State & Prognostics Summary</h2>
-<table><tr><th>Parameter</th><th>Value</th><th>Airworthiness Evaluation</th></tr>
-<tr><td>Total Flight Cycles Recorded</td><td>${last.cycle||'--'}</td><td>COMPLETED</td></tr>
-<tr><td>Engine Health Index (EHI)</td><td>${last.health?.health_index||'--'} / 100</td><td class="${(last.health?.health_index||100)<50?'cr':'ok'}">${last.health?.condition||'--'}</td></tr>
-<tr><td>AI Predicted RUL</td><td>${last.predicted_rul||'--'} cycles</td><td>95% CI [${last.rul_ci_lower||'--'}, ${last.rul_ci_upper||'--'}]</td></tr>
-<tr><td>Brake Horsepower</td><td>${last.physics?.brake_power_hp||'--'} BHP</td><td>CONTINUOUS OPERATING ENVELOPE</td></tr>
-<tr><td>Specific Fuel Consumption</td><td>${last.physics?.bsfc_g_kwh||'--'} g/kWh</td><td>OPTIMAL CRUISE RANGE</td></tr>
-</table>
-<h2>2. Active ATA-100 Maintenance Work Orders</h2>
-<table><tr><th>Task ID</th><th>ATA Chapter</th><th>Priority</th><th>Required Maintenance Action</th></tr>
-${(last.advisories||[]).map(a=>`<tr><td><strong>${a.task_id}</strong></td><td>${a.ata_chapter}</td><td class="${a.priority==='CRITICAL'?'cr':''}">${a.priority}</td><td>${a.action}</td></tr>`).join('')}
-</table>
-<div class="sign"><div>CHIEF PROPULSION ENGINEER: _______________________</div><div>QA VERIFIED: [✓] DO-178C LVL B · ${now}</div></div>
-</body></html>`;
-  const a = Object.assign(document.createElement('a'), {
-    href: URL.createObjectURL(new Blob([html], { type: 'text/html' })),
-    download: `UAV07_Airworthiness_Dossier_${Date.now()}.html`
-  });
-  a.click();
+  if(!Object.keys(latestData).length){alert('No data to export.');return;}
+  const blob=new Blob([JSON.stringify({timestamp:new Date().toISOString(),digital_twin_state:latestData},null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`uav_dt_dossier_${Date.now()}.json`;a.click();
 }
 </script>
 </body>

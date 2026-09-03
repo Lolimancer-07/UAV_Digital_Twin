@@ -1,25 +1,29 @@
 """
 backend/physics_check.py
---------------------------
-Physics-informed thermodynamic validation for aero piston engine.
+
+Quick thermodynamic sanity check for the engine — validates sensor readings
+against first-principles constraints.
 
 Based on:
-  - Otto cycle efficiency:  η = 1 − 1 / r^(γ−1)
-  - EGT/CHT thermal ratio for normal combustion: 2.2–2.85
-  - Fuel-RPM flow consistency
-  - Lubrication adequacy
+  - Otto cycle efficiency: η = 1 − 1/r^(γ−1)
+  - EGT/CHT thermal ratio for healthy combustion: 2.2–2.85
+    (outside this → rich mixture or pre-ignition)
+  - Fuel flow consistency with RPM
+    (too lean or too rich for the current power setting)
+  - Lubrication sufficiency at current RPM
+  - Vibration structural limits
 """
 import math
 from typing import Dict, List, Optional
 
-# ── Engine constants (typical MALE UAV piston engine) ──────────────────────
+# engine constants — typical MALE UAV piston engine
 COMPRESSION_RATIO   = 8.5
-GAMMA               = 1.35       # specific heat ratio, combustion gases
-THERMAL_RATIO_RANGE = (2.20, 2.85)   # EGT / CHT healthy range
+GAMMA               = 1.35       # specific heat ratio for combustion gases
+THERMAL_RATIO_RANGE = (2.20, 2.85)   # healthy EGT/CHT range
 
-# Expected fuel flow at reference RPM (L/hr per (RPM / 1400))
+# expected fuel flow at the reference RPM, ±22% tolerance
 FUEL_FLOW_SLOPE = 8.5
-FUEL_FLOW_TOL   = 0.22          # ±22% tolerance
+FUEL_FLOW_TOL   = 0.22
 
 
 def otto_efficiency(r: float = COMPRESSION_RATIO,
@@ -38,11 +42,11 @@ def check_thermodynamics(data: dict) -> dict:
 
     Returns
     -------
-    dict with keys:
-        violations       : list of violation dicts
-        otto_efficiency  : theoretical efficiency (%)
-        thermal_ratio    : EGT / CHT (None if CHT ≈ 0)
-        thermal_status   : 'NORMAL' | 'LEAN' | 'RICH' | 'UNKNOWN'
+    dict with:
+        violations       — list of violation dicts (empty if all good)
+        otto_efficiency  — theoretical efficiency (%)
+        thermal_ratio    — EGT / CHT (None if CHT ≈ 0)
+        thermal_status   — 'NORMAL' | 'LEAN' | 'RICH' | 'UNKNOWN'
     """
     rpm        = data.get('rpm',        0.0)
     cht        = data.get('cht',        0.0)
@@ -55,7 +59,7 @@ def check_thermodynamics(data: dict) -> dict:
     thermal_ratio: Optional[float] = None
     thermal_status = "UNKNOWN"
 
-    # ── Check 1: EGT / CHT thermal ratio (combustion quality) ───────────────
+    # check 1: EGT/CHT ratio — combustion quality indicator
     if cht > 150:
         thermal_ratio  = egt / cht
         lo, hi         = THERMAL_RATIO_RANGE
@@ -81,7 +85,7 @@ def check_thermodynamics(data: dict) -> dict:
         else:
             thermal_status = "NORMAL"
 
-    # ── Check 2: Fuel flow consistency with RPM ──────────────────────────────
+    # check 2: fuel flow should scale with RPM — big deviation = injector or fuel issue
     if rpm > 500 and fuel_flow > 0:
         expected_ff = (rpm / 1400.0) * FUEL_FLOW_SLOPE
         deviation   = abs(fuel_flow - expected_ff) / expected_ff
@@ -94,7 +98,7 @@ def check_thermodynamics(data: dict) -> dict:
                 "value":    round(deviation * 100, 1),
             })
 
-    # ── Check 3: CHT hard limit ──────────────────────────────────────────────
+    # check 3: CHT hard limit — structural failure risk above 450°F
     if cht > 450:
         violations.append({
             "check":    "CHT_LIMIT",
@@ -103,9 +107,9 @@ def check_thermodynamics(data: dict) -> dict:
             "value":    round(cht, 1),
         })
 
-    # ── Check 4: Oil pressure sufficiency for RPM ───────────────────────────
+    # check 4: oil pressure must be adequate for the current RPM
     if rpm > 1000:
-        min_oil = 35.0 + (rpm / 1400.0) * 10.0   # higher RPM → needs more pressure
+        min_oil = 35.0 + (rpm / 1400.0) * 10.0   # higher RPM needs more pressure
         if oil < min_oil:
             violations.append({
                 "check":    "OIL_RPM",
@@ -115,7 +119,7 @@ def check_thermodynamics(data: dict) -> dict:
                 "value":    round(oil, 1),
             })
 
-    # ── Check 5: Vibration resonance risk ───────────────────────────────────
+    # check 5: vibration above 3g risks structural resonance in the airframe
     if vib > 3.0:
         violations.append({
             "check":    "VIBRATION_RESONANCE",

@@ -1,17 +1,21 @@
 """
 backend/xai_engine.py
-----------------------
-Explainable AI (XAI) Root Cause Diagnostic Engine for UAV Piston Engines.
 
-Uses multi-dimensional feature divergence and SHAP-like attribution to
-decompose multivariate anomalies into actionable human-understandable
-subsystem diagnostics.
+Explainability layer — when the anomaly detector fires, this tells you *why*.
+
+We compute a z-score for each sensor channel vs its nominal baseline,
+then normalize those into percentage contributions so we can say things like
+"EGT is responsible for 47% of the current anomaly score."
+
+Not true SHAP (that would need the Isolation Forest internals), but the
+multi-dimensional feature divergence approach is fast, interpretable, and
+gives maintenance crews something concrete to act on.
 """
 
 from typing import Dict, List, Any, Tuple
 import numpy as np
 
-# Normal operating nominal baseline bounds & standard deviations
+# nominal baselines for a healthy engine at cruise — used to compute sigma deviations
 NOMINAL_BASELINES = {
     "rpm":            {"mean": 1400.0, "std": 15.0,  "unit": "RPM",   "subsystem": "Powertrain / Governor"},
     "cht":            {"mean": 380.0,  "std": 12.0,  "unit": "°F",    "subsystem": "Thermal / Cooling"},
@@ -27,16 +31,16 @@ NOMINAL_BASELINES = {
 
 class XAIDiagnosticEngine:
     """
-    Computes real-time feature attribution, anomaly contribution percentages,
-    and structured physical explanations for GCS maintenance operators.
+    Computes feature-level anomaly attribution and builds a human-readable
+    diagnostic dossier for each anomaly event.
     """
 
     @staticmethod
     def explain_anomaly(telemetry: Dict[str, Any], is_anomaly: bool,
                         anomaly_score: float, active_faults: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
-        Decomposes anomaly score into per-feature percentage attribution
-        and generates an explainability dossier.
+        Decomposes the anomaly signal into per-feature contributions.
+        Returns attribution percentages + a natural-language narrative.
         """
         feature_scores = {}
         z_scores = {}
@@ -50,12 +54,12 @@ class XAIDiagnosticEngine:
             z_scores[feat] = round(z, 2)
             deviations[feat] = round(val - base["mean"], 2)
 
-            # Non-linear penalty for high sigma deviation
+            # non-linear penalty — a 3-sigma deviation weighs much more than a 1-sigma
             dev_score = (z ** 1.8)
             feature_scores[feat] = dev_score
             total_deviation_score += dev_score
 
-        # Normalize to 100% attribution
+        # normalize to get percentages — only meaningful when is_anomaly is True
         attributions = []
         for feat, score in feature_scores.items():
             pct = (score / max(1e-5, total_deviation_score)) * 100.0 if is_anomaly else 0.0
@@ -73,13 +77,13 @@ class XAIDiagnosticEngine:
                 "attribution":  round(pct, 1)
             })
 
-        # Sort features by highest attribution
+        # sort so the biggest contributor is first
         attributions.sort(key=lambda x: x["attribution"], reverse=True)
 
-        # Primary suspect feature
+        # the top feature is the primary suspect
         top_driver = attributions[0] if attributions else None
 
-        # Build natural-language root-cause explanation
+        # build a plain-English explanation
         if is_anomaly and top_driver and top_driver["attribution"] > 15.0:
             direction = "elevated" if top_driver["delta"] > 0 else "depressed"
             narrative = (f"Anomaly driven primarily by {top_driver['label']} ({top_driver['attribution']}% weight) "
@@ -89,7 +93,7 @@ class XAIDiagnosticEngine:
         else:
             narrative = "All monitored engine parameters remain within learned 3-sigma multi-sensor multivariate envelope."
 
-        # Affected Subsystem Aggregate
+        # roll up attribution by subsystem for the dashboard radar chart
         subsystem_impact = {}
         for a in attributions:
             sub = a["subsystem"]
@@ -100,6 +104,6 @@ class XAIDiagnosticEngine:
             "anomaly_score":     round(anomaly_score, 4),
             "top_driver":        top_driver["label"] if top_driver else "NONE",
             "narrative":         narrative,
-            "attributions":      attributions[:6],  # Top 6 drivers for UI chart
+            "attributions":      attributions[:6],  # top 6 for the bar chart
             "subsystem_impact":  subsystem_impact
         }

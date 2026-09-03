@@ -1,21 +1,22 @@
 """
 backend/demo_controller.py
----------------------------
-Automated Demo Mode Controller.
 
-Sequences through a 9-step demonstration scenario showing the complete
-Sense → Detect → Predict → Explain → Simulate → Optimize → Recommend → Protect pipeline.
+Scripted demo sequencer — walks through 9 steps to show the full pipeline
+from a healthy engine all the way to fault detection, prediction, and recovery.
 
-Demo Steps:
-  1. NORMAL    — Engine healthy, RUL high, mission risk low
-  2. FAULT_INJ — Inject cooling_degradation fault
-  3. DETECT    — Anomaly detection triggers
-  4. EXPLAIN   — XAI shows Cylinder 3 CHT as top driver
-  5. PREDICT   — RUL falling, failure probability rising
-  6. WHATIF    — Simulate RPM reduction by 200
-  7. OPTIMIZE  — System finds safer RPM operating point
-  8. RECOMMEND — Prescriptive: Reduce RPM + Inspect cooling
-  9. MISSION   — Show mission completion with/without intervention
+The scenario follows: Sense → Detect → Predict → Explain → Simulate → Optimize
+→ Recommend → Protect, which is the core value proposition of the digital twin.
+
+Steps:
+  1. NORMAL         — healthy baseline, everything green
+  2. FAULT_INJECTION — inject cooling_degradation fault
+  3. DETECT         — anomaly detector triggers
+  4. EXPLAIN        — XAI attributes it to Cylinder 3 CHT
+  5. PREDICT        — RUL drops, failure probability rises
+  6. WHAT-IF        — simulate RPM reduction by 200
+  7. OPTIMIZE       — find best operating point
+  8. RECOMMEND      — prescriptive action: reduce RPM, inspect cooling
+  9. MISSION        — show 61% vs 87% completion probability comparison
 """
 
 import os
@@ -105,6 +106,7 @@ class DemoController:
         step = next((s for s in DEMO_STEPS if s["step"] == step_num), None)
         if not step:
             return
+        # start with defaults in case the file doesn't exist yet
         cfg = {"mode": "NORMAL", "speed": 2.0, "paused": False, "injected_faults": []}
         try:
             if os.path.exists(CONTROL_FILE):
@@ -130,6 +132,7 @@ class DemoController:
             pass
 
     def _clear_state(self):
+        # reset everything back to baseline when demo ends
         cfg = {"mode": "NORMAL", "speed": 1.0, "paused": False, "injected_faults": []}
         try:
             os.makedirs(os.path.dirname(CONTROL_FILE), exist_ok=True)

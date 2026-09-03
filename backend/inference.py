@@ -1,27 +1,29 @@
 """
 backend/inference.py
----------------------
-Digital Twin Core Intelligence Layer — MALE UAV Aero Piston Engine.
 
-Extended pipeline integrating all Digital Twin modules:
-  1. MQTT Telemetry Ingestion (14-channel live sensor streams)
-  2. Sensor Integrity Monitoring (7 detection methods per channel)
-  3. Physics-Informed Engine Model (Otto cycle, BHP, BSFC, residuals)
-  4. AI Anomaly Detection & 8-Fault Classifier (Isolation Forest)
-  5. Monte Carlo Dropout RUL Prediction with Uncertainty Estimation
-  6. AI+Physics Twin Consistency Cross-Validation (Cases A-D)
-  7. Multi-Subsystem Composite Health Index + Failure Probability
-  8. Explainable AI (XAI) Root Cause Attribution
-  9. Mission Risk Assessment (completion probability, safe time)
-  10. Counterfactual What-If Simulation Engine
-  11. Operating Point Optimizer (scipy L-BFGS-B)
-  12. Prescriptive Maintenance & Operational Recommendations
-  13. AI Mission Engineer (grounded NL explanations)
-  14. Multi-UAV Fleet State Manager
-  15. Telemetry Integrity Monitoring
-  16. Demo Mode Controller
-  17. ATA-Spec Autonomous Maintenance Advisor
-  18. Bidirectional WebSocket GCS Server (ws://localhost:8765)
+This is the main brain of the digital twin — everything connects here.
+We pull in live sensor data over MQTT, run it through the full analysis
+pipeline, and push results out to the GCS dashboard via WebSocket.
+
+Pipeline stages (in order they run per telemetry packet):
+  1.  MQTT ingestion  — 14-channel live engine telemetry at 10 Hz
+  2.  Sensor integrity — catch stuck readings, noise, impossible values
+  3.  Physics engine   — Otto cycle, BHP, BSFC, residual deltas
+  4.  Anomaly detector — Isolation Forest + 8 rule-based fault classifiers
+  5.  RUL prediction   — LSTM with MC Dropout for uncertainty bands
+  6.  Health index     — weighted composite across 5 subsystems
+  7.  Twin consistency — cross-validate AI vs physics (Cases A–D)
+  8.  XAI             — which sensor is actually driving the anomaly?
+  9.  Mission risk     — will we make it back? probability estimate
+  10. What-If cache    — results stored here, triggered by GCS command
+  11. Optimizer        — best RPM/altitude for max mission probability
+  12. Prescriptive     — actual human-readable maintenance actions
+  13. AI Engineer      — answers natural-language questions from operators
+  14. Fleet manager    — keeps track of all 4 UAVs simultaneously
+  15. Telemetry integrity — packet loss, duplicates, replay attacks
+  16. Demo controller  — scripted demo scenario sequencer
+  17. Maintenance advisor — ATA-spec work orders
+  18. WebSocket server — bidirectional GCS link at ws://localhost:8765
 """
 
 import os
@@ -43,7 +45,7 @@ import tensorflow as tf
 tf.get_logger().setLevel('ERROR')
 from tensorflow.keras.models import load_model
 
-# ── Project Core Intelligence Modules ─────────────────────────────────────────
+# all the intelligence modules — keep these sorted or it gets confusing fast
 from physics_engine      import physics_model
 from anomaly_detector    import AnomalyDetector
 from health_index        import compute_health_index, reset_health_state
@@ -60,7 +62,7 @@ from fleet_manager       import fleet_manager
 from telemetry_integrity import telemetry_integrity_monitor
 from demo_controller     import demo_controller
 
-# ── Paths & Config ────────────────────────────────────────────────────────────
+# figure out where we are in the filesystem
 ROOT         = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONTROL_FILE = os.path.join(ROOT, 'simulator', 'current_profile.json')
 MODEL_PATH   = os.path.join(ROOT, 'backend', 'uav_rul_model.h5')
@@ -71,7 +73,7 @@ print("=" * 60)
 print("  UAV DIGITAL TWIN — DEFENSE GRADE PROPULSION CORE v2.0")
 print("=" * 60)
 
-# ── Load AI Models ────────────────────────────────────────────────────────────
+# load the LSTM — this takes a few seconds on first run
 print("[1/3] Loading Deep LSTM RUL Prognostics Model...")
 try:
     lstm_model = load_model(MODEL_PATH)
@@ -91,22 +93,25 @@ except Exception as e:
 
 print("[3/3] Initializing Extended Digital Twin Pipeline...")
 
-# ── State Buffers ─────────────────────────────────────────────────────────────
+# rolling buffer — we need 50 cycles before the LSTM can make a prediction
 WINDOW_SIZE    = 50
-MC_DROPOUT_SAMPLES = 10  # Monte Carlo dropout passes for uncertainty estimation
+MC_DROPOUT_SAMPLES = 10  # how many forward passes for the uncertainty estimate
 engine_buffer  = deque(maxlen=WINDOW_SIZE)
 latest_payload = json.dumps({"status": "INITIALIZING", "message": "Digital Twin Core v2.0 starting up..."})
 last_engine_id = None
 
-# Latest full state for AI Engineer and What-If (kept in memory)
+# holds the full state dict in memory so AI Engineer and What-If can access it
 latest_state: Dict[str, Any] = {}
 
-# ── Monte Carlo Dropout RUL Prediction ────────────────────────────────────────
+
 def predict_rul_with_uncertainty(lstm_input: np.ndarray) -> tuple:
     """
-    Uses MC Dropout to estimate RUL uncertainty.
-    Runs the model with dropout active (training=True) N times.
-    Returns: (mean_rul, std_rul, ci_lower, ci_upper)
+    Monte Carlo Dropout — runs the model N times with dropout active
+    so we get a spread of predictions instead of just one number.
+    The spread tells us how confident the model is.
+
+    Returns (mean_rul, std_rul, ci_lower, ci_upper)
+    — the CI is a 90% interval (±1.645 sigma)
     """
     predictions = []
     for _ in range(MC_DROPOUT_SAMPLES):
@@ -114,13 +119,12 @@ def predict_rul_with_uncertainty(lstm_input: np.ndarray) -> tuple:
         predictions.append(max(0.0, pred))
     mean_rul = float(np.mean(predictions))
     std_rul  = float(np.std(predictions))
-    # 90% confidence interval (±1.645σ)
+    # clamp the lower bound to zero — negative RUL doesn't make sense
     ci_lower = max(0.0, mean_rul - 1.645 * std_rul)
     ci_upper = mean_rul + 1.645 * std_rul
     return mean_rul, std_rul, ci_lower, ci_upper
 
 
-# ── MQTT Telemetry Consumer ───────────────────────────────────────────────────
 def on_connect(client, userdata, connect_flags, reason_code, properties):
     if reason_code == 0:
         client.subscribe("uav/engine/telemetry")
@@ -137,29 +141,30 @@ def on_message(client, userdata, msg):
     except Exception:
         return
 
-    # Handle engine ID transition
+    # if the engine ID changed, we need to wipe the buffer and reset health state
+    # (different engine = different degradation trajectory)
     cur_engine = data.get("engine_id", 1)
     if last_engine_id is not None and cur_engine != last_engine_id:
         engine_buffer.clear()
         reset_health_state(95.0)
     last_engine_id = cur_engine
 
-    # ── 1. Telemetry Integrity Check ─────────────────────────────────────────
+    # step 1 — check for packet loss, replays, impossible values
     tel_integrity = telemetry_integrity_monitor.evaluate(data)
 
-    # ── 2. Physics-Informed Thermodynamic Evaluation ──────────────────────────
+    # step 2 — compute thermodynamic baselines and residuals from physics
     physics_results = physics_model.evaluate_performance(data)
 
-    # ── 3. Sensor Integrity Monitoring ───────────────────────────────────────
+    # step 3 — per-channel sensor trust scores (stuck, noisy, out-of-bounds, etc.)
     sensor_integrity = sensor_integrity_monitor.evaluate(
         data, physics_residuals=physics_results.get("residuals", {})
     )
 
-    # ── 4. Anomaly Detection & Fault Classification ───────────────────────────
+    # step 4 — multivariate anomaly score + rule-based fault codes
     is_anomaly, anomaly_score, fault_events = anomaly_detector.predict(data)
     fault_names = [f["name"] for f in fault_events]
 
-    # ── 5. Monte Carlo Dropout LSTM RUL Prediction ────────────────────────────
+    # step 5 — LSTM needs RPM/CHT/EGT normalized into a 50-cycle window
     raw3 = pd.DataFrame([[data['rpm'], data['cht'], data['egt']]], columns=['rpm', 'cht', 'egt'])
     norm3 = scaler.transform(raw3)[0]
     engine_buffer.append(norm3)
@@ -169,18 +174,19 @@ def on_message(client, userdata, msg):
     rul_lower     = 0.0
     rul_upper     = 0.0
 
+    # only predict once we have enough history to fill the window
     if len(engine_buffer) == WINDOW_SIZE:
         lstm_input = np.array(engine_buffer).reshape(1, WINDOW_SIZE, 3)
         predicted_rul, rul_std, rul_lower, rul_upper = predict_rul_with_uncertainty(lstm_input)
 
-    # ── 6. Multi-Subsystem Composite Health Index ─────────────────────────────
+    # step 6 — composite health score across thermal, lube, mechanical, electrical, AI
     health_results = compute_health_index(data, predicted_rul, anomaly_score, fault_names)
     health_index = health_results["health_index"]
     failure_probability = compute_failure_probability(
         predicted_rul, is_anomaly, anomaly_score, len(fault_events), health_index
     )
 
-    # ── 7. Twin Consistency Cross-Validation ─────────────────────────────────
+    # step 7 — do AI and physics agree? this tells us how confident we should be
     twin_consistency = compute_twin_consistency(
         is_anomaly=is_anomaly,
         anomaly_score=anomaly_score,
@@ -188,7 +194,7 @@ def on_message(client, userdata, msg):
         sensor_integrity_score=sensor_integrity["integrity_score"],
     )
 
-    # ── 8. Explainable AI (XAI) Attribution ──────────────────────────────────
+    # step 8 — which sensor is actually causing the anomaly? rank by sigma deviation
     xai_results = XAIDiagnosticEngine.explain_anomaly(
         telemetry=data,
         is_anomaly=is_anomaly,
@@ -196,7 +202,7 @@ def on_message(client, userdata, msg):
         active_faults=fault_events
     )
 
-    # ── 9. Mission Risk Assessment ────────────────────────────────────────────
+    # step 9 — will this engine survive the planned mission?
     mission_risk = compute_mission_risk(
         data=data,
         health_index=health_index,
@@ -205,7 +211,7 @@ def on_message(client, userdata, msg):
         fault_events=fault_events,
     )
 
-    # ── 10. Prescriptive Recommendations ─────────────────────────────────────
+    # step 10 — turn all the AI outputs into actual human-readable action items
     prescriptive = generate_prescriptive_recommendations(
         fault_events=fault_events,
         predicted_rul=predicted_rul,
@@ -214,7 +220,7 @@ def on_message(client, userdata, msg):
         mission_risk=mission_risk,
     )
 
-    # ── 11. ATA-Spec Maintenance Advisories ──────────────────────────────────
+    # step 11 — ATA-numbered maintenance cards for the ground crew
     maintenance_advisories = AutonomousMaintenanceAdvisor.generate_advisories(
         telemetry=data,
         fault_events=fault_events,
@@ -222,7 +228,7 @@ def on_message(client, userdata, msg):
         health_index=health_index
     )
 
-    # ── 12. Global Alert Status ───────────────────────────────────────────────
+    # determine top-level alert status for the GCS banner
     has_critical = any(f["severity"] == "CRITICAL" for f in fault_events)
     has_warning  = any(f["severity"] == "WARNING"  for f in fault_events)
 
@@ -233,12 +239,12 @@ def on_message(client, userdata, msg):
     else:
         alert_status = "NOMINAL"
 
-    # ── 13. Fleet Update ──────────────────────────────────────────────────────
+    # map engine ID to UAV callsign for the fleet panel
     active_uav = f"UAV-0{cur_engine}" if cur_engine in (1, 2, 3, 4) else "UAV-01"
 
-    # ── 14. Complete Synchronized Digital Twin Payload v2.0 ──────────────────
+    # build the full payload — everything the dashboard needs in one shot
     payload = {
-        # Telemetry Channels
+        # raw telemetry channels
         "cycle":                  data.get("cycle", 0),
         "engine_id":              data.get("engine_id", 1),
         "uav_id":                 data.get("uav_id", "UAV-01"),
@@ -262,7 +268,7 @@ def on_message(client, userdata, msg):
         "oat_c":                  data.get("oat_c", 15.0),
         "mission_mode":           data.get("mission_mode", "NORMAL"),
 
-        # AI Prognostics & Diagnostics
+        # AI prognostics outputs
         "predicted_rul":          round(predicted_rul, 1),
         "rul_ci_lower":           round(rul_lower, 1),
         "rul_ci_upper":           round(rul_upper, 1),
@@ -274,14 +280,14 @@ def on_message(client, userdata, msg):
         "alert":                  alert_status,
         "failure_probability":    round(failure_probability, 3),
 
-        # Core Subsystems
+        # core module outputs
         "physics":                physics_results,
         "health":                 health_results,
         "xai":                    xai_results,
         "advisories":             maintenance_advisories,
         "can_frames":             data.get("can_frames", []),
 
-        # NEW: Extended Intelligence
+        # extended intelligence layer
         "sensor_integrity":       sensor_integrity,
         "twin_consistency":       twin_consistency,
         "mission_risk":           mission_risk,
@@ -290,27 +296,26 @@ def on_message(client, userdata, msg):
         "fleet_status":           fleet_manager.get_fleet_status(),
         "demo_state":             demo_controller.get_state(),
 
-        # Cached What-If & Optimize results (updated via commands)
+        # these get populated when the GCS sends a what-if or optimize command
         "whatif_result":          latest_state.get("whatif_result"),
         "optimize_result":        latest_state.get("optimize_result"),
         "ai_engineer_response":   latest_state.get("ai_engineer_response"),
     }
 
-    # Update fleet state for active UAV
+    # update the fleet state for the active UAV
     fleet_manager.update_uav("UAV-01", payload)
 
     latest_state.update(payload)
     latest_payload = json.dumps(payload)
 
 
-# ── Bidirectional Telecommand Processing ──────────────────────────────────────
 def process_gcs_command(cmd: Dict[str, Any]):
-    """Handles commands received from the GCS Web Interface."""
+    """Handles commands sent from the GCS dashboard over WebSocket."""
     global latest_state
 
     action = cmd.get("command")
 
-    # Load existing state
+    # start with sane defaults in case the file doesn't exist yet
     current_cfg = {"mode": "NORMAL", "speed": 1.0, "paused": False, "injected_faults": []}
     if os.path.exists(CONTROL_FILE):
         try:
@@ -343,7 +348,7 @@ def process_gcs_command(cmd: Dict[str, Any]):
         print("[GCS CMD] ALL INJECTED FAULTS CLEARED.")
 
     elif action == "whatif":
-        # Counterfactual simulation
+        # run a counterfactual simulation with the operator's parameter overrides
         params = cmd.get("params", {})
         if latest_state:
             try:
@@ -363,7 +368,7 @@ def process_gcs_command(cmd: Dict[str, Any]):
                 print(f"[GCS CMD] What-If error: {e}")
 
     elif action == "optimize":
-        # Operating point optimization
+        # find the RPM/altitude combo that maximizes mission completion probability
         constraints = cmd.get("constraints", {})
         if latest_state:
             try:
@@ -415,14 +420,14 @@ def process_gcs_command(cmd: Dict[str, Any]):
         current_cfg["injected_faults"] = []
         print("[GCS CMD] Demo mode stopped")
 
-    # Save to shared control file
+    # write back to the shared control file so the simulator picks it up
     os.makedirs(os.path.dirname(CONTROL_FILE), exist_ok=True)
     with open(CONTROL_FILE, 'w') as f:
         json.dump(current_cfg, f, indent=2)
 
 
 async def ws_handler(websocket):
-    """Bidirectional WebSocket Server: Streams state at 10Hz, receives commands."""
+    """WebSocket handler — streams state to the GCS at 10 Hz, receives commands."""
     async def sender():
         while True:
             try:
@@ -455,11 +460,11 @@ def start_ws_thread():
     asyncio.run(run_ws_server())
 
 
-# Start WebSocket Background Thread
+# kick off the WebSocket server in the background so MQTT can run in the foreground
 ws_thread = Thread(target=start_ws_thread, daemon=True)
 ws_thread.start()
 
-# ── MQTT Loop ─────────────────────────────────────────────────────────────────
+# connect to the MQTT broker and start consuming telemetry
 client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
 client.on_connect = on_connect
 client.on_message = on_message

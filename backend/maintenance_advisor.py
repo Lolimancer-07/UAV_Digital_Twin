@@ -1,16 +1,20 @@
 """
 backend/maintenance_advisor.py
---------------------------------
-Autonomous Intelligent Maintenance Advisory System
-for MALE UAV Aero Piston Engines.
 
-Complies with standard aerospace maintenance frameworks (ATA-100 / MSG-3):
-  - ATA 72: Engine Core & Power Section
-  - ATA 73: Engine Fuel & Control (Injectors, Rails)
-  - ATA 75: Air Cooling & Radiators
-  - ATA 77: Engine Indicating (Sensors & Thermocouples)
-  - ATA 79: Engine Oil & Lubrication Loop
-  - ATA 80: Starting & Ignition
+Generates ATA-chapter–referenced maintenance work orders based on
+active fault codes and AI-predicted RUL.
+
+ATA chapters covered:
+  ATA 72 — Engine Core & Power Section
+  ATA 73 — Engine Fuel & Control (injectors, rails)
+  ATA 75 — Air Cooling & Radiators
+  ATA 77 — Engine Indicating (sensors & thermocouples)
+  ATA 79 — Engine Oil & Lubrication
+  ATA 80 — Starting & Ignition
+
+Each fault maps to one maintenance card with: task ID, title, ATA chapter,
+priority, urgency window (hours), the main action, and step-by-step procedure.
+These are meant to be handed directly to ground crew.
 """
 
 from typing import Dict, List, Any
@@ -144,8 +148,8 @@ ATA_MAINTENANCE_CARDS = {
 
 class AutonomousMaintenanceAdvisor:
     """
-    Evaluates telemetry, active fault codes, and AI-predicted RUL to generate
-    standardized aerospace maintenance work-orders.
+    Looks at active faults and predicted RUL, then generates
+    the appropriate ATA maintenance work orders.
     """
 
     @classmethod
@@ -154,6 +158,7 @@ class AutonomousMaintenanceAdvisor:
         advisories = []
         seen_tasks = set()
 
+        # one card per active fault — skip duplicates
         for fault in fault_events:
             fname = fault.get("name")
             if fname in ATA_MAINTENANCE_CARDS and fname not in seen_tasks:
@@ -161,7 +166,7 @@ class AutonomousMaintenanceAdvisor:
                 seen_tasks.add(fname)
                 advisories.append(card)
 
-        # RUL-based predictive life alerts
+        # RUL-based predictive alerts — these fire independently of fault codes
         if 0 < predicted_rul < 25:
             advisories.insert(0, {
                 "task_id": "ATA 72-00-99",
@@ -191,6 +196,7 @@ class AutonomousMaintenanceAdvisor:
                 ]
             })
 
+        # nothing flagged — engine is clear for dispatch
         if not advisories:
             advisories.append({
                 "task_id": "ATA 05-00-00",

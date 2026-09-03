@@ -1,17 +1,18 @@
 """
 backend/health_index.py
-------------------------
-Engine Health Index (EHI) & Subsystem Health Breakdown.
 
-Calculates:
-  1. Overall Engine Health Index (0 - 100)
-  2. Subsystem Indices:
-     - Thermal Health (CHT/EGT dynamics, radiator cooling)
-     - Lubrication Health (Oil pressure, temp, viscosity margin)
-     - Mechanical Health (Vibration signatures, bearing wear)
-     - Combustion Quality (Flame stability, timing, fuel air ratio)
-     - Electrical Bus Health (Alternator voltage, current stability)
-  3. Degradation velocity (rate of health decline per cycle)
+Computes the overall engine health score (0–100) and breaks it down
+into subsystem scores so the operator can see *where* the problem is.
+
+Subsystems tracked:
+  - Thermal    (CHT + EGT dynamics)
+  - Lubrication (oil pressure + temp)
+  - Mechanical  (vibration RMS + kurtosis)
+  - Combustion  (EGT band + fuel flow vs RPM)
+  - Electrical  (alternator voltage stability)
+
+The score uses EWMA smoothing because real engines have thermal inertia —
+you don't want the health index jumping around every cycle.
 """
 
 from typing import Dict, List, Any
@@ -28,7 +29,8 @@ CONDITION_BANDS = [
 ]
 
 
-# Stateful Exponential Moving Average (EMA) Filter
+# EMA state — persists between calls so smoothing works correctly
+# reset_health_state() is called whenever the engine_id changes
 _last_health_state = {
     "composite": 92.0,
     "thermal": 90.0,
@@ -55,50 +57,49 @@ def compute_health_index(
     fault_names: List[str],
 ) -> dict:
     """
-    Computes weighted multi-subsystem engine health indices with EWMA smoothing
-    to reflect true physical and thermal inertia of aero propulsion systems.
+    Weighted multi-subsystem health index with EWMA smoothing.
+    Alpha = 0.20 — biased toward history, which reflects real thermal inertia.
     """
     global _last_health_state
 
-    # ── 1. RUL-Based Life Remaining Component (40% weight) ───────────────────
+    # RUL is the biggest single factor — 40% of the composite score
     if predicted_rul > 0:
         rul_score = min(100.0, max(0.0, (predicted_rul / MAX_RUL) * 100.0))
     else:
-        # Smooth initial estimate using current cycle
+        # before the LSTM buffer fills up, use cycle count as a rough proxy
         cycle = float(data.get('cycle', 1))
         rul_score = max(50.0, 100.0 - (cycle / MAX_RUL) * 70.0)
 
-    # ── 2. Thermal Subsystem (20% weight) ────────────────────────────────────
+    # thermal score — CHT nominal < 395°F, gets punished above that
     cht = float(data.get('cht', 380.0))
     egt = float(data.get('egt', 1580.0))
-    # CHT nominal < 395°F, critical > 430°F
     cht_score = 100.0 if cht <= 390 else max(0.0, 100.0 - (cht - 390.0) * 2.2)
     # EGT nominal < 1600°F, critical > 1660°F
     egt_score = 100.0 if egt <= 1585 else max(0.0, 100.0 - (egt - 1585.0) * 1.3)
     raw_thermal = (cht_score * 0.55 + egt_score * 0.45)
 
-    # ── 3. Lubrication Subsystem (15% weight) ────────────────────────────────
+    # lubrication — oil pressure is the critical one (65% weight here)
     oil_p = float(data.get('oil_pressure', 58.0))
     oil_t = float(data.get('oil_temp', 185.0))
     oil_p_score = 100.0 if oil_p >= 50.0 else max(0.0, (oil_p - 30.0) / 20.0 * 100.0)
     oil_t_score = 100.0 if oil_t <= 195.0 else max(0.0, 100.0 - (oil_t - 195.0) * 2.2)
     raw_lubrication = (oil_p_score * 0.65 + oil_t_score * 0.35)
 
-    # ── 4. Mechanical Subsystem (15% weight) ─────────────────────────────────
+    # mechanical — kurtosis catches impulsive bearing faults better than RMS alone
     vib = float(data.get('vibration', 0.65))
     vib_kurt = float(data.get('vibration_kurtosis', 3.0))
     vib_score = 100.0 if vib <= 0.90 else max(0.0, 100.0 - (vib - 0.90) * 45.0)
     kurt_score = 100.0 if vib_kurt <= 3.4 else max(0.0, 100.0 - (vib_kurt - 3.4) * 45.0)
     raw_mechanical = (vib_score * 0.70 + kurt_score * 0.30)
 
-    # ── 5. Electrical Bus Subsystem (5% weight) ──────────────────────────────
+    # electrical — only 5% weight, but battery sag is a real red flag
     batt_v = float(data.get('battery_v', 13.8))
     raw_elec = 100.0 if 13.2 <= batt_v <= 14.5 else max(0.0, 100.0 - abs(batt_v - 13.8) * 35.0)
 
-    # ── 6. ML Anomaly Confidence (5% weight) ─────────────────────────────────
+    # anomaly score contribution — more negative = more anomalous
     anomaly_norm = min(100.0, max(0.0, (anomaly_score + 0.20) / 0.35 * 100.0))
 
-    # ── Weighted Composite Calculation ───────────────────────────────────────
+    # weighted composite — weights sum to 1.0
     raw_composite = (
         rul_score       * 0.40 +
         raw_thermal     * 0.20 +
@@ -108,7 +109,7 @@ def compute_health_index(
         anomaly_norm    * 0.05
     )
 
-    # Direct penalty for active diagnosed faults
+    # active critical faults get a hard penalty regardless of sensor readings
     critical_faults = {"OVERHEATING", "LOW_OIL_PRESSURE", "MISFIRE_SUSPECT"}
     for f in fault_names:
         if f in critical_faults:
@@ -118,7 +119,7 @@ def compute_health_index(
 
     raw_composite = max(0.0, min(100.0, raw_composite))
 
-    # ── Apply Exponential Moving Average (EMA, alpha = 0.20) ─────────────────
+    # EWMA smoothing — alpha=0.20 means each new reading has 20% influence
     alpha = 0.20
     smooth_composite = (alpha * raw_composite) + ((1.0 - alpha) * _last_health_state["composite"])
     smooth_thermal   = (alpha * raw_thermal)   + ((1.0 - alpha) * _last_health_state["thermal"])
@@ -134,24 +135,22 @@ def compute_health_index(
         "electrical": smooth_elec,
     }
 
-    # Determine condition string
+    # walk the band thresholds from high to low
     condition = "CRITICAL"
     for threshold, label in CONDITION_BANDS:
         if smooth_composite >= threshold:
             condition = label
             break
 
-    # ── Failure Probability Estimate ────────────────────────────────────────
-    # Derived from health index + anomaly score — not from LSTM directly
-    # This feeds into mission_risk.py which has its own more detailed computation
+    # simple failure probability from health — note this is a rough estimate;
+    # mission_risk.py does a more rigorous calculation downstream
     p_fail_raw = max(0.0, (100.0 - smooth_composite) / 100.0) ** 1.4
     p_fail_raw = min(0.98, p_fail_raw)
 
-    # Combustion sub-score (EGT balance proxy)
+    # combustion quality sub-score — EGT balance proxy using fuel flow vs RPM
     egt = float(data.get('egt', 1580.0))
     fuel_flow = float(data.get('fuel_flow', 8.5))
     rpm = float(data.get('rpm', 1400.0))
-    # Combustion quality: EGT in normal band + fuel flow consistent with RPM
     egt_comb_score = 100.0 if 1450 <= egt <= 1620 else max(0.0, 100.0 - abs(egt - 1535.0) * 0.5)
     ff_expected = (rpm / 1400.0) * 8.5
     ff_dev = abs(fuel_flow - ff_expected) / max(0.1, ff_expected)

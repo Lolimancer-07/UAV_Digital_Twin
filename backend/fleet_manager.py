@@ -1,25 +1,22 @@
 """
 backend/fleet_manager.py
---------------------------
-Multi-UAV Fleet State Manager.
 
-Simulates a 4-UAV fleet by maintaining independent Digital Twin state
-for each UAV, using different engine lifecycle data (engine_id 1-4).
+Tracks state for all 4 UAVs in the fleet simultaneously.
 
-Each UAV has its own:
-  - Telemetry buffer
-  - Health EMA state
-  - Anomaly history
-  - RUL trajectory
+Each UAV runs a different engine (engine_id 1–4) with a different
+lifecycle offset, so you get a realistic spread of health states across
+the fleet panel — one brand new, one mid-life, one approaching overhaul.
 
-The active UAV can be switched by the GCS operator.
+The GCS operator can switch the active UAV and the rest of the pipeline
+follows. Only one UAV's live telemetry feeds in at a time (from the simulator),
+so the other 3 show their last known state.
 """
 
 from collections import deque
 from typing import Dict, Any
 import copy
 
-# Fleet configuration
+# the 4 UAVs in the fleet — each has a different mission and lifecycle offset
 FLEET_CONFIG = [
     {"uav_id": "UAV-01", "engine_id": 1, "call_sign": "ALPHA-01", "mission": "ISR-LOITER"},
     {"uav_id": "UAV-02", "engine_id": 2, "call_sign": "ALPHA-02", "mission": "ROUTE-SURVEY"},
@@ -27,12 +24,12 @@ FLEET_CONFIG = [
     {"uav_id": "UAV-04", "engine_id": 4, "call_sign": "BRAVO-02", "mission": "MAINTENANCE"},
 ]
 
-# RUL degradation offsets per UAV to create fleet diversity
+# RUL offsets create fleet diversity — UAV-04 is almost due for overhaul
 UAV_RUL_OFFSETS = {
-    "UAV-01":  0,     # Newest, full life
-    "UAV-02": -30,    # Slightly used
-    "UAV-03": -90,    # Mid-life
-    "UAV-04": -160,   # Approaching overhaul
+    "UAV-01":  0,     # newest, full remaining life
+    "UAV-02": -30,    # slightly used
+    "UAV-03": -90,    # mid-life
+    "UAV-04": -160,   # near end-of-life, probably in maintenance for a reason
 }
 
 
@@ -59,7 +56,7 @@ class FleetManager:
         self.active_uav_id = "UAV-01"
 
     def update_uav(self, uav_id: str, payload: dict):
-        """Updates fleet state for a specific UAV from its Digital Twin payload."""
+        """Refreshes fleet state for one UAV from its latest Digital Twin payload."""
         if uav_id not in self.fleet_state:
             return
         s = self.fleet_state[uav_id]
@@ -76,7 +73,7 @@ class FleetManager:
         s["last_update"] = payload.get("cycle", 0)
 
     def get_fleet_status(self) -> list:
-        """Returns list of all UAV status dicts for the fleet overview panel."""
+        """Returns the full fleet list for the overview panel, with status colors."""
         result = []
         for uav_id, s in self.fleet_state.items():
             hi = s["health"]

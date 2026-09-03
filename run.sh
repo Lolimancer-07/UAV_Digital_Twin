@@ -3,7 +3,7 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 SIM_SRC="$ROOT/simulator/ecu_sim.c"
 SIM_BIN="$ROOT/simulator/ecu_sim"
 
-# Colours
+# terminal color helpers
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
 CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
 
@@ -18,12 +18,12 @@ echo -e "${BOLD}║     UAV DIGITAL TWIN — SYSTEM LAUNCHER       ║${NC}"
 echo -e "${BOLD}╚══════════════════════════════════════════════╝${NC}"
 echo ""
 
-# ── Step 0: Kill any stale background processes ──────────────
+# kill any leftover processes from a previous run so we get a clean start
 pkill -9 -f "backend/inference.py" 2>/dev/null || true
 pkill -9 -f "simulator/mission_sim.py" 2>/dev/null || true
 pkill -9 -f "simulator/ecu_sim" 2>/dev/null || true
 
-# ── Step 1: MQTT Broker ──────────────────────────────────────
+# step 1: make sure mosquitto is running
 hdr "1/5" "MQTT Broker (Mosquitto)"
 if systemctl is-active --quiet mosquitto 2>/dev/null; then
     ok "Mosquitto already running"
@@ -34,7 +34,7 @@ else
     ok "Mosquitto active"
 fi
 
-# ── Step 2: Build C simulator ────────────────────────────────
+# step 2: build the C ECU simulator if the source is newer than the binary
 hdr "2/5" "ECU Simulator (C)"
 if [ ! -f "$SIM_BIN" ] || [ "$SIM_SRC" -nt "$SIM_BIN" ]; then
     echo "  → Compiling ecu_sim.c..."
@@ -45,7 +45,7 @@ else
     ok "Binary up-to-date (skip compile)"
 fi
 
-# ── Step 3: Train anomaly detector (first run only) ──────────
+# step 3: train the anomaly detector on first run (takes ~60s, only once)
 hdr "3/5" "Anomaly Detector"
 if [ ! -f "$ROOT/backend/anomaly_model.pkl" ]; then
     warn "No anomaly model found — training now (one-time, ~60s)..."
@@ -56,14 +56,14 @@ else
     ok "Anomaly model already exists (skip training)"
 fi
 
-# ── Step 4: Start inference engine ───────────────────────────
+# step 4: start the inference engine and wait for the WebSocket to come up
 hdr "4/5" "AI Inference Engine"
 echo "  → Launching backend/inference.py..."
 cd "$ROOT"
 $PYTHON "$ROOT/backend/inference.py" &
 INFERENCE_PID=$!
 
-# Wait for WebSocket server to be ready (max 15s)
+# give the model up to 15 seconds to load and open port 8765
 echo "  → Waiting for model load..."
 for i in $(seq 1 15); do
     sleep 1
@@ -81,7 +81,7 @@ for i in $(seq 1 15); do
     fi
 done
 
-# ── Step 5: Start Mission Simulator ──────────────────────────
+# step 5: start the mission simulator
 hdr "5/5" "Mission Simulator (Python)"
 echo "  → Launching mission_sim.py (hot-reloadable profiles)..."
 $PYTHON "$ROOT/simulator/mission_sim.py" &
@@ -93,7 +93,7 @@ else
     fail "Mission simulator failed to start."
 fi
 
-# ── Frontend HTTP Server ─────────────────────────────────────
+# serve the frontend on localhost:8080
 hdr "5/5" "Frontend HTTP Server"
 pkill -f "http.server.*8080" 2>/dev/null || true
 sleep 0.5
@@ -107,7 +107,7 @@ else
     FRONTEND_PID=0
 fi
 
-# ── Ready ────────────────────────────────────────────────────
+# all good — print the connection info
 echo ""
 echo -e "${BOLD}${GREEN}╔══════════════════════════════════════════════════╗${NC}"
 echo -e "${BOLD}${GREEN}║           ALL SYSTEMS LIVE                       ║${NC}"
@@ -121,7 +121,7 @@ echo -e "  ${YELLOW}Open http://127.0.0.1:8080 in your browser.${NC}"
 echo -e "  ${YELLOW}Press Ctrl+C to shut down all services.${NC}"
 echo ""
 
-# ── Graceful shutdown ────────────────────────────────────────
+# trap Ctrl+C and clean up all spawned processes
 cleanup() {
     echo ""
     echo -e "${YELLOW}Shutting down all UAV Twin services...${NC}"
@@ -137,5 +137,5 @@ cleanup() {
 }
 trap cleanup INT TERM
 
-# Wait on background processes
+# wait here — the script stays alive until the user hits Ctrl+C
 wait $INFERENCE_PID $SIM_PID $FRONTEND_PID 2>/dev/null || wait $INFERENCE_PID $SIM_PID

@@ -1,16 +1,20 @@
 """
 backend/prescriptive.py
-------------------------
-Prescriptive Maintenance & Operational Recommendation Engine.
 
-Converts AI model outputs, fault events, physics residuals, and RUL predictions
-into structured, actionable recommendations with severity levels.
+Turns AI model outputs, fault codes, and RUL predictions into actual
+actionable recommendations that an operator or maintenance crew can follow.
 
-Severity levels:
-  INFO      : Routine advisory, no immediate action
-  WARNING   : Monitor closely, plan maintenance
-  CRITICAL  : Immediate operational restriction required
-  EMERGENCY : Ground aircraft, no further flight
+Four sources feed this:
+  1. Active fault codes  — each fault maps to a specific recommended action
+  2. RUL lifecycle stage — approaching overhaul triggers its own advisories
+  3. Twin consistency    — Case C/D disagreements warrant a sensor check note
+  4. Mission risk        — high/critical risk levels get their own flag
+
+Severity levels (in escalating order):
+  INFO      — routine, no urgency
+  WARNING   — needs attention soon
+  CRITICAL  — restrict operations, act before next flight
+  EMERGENCY — ground the aircraft now
 """
 
 from typing import Dict, List, Any
@@ -18,7 +22,7 @@ from typing import Dict, List, Any
 SEVERITY_RANK = {"INFO": 0, "WARNING": 1, "CRITICAL": 2, "EMERGENCY": 3}
 
 
-# ── Fault-Specific Operating Recommendations ──────────────────────────────────
+# one recommendation entry per fault type — written for the operator, not the analyst
 FAULT_RECOMMENDATIONS = {
     "OVERHEATING": {
         "severity": "CRITICAL",
@@ -92,8 +96,9 @@ FAULT_RECOMMENDATIONS = {
     },
 }
 
-# ── RUL-Based Lifecycle Recommendations ──────────────────────────────────────
+
 def _rul_recommendation(rul: float) -> dict:
+    """Returns a lifecycle advisory based on how much RUL is remaining."""
     if rul <= 0:
         return {}
     if rul < 15:
@@ -134,14 +139,13 @@ def generate_prescriptive_recommendations(
     mission_risk: dict = None,
 ) -> List[dict]:
     """
-    Generates prioritized prescriptive recommendations from model outputs.
-
-    Returns list of recommendation dicts sorted by severity (highest first).
+    Generates prioritized recommendations from all model outputs.
+    Returns them sorted by severity, most critical first.
     """
     recommendations = []
     seen_faults = set()
 
-    # 1. Fault-based recommendations
+    # fault-driven recommendations — one per unique fault code
     for fault in fault_events:
         fname = fault.get("name", "")
         if fname in FAULT_RECOMMENDATIONS and fname not in seen_faults:
@@ -151,12 +155,12 @@ def generate_prescriptive_recommendations(
             rec["fault_name"] = fname.replace("_", " ").title()
             recommendations.append(rec)
 
-    # 2. RUL lifecycle recommendation
+    # RUL lifecycle advisory
     rul_rec = _rul_recommendation(predicted_rul)
     if rul_rec:
         recommendations.append(rul_rec)
 
-    # 3. Twin consistency advisory
+    # twin consistency advisory — only for Case C/D since A/B are already handled
     if twin_consistency and twin_consistency.get("case") in ("C", "D"):
         recommendations.append({
             "severity": "INFO",
@@ -167,7 +171,7 @@ def generate_prescriptive_recommendations(
             "source": "TWIN_CONSISTENCY",
         })
 
-    # 4. Mission risk advisory
+    # mission risk advisory — only for HIGH and CRITICAL
     if mission_risk and mission_risk.get("risk_level") in ("HIGH", "CRITICAL"):
         prob = mission_risk.get("mission_completion_probability", 0)
         safe_h = mission_risk.get("safe_operating_time_h", 0)
@@ -180,7 +184,7 @@ def generate_prescriptive_recommendations(
             "source": "MISSION_RISK",
         })
 
-    # 5. Default nominal advisory
+    # if nothing flagged, confirm nominal status
     if not recommendations:
         recommendations.append({
             "severity": "INFO",
@@ -191,6 +195,6 @@ def generate_prescriptive_recommendations(
             "source": "NOMINAL",
         })
 
-    # Sort by severity (most severe first)
+    # sort highest severity first so the operator sees the worst problem at the top
     recommendations.sort(key=lambda r: SEVERITY_RANK.get(r.get("severity", "INFO"), 0), reverse=True)
     return recommendations

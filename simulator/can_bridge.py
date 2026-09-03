@@ -1,15 +1,16 @@
 """
 simulator/can_bridge.py
-------------------------
-Simulates SocketCAN / SAE J1939 & UAVCAN Aero Piston Engine Frames.
 
-Encodes live engine telemetry into standard 29-bit CAN frames:
-  - PGN 61444 (0x0CF00400) EEC1: Engine Speed (RPM), Demand %
-  - PGN 65262 (0x18FEEE00) ET1 : Engine Coolant/CHT, Fuel Temp, Oil Temp
-  - PGN 65263 (0x18FEEF00) EFLP: Engine Oil Pressure, Crankcase Pressure
-  - PGN 65266 (0x18FEF200) LFE : Fuel Rate (L/h), Instantaneous Fuel Economy
-  - PGN 65271 (0x18FEF700) VEP : Battery Voltage, Alternator Current
-  - PGN 65168 (0x18FE9000) VIB : Vibration RMS, Peak Acceleration, Kurtosis
+Encodes live engine telemetry into SAE J1939 / SocketCAN CAN bus frames.
+This simulates what you'd see on a real aircraft's CAN bus.
+
+PGNs implemented:
+  PGN 61444  (0x0CF00400) EEC1  — Engine Speed, torque demand
+  PGN 65262  (0x18FEEE00) ET1   — CHT, oil temp, fuel temp
+  PGN 65263  (0x18FEEF00) EFLP  — Oil pressure, crankcase pressure
+  PGN 65266  (0x18FEF200) LFE   — Fuel rate, fuel economy
+  PGN 65271  (0x18FEF700) VEP   — Battery voltage, alternator current
+  PGN 65168  (0x18FE9000) VIB   — Vibration RMS, peak acceleration, kurtosis
 """
 
 import struct
@@ -19,17 +20,17 @@ from typing import Dict, List, Any
 
 class AeroCANBridge:
     """
-    Encodes sensor parameters into standard 8-byte CAN payload frames
-    with arbitration IDs, priorities, PGNs, and payload hex strings.
+    Encodes sensor parameters into standard 8-byte J1939 CAN payloads
+    with arbitration IDs, PGN numbers, and decoded human-readable strings.
     """
 
     @staticmethod
     def encode_eec1(rpm: float, torque_pct: float = 75.0) -> Dict[str, Any]:
-        """PGN 61444 - Electronic Engine Controller 1"""
-        # RPM resolution 0.125 rpm/bit, offset 0
+        """PGN 61444 — Electronic Engine Controller 1 (engine speed)"""
+        # RPM resolution: 0.125 rpm/bit
         raw_rpm = min(65535, int(rpm / 0.125))
         raw_torque = min(250, max(0, int(torque_pct + 125)))
-        # 8 bytes: [Engine Torque Mode, Driver Demand, Actual Torque, RPM Low, RPM High, Source, Starter, Demand]
+        # byte layout: [Mode, Driver Demand, Actual Torque, RPM Low, RPM High, Src, Starter, Demand]
         payload = bytes([0x01, raw_torque, raw_torque, raw_rpm & 0xFF, (raw_rpm >> 8) & 0xFF, 0x00, 0xFF, 0xFF])
         return {
             "can_id": "0x0CF00400",
@@ -42,13 +43,13 @@ class AeroCANBridge:
 
     @staticmethod
     def encode_et1(cht: float, oil_temp: float) -> Dict[str, Any]:
-        """PGN 65262 - Engine Temperature 1"""
-        # Temp resolution 1 deg C/bit, offset -40 deg C
+        """PGN 65262 — Engine Temperature 1 (CHT and oil temp)"""
+        # J1939 temp encoding: 1 deg C/bit, offset -40°C
         cht_c = (cht - 32.0) * 5.0 / 9.0
         oil_t_c = (oil_temp - 32.0) * 5.0 / 9.0
         raw_cht = min(250, max(0, int(cht_c + 40)))
         raw_oil = min(250, max(0, int(oil_t_c + 40)))
-        # [Coolant/CHT, Fuel Temp, Oil Temp Low, Oil Temp High, Turbo Oil, Intercooler, Reserved, Reserved]
+        # [CHT, Fuel Temp, Oil Temp Low, Oil Temp High, Turbo Oil, Intercooler, reserved×2]
         payload = bytes([raw_cht, 0x55, raw_oil, 0x00, 0xFF, 0xFF, 0xFF, 0xFF])
         return {
             "can_id": "0x18FEEE00",
@@ -61,8 +62,8 @@ class AeroCANBridge:
 
     @staticmethod
     def encode_eflp(oil_press_psi: float) -> Dict[str, Any]:
-        """PGN 65263 - Engine Fluid Level/Pressure"""
-        # Oil pressure resolution 4 kPa/bit
+        """PGN 65263 — Engine Fluid Level/Pressure (oil pressure)"""
+        # J1939 oil pressure: 4 kPa/bit
         oil_kpa = oil_press_psi * 6.89476
         raw_oil_p = min(250, max(0, int(oil_kpa / 4.0)))
         payload = bytes([0xFF, 0xFF, 0xFF, raw_oil_p, 0xFF, 0xFF, 0xFF, 0xFF])
@@ -77,8 +78,8 @@ class AeroCANBridge:
 
     @staticmethod
     def encode_lfe(fuel_flow_l_h: float) -> Dict[str, Any]:
-        """PGN 65266 - Fuel Economy / Rate"""
-        # Fuel rate resolution 0.05 L/h per bit
+        """PGN 65266 — Fuel Economy / Rate"""
+        # J1939 fuel rate: 0.05 L/h per bit
         raw_fuel = min(65535, int(fuel_flow_l_h / 0.05))
         payload = bytes([raw_fuel & 0xFF, (raw_fuel >> 8) & 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])
         return {
@@ -92,8 +93,8 @@ class AeroCANBridge:
 
     @staticmethod
     def encode_vep(voltage: float, current: float = 18.5) -> Dict[str, Any]:
-        """PGN 65271 - Vehicle Electrical Power"""
-        # Voltage resolution 0.05 V/bit
+        """PGN 65271 — Vehicle Electrical Power (bus voltage and alternator current)"""
+        # J1939 voltage: 0.05 V/bit
         raw_v = min(65535, int(voltage / 0.05))
         raw_i = min(250, max(0, int(current + 125)))
         payload = bytes([0xFF, 0xFF, 0xFF, 0xFF, raw_v & 0xFF, (raw_v >> 8) & 0xFF, raw_i, 0xFF])
@@ -108,8 +109,8 @@ class AeroCANBridge:
 
     @staticmethod
     def encode_vib(vib_rms: float, kurtosis: float = 3.0) -> Dict[str, Any]:
-        """PGN 65168 - Aero Propulsion Vibration Monitor"""
-        raw_vib = min(65535, int(vib_rms * 1000.0))  # milli-g
+        """PGN 65168 — Aero Propulsion Vibration Monitor (custom extension)"""
+        raw_vib = min(65535, int(vib_rms * 1000.0))  # encode as milli-g
         raw_kurt = min(250, int(kurtosis * 20.0))
         payload = bytes([raw_vib & 0xFF, (raw_vib >> 8) & 0xFF, raw_kurt, 0x00, 0xFF, 0xFF, 0xFF, 0xFF])
         return {
@@ -123,7 +124,7 @@ class AeroCANBridge:
 
     @classmethod
     def generate_packet_burst(cls, data: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Generates a synchronized burst of CAN frames matching current telemetry."""
+        """Generates all 6 CAN frames for one telemetry sample, all timestamped together."""
         rpm = float(data.get("rpm", 1400.0))
         cht = float(data.get("cht", 380.0))
         oil_p = float(data.get("oil_pressure", 55.0))

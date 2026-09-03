@@ -1,17 +1,19 @@
 """
 backend/telemetry_integrity.py
--------------------------------
-Telemetry Integrity & Security Monitoring.
 
-Detects:
-  - Packet loss (missing sequence numbers)
-  - Duplicate packets (same cycle number received twice)
-  - Timestamp anomalies (out-of-order or future timestamps)
-  - Impossible sensor values (physical bounds violations)
-  - Sudden telemetry manipulation (drastic multi-channel simultaneous change)
-  - Invalid sequence numbers (backwards or too-large jumps)
+Monitors the telemetry stream itself for signs of data quality problems.
+This is separate from sensor_integrity.py — we're not checking if EGT is
+plausible, we're checking if the *stream* is healthy (packet loss, replays,
+timing gaps, impossible sensor value injections).
 
-Outputs an integrity score (0-100%) and event log.
+Useful for detecting:
+  - Dropped packets from the MQTT broker
+  - Duplicate transmissions (replay attacks or sim bugs)
+  - Out-of-order cycle numbers
+  - Physically impossible values that sneak past sensor_integrity
+  - Timing gaps (too fast or too slow between packets)
+
+Outputs an integrity score (0–100%) and a rolling event log.
 """
 
 import time
@@ -29,7 +31,7 @@ class TelemetryIntegrityMonitor:
         self.cycle_history = deque(maxlen=MAX_HISTORY)
         self.seen_cycles = set()
 
-        # Counters
+        # running counters — these never reset (lifetime stats)
         self.total_packets = 0
         self.lost_packets = 0
         self.duplicate_packets = 0
@@ -54,7 +56,7 @@ class TelemetryIntegrityMonitor:
         cycle = data.get("cycle", 0)
         is_anomaly = False
 
-        # 1. Duplicate packet detection
+        # check for duplicate cycle numbers — could be a replay or sim glitch
         if cycle in self.seen_cycles:
             self.duplicate_packets += 1
             self.replay_events += 1
@@ -63,10 +65,10 @@ class TelemetryIntegrityMonitor:
         else:
             self.seen_cycles.add(cycle)
             if len(self.seen_cycles) > MAX_HISTORY * 2:
-                # Prune old entries
+                # trim the set so it doesn't grow forever
                 self.seen_cycles = set(list(self.seen_cycles)[-MAX_HISTORY:])
 
-        # 2. Sequence number check
+        # check for sequence jumps or backwards cycle numbers
         if self.last_cycle is not None:
             delta = cycle - self.last_cycle
             if delta < 0 and delta != 0:
@@ -74,22 +76,23 @@ class TelemetryIntegrityMonitor:
                 self._log_event("OUT_OF_ORDER", f"Cycle {cycle} after {self.last_cycle}")
                 is_anomaly = True
             elif delta > 5:
-                # Allow some jumps (simulator reset, playback)
+                # small jumps are normal (simulator reset, profile change)
+                # but we count likely-lost packets in the gap
                 estimated_lost = delta - 1
                 if estimated_lost > 0 and estimated_lost < 50:
                     self.lost_packets += estimated_lost
                     self._log_event("PACKET_LOSS", f"{estimated_lost} packets lost between {self.last_cycle}→{cycle}")
         self.last_cycle = cycle
 
-        # 3. Timestamp sanity
+        # timing check — nominal is 0.1s between packets (10 Hz)
         if self.last_timestamp is not None:
             elapsed = now - self.last_timestamp
-            # Expect 0.05–2.0 seconds between packets (0.1s nominal)
+            # allow 0.005–5.0s as plausible — outside that is suspicious
             if elapsed < 0.005 or elapsed > 5.0:
                 self.timestamp_anomalies += 1
         self.last_timestamp = now
 
-        # 4. Impossible sensor values check
+        # hard bounds check — these values are physically impossible
         HARD_BOUNDS = {
             "rpm": (0, 3200), "cht": (0, 700), "egt": (0, 2200),
             "oil_pressure": (0, 150), "battery_v": (0, 20),
@@ -106,7 +109,7 @@ class TelemetryIntegrityMonitor:
 
         self.cycle_history.append(cycle)
 
-        # 5. Integrity Score calculation
+        # compute rolling integrity score based on error rates
         total = max(1, self.total_packets)
         loss_rate = self.lost_packets / total
         dup_rate = self.duplicate_packets / total

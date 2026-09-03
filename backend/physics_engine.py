@@ -1,43 +1,42 @@
 """
 backend/physics_engine.py
---------------------------
-Physics-Informed Thermodynamic & Aeromechanical Engine Model
-for MALE UAV Aero Piston Engines (e.g. Rotax 914 / Austro AE300 / Continental class).
 
-Calculates:
-  1. 4-Stroke Otto cycle state points (P, V, T at 0..720 deg crank angle)
-  2. Theoretical Indicated & Brake Horsepower (IHP, BHP, Friction HP)
-  3. Indicated Mean Effective Pressure (IMEP) & Brake MEP (BMEP)
-  4. Volumetric Efficiency (eta_v) & Brake Thermal Efficiency (eta_th)
-  5. Brake Specific Fuel Consumption (BSFC in g/kWh)
-  6. Theoretical Physics Residuals (Expected vs Observed delta)
-  7. Real-time P-V indicator diagram coordinates
+Physics model for a typical MALE UAV aero piston engine
+(Rotax 914 / Austro AE300 / Continental class).
+
+We use this for two things:
+  1. Compute thermodynamic performance metrics (BHP, BSFC, IMEP, etc.)
+     so the operator can see how the engine is *actually* doing vs theory.
+  2. Generate expected sensor baselines — the difference between
+     expected and measured gives us residuals for the twin consistency check.
+
+The P-V diagram data also feeds the live indicator diagram on the dashboard.
 """
 
 import math
 from typing import Dict, List, Tuple, Any
 
-# ── Typical MALE UAV Aero Piston Engine Specifications ────────────────────────
+# spec sheet for the engine we're modeling
 ENGINE_SPECS = {
     "cylinders":           4,
     "bore_m":              0.084,       # 84 mm bore
     "stroke_m":            0.061,       # 61 mm stroke
     "compression_ratio":   9.0,         # r = 9.0 : 1
-    "displacement_m3":     0.001352,    # 1.352 Liters (1352 cc)
-    "fuel_lhv_j_per_kg":   44.0e6,      # Lower heating value Gasoline: 44 MJ/kg
+    "displacement_m3":     0.001352,    # 1.352 L (1352 cc)
+    "fuel_lhv_j_per_kg":   44.0e6,      # lower heating value of gasoline: 44 MJ/kg
     "fuel_density_kg_per_l": 0.74,      # 0.74 kg/L
-    "gamma":               1.33,        # Specific heat ratio for combustion mixture
-    "r_air":               287.05,      # Specific gas constant (J/kg*K)
-    "ambient_p_std_pa":    101325.0,    # Std Sea Level Pressure (Pa)
-    "ambient_t_std_k":     288.15,      # Std Sea Level Temp (K)
-    "friction_fudge":      0.15,        # 15% mechanical friction loss
+    "gamma":               1.33,        # specific heat ratio for combustion mixture
+    "r_air":               287.05,      # specific gas constant (J/kg·K)
+    "ambient_p_std_pa":    101325.0,    # standard sea-level pressure (Pa)
+    "ambient_t_std_k":     288.15,      # standard sea-level temp (K)
+    "friction_fudge":      0.15,        # 15% mechanical friction loss estimate
 }
 
 
 class AeroEnginePhysicsModel:
     """
-    Thermodynamic and aeromechanical engine model continuously synchronized
-    with live telemetry to compute theoretical physical baselines and residuals.
+    Thermodynamic and aeromechanical model that runs in lockstep with
+    live telemetry to produce theoretical baselines and residuals.
     """
 
     def __init__(self, specs: Dict[str, Any] = None):
@@ -50,46 +49,45 @@ class AeroEnginePhysicsModel:
         self.lhv = self.specs["fuel_lhv_j_per_kg"]
         self.fuel_dens = self.specs["fuel_density_kg_per_l"]
 
-        # Clearance and swept volume
+        # per-cylinder volumes — clearance is what's left at TDC
         self.v_swept_cyl = self.disp / self.specs["cylinders"]
         self.v_clearance_cyl = self.v_swept_cyl / (self.cr - 1.0)
         self.v_total_cyl = self.v_swept_cyl + self.v_clearance_cyl
 
-        # Precalculate theoretical ideal Otto thermal efficiency
+        # compute this once — it's a constant for a given compression ratio
         self.ideal_thermal_eff = 1.0 - (1.0 / (self.cr ** (self.gamma - 1.0)))
 
     def calculate_pv_diagram(self, rpm: float, map_kpa: float = 100.0,
                              air_fuel_ratio: float = 14.7) -> List[Dict[str, float]]:
         """
-        Generates 40 discrete points along the 4-stroke P-V indicator cycle
-        for real-time dashboard rendering.
+        Generates 40 P-V points for the 4-stroke cycle.
+        Used by the dashboard to draw the live indicator diagram.
         """
-        p1 = max(30.0, min(140.0, map_kpa)) * 1000.0  # Intake manifold pressure in Pa
-        t1 = 310.0  # Intake charge temp in K
+        p1 = max(30.0, min(140.0, map_kpa)) * 1000.0  # intake manifold pressure in Pa
+        t1 = 310.0  # intake charge temp, roughly 37°C after some heating in the port
         v1 = self.v_total_cyl
         v2 = self.v_clearance_cyl
 
-        # State 2: Isentropic Compression
+        # isentropic compression (BDC → TDC)
         p2 = p1 * (self.cr ** self.gamma)
         t2 = t1 * (self.cr ** (self.gamma - 1.0))
 
-        # State 3: Constant Volume Heat Addition (Combustion)
-        # Heat added per cylinder per cycle:
+        # constant-volume heat addition (combustion at TDC)
+        # fuel mass based on trapped charge weight and stoichiometry
         fuel_per_cyl_kg = (p1 * v1 / (287.05 * t1)) / (air_fuel_ratio + 1.0)
         q_in = fuel_per_cyl_kg * self.lhv * 0.90  # 90% combustion efficiency
         cv = 287.05 / (self.gamma - 1.0)
         t3 = t2 + (q_in / ((p1 * v1 / (287.05 * t1)) * cv))
-        t3 = min(2800.0, t3)  # Cap peak flame temp
+        t3 = min(2800.0, t3)  # peak flame temp physical cap
         p3 = p2 * (t3 / t2)
 
-        # State 4: Isentropic Expansion
+        # isentropic expansion (TDC → BDC)
         p4 = p3 * ((1.0 / self.cr) ** self.gamma)
 
-        # Generate smooth P-V coordinates
         points = []
         n_pts = 20
 
-        # Compression stroke (V1 -> V2)
+        # compression stroke — volume decreasing
         for i in range(n_pts):
             fraction = i / (n_pts - 1)
             v = v1 - fraction * (v1 - v2)
@@ -101,7 +99,7 @@ class AeroEnginePhysicsModel:
                 "pressure_bar": round(p / 1e5, 2)
             })
 
-        # Expansion stroke (V2 -> V1)
+        # power stroke — volume increasing
         for i in range(n_pts):
             fraction = i / (n_pts - 1)
             v = v2 + fraction * (v1 - v2)
@@ -117,7 +115,8 @@ class AeroEnginePhysicsModel:
 
     def evaluate_performance(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Computes thermodynamic parameters and physical residuals from live telemetry.
+        Takes a live telemetry packet and computes thermodynamic parameters
+        plus residuals (measured - expected) for each key sensor.
         """
         rpm = max(400.0, float(data.get("rpm", 1400.0)))
         cht = float(data.get("cht", 380.0))
@@ -127,55 +126,52 @@ class AeroEnginePhysicsModel:
         oil_t = float(data.get("oil_temp", 185.0))
         map_kpa = float(data.get("map_kpa", 98.0))
 
-        # Fuel mass flow (kg/s and kg/h)
+        # convert fuel flow to mass flow rate
         fuel_flow_kg_h = fuel_flow_l_h * self.fuel_dens
         fuel_flow_kg_s = fuel_flow_kg_h / 3600.0
 
-        # Theoretical Indicated Mean Effective Pressure (IMEP) [bar]
-        # In a 4-stroke naturally aspirated/turbo engine:
+        # IMEP from MAP — simplified but good enough for real-time monitoring
         map_bar = map_kpa / 100.0
         imep_bar = map_bar * (self.cr - 1.0) * 1.45
         bmep_bar = imep_bar * (1.0 - self.specs["friction_fudge"])
 
-        # Indicated Power & Brake Power (kW & BHP)
-        # Power = (BMEP * Displacement * (RPM / 120)) [kW for BMEP in kPa]
+        # brake power — 4-stroke: Power = BMEP × Disp × (RPM/120)
         bmep_kpa = bmep_bar * 100.0
         brake_power_kw = (bmep_kpa * self.disp * (rpm / 120.0))
         brake_power_hp = brake_power_kw * 1.34102
 
-        # Friction & Heat Loss Power
+        # losses
         friction_power_kw = brake_power_kw * self.specs["friction_fudge"]
         fuel_energy_rate_kw = fuel_flow_kg_s * (self.lhv / 1000.0)
 
-        # Brake Thermal Efficiency (eta_bth)
+        # brake thermal efficiency — clamp to realistic range
         eta_bth = (brake_power_kw / fuel_energy_rate_kw) if fuel_energy_rate_kw > 0 else 0.0
         eta_bth = max(0.10, min(0.42, eta_bth))
 
-        # Brake Specific Fuel Consumption (BSFC) [g / (kW * h)]
+        # BSFC — lower is more fuel efficient, typical range 200–450 g/(kW·h)
         bsfc_g_kwh = (fuel_flow_kg_h * 1000.0 / brake_power_kw) if brake_power_kw > 0 else 450.0
         bsfc_g_kwh = max(180.0, min(650.0, bsfc_g_kwh))
 
-        # Volumetric Efficiency (eta_v)
-        # Ideal intake air mass rate vs actual
+        # volumetric efficiency — how well the cylinders fill at this MAP
         theoretical_air_l_s = (self.disp * 1000.0) * (rpm / 120.0)
         eta_volumetric = min(1.05, max(0.60, (map_kpa / 101.325) * 0.88))
 
-        # ── Expected Physics Baselines (What healthy engine should exhibit) ───
+        # compute expected sensor baselines for a healthy engine at this operating point
         expected_egt = 1500.0 + (rpm / 2000.0) * 120.0 + (100.0 - map_kpa) * 1.5
         expected_cht = 340.0 + (brake_power_kw / 60.0) * 60.0
         expected_oil_p = 40.0 + (rpm / 2400.0) * 25.0 - max(0.0, (oil_t - 180.0) * 0.15)
         expected_fuel_flow = (brake_power_kw * 0.32) / self.fuel_dens  # L/hr
 
-        # Physical Residuals (Sensor - PhysicsModel)
+        # residuals — positive means sensor is reading higher than physics expects
         res_egt = egt - expected_egt
         res_cht = cht - expected_cht
         res_oil_p = oil_p - expected_oil_p
         res_fuel = fuel_flow_l_h - expected_fuel_flow
 
-        # Combustion Thermal Ratio
+        # EGT/CHT ratio — useful for combustion quality check
         thermal_ratio = egt / cht if cht > 50.0 else 2.5
 
-        # PV diagram data for live UI
+        # PV diagram for the live UI chart
         pv_points = self.calculate_pv_diagram(rpm, map_kpa)
 
         return {
@@ -204,5 +200,5 @@ class AeroEnginePhysicsModel:
         }
 
 
-# Singleton model instance
+# module-level singleton — everyone imports this
 physics_model = AeroEnginePhysicsModel()

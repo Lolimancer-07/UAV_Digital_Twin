@@ -1,6 +1,6 @@
 {
-  "mode": "RAPID_THROTTLE",
+  "mode": "NORMAL",
   "injected_faults": [],
   "paused": false,
-  "speed": 5.0
+  "speed": 2.0
 }

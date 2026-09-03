@@ -147,12 +147,13 @@ def generate_prescriptive_recommendations(
 
     # fault-driven recommendations — one per unique fault code
     for fault in fault_events:
-        fname = fault.get("name", "")
+        fname_raw = fault.get("name", "")
+        fname = fname_raw.upper()
         if fname in FAULT_RECOMMENDATIONS and fname not in seen_faults:
             seen_faults.add(fname)
             rec = FAULT_RECOMMENDATIONS[fname].copy()
-            rec["source"] = f"FAULT_DETECTION:{fname}"
-            rec["fault_name"] = fname.replace("_", " ").title()
+            rec["source"] = f"FAULT_DETECTION:{fname_raw}"
+            rec["fault_name"] = fname_raw.replace("_", " ").title()
             recommendations.append(rec)
 
     # RUL lifecycle advisory

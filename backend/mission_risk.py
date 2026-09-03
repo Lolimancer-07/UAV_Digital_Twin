@@ -112,13 +112,13 @@ def compute_mission_risk(
     p_engine = p_engine_health * (1.0 - failure_probability * 0.8)
     p_engine = max(0.01, min(0.999, p_engine))
 
-    # P_thermal — how much margin before we hit CHT/EGT limits?
-    # grows non-linearly near the limits so risk escalates quickly
+    # P_thermal — probability of mission completion without thermal excursion
+    # Near 1.0 under nominal temps, drops sharply as CHT/EGT approach certified limits
     cht_crit = 435.0
     egt_crit = 1670.0
-    cht_margin = max(0.0, (cht_crit - cht) / cht_crit)
-    egt_margin = max(0.0, (egt_crit - egt) / egt_crit)
-    p_thermal = min(1.0, 0.5 + 0.3 * cht_margin + 0.2 * egt_margin)
+    cht_stress = max(0.0, min(1.0, (cht - 360.0) / max(1.0, (cht_crit - 360.0))))
+    egt_stress = max(0.0, min(1.0, (egt - 1500.0) / max(1.0, (egt_crit - 1500.0))))
+    p_thermal = max(0.05, 1.0 - (0.65 * (cht_stress ** 2) + 0.35 * (egt_stress ** 2)))
 
     # P_time — does the engine have enough life left for the mission?
     # assume 36 sensor cycles per minute of mission time

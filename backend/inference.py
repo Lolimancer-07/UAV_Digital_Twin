@@ -311,7 +311,7 @@ def on_message(client, userdata, msg):
 
 def process_gcs_command(cmd: Dict[str, Any]):
     """Handles commands sent from the GCS dashboard over WebSocket."""
-    global latest_state
+    global latest_state, latest_payload
 
     action = cmd.get("command")
 
@@ -424,6 +424,10 @@ def process_gcs_command(cmd: Dict[str, Any]):
     os.makedirs(os.path.dirname(CONTROL_FILE), exist_ok=True)
     with open(CONTROL_FILE, 'w') as f:
         json.dump(current_cfg, f, indent=2)
+
+    # immediately push updated state to connected clients
+    if latest_state:
+        latest_payload = json.dumps(latest_state)
 
 
 async def ws_handler(websocket):

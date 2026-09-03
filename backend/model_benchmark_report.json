@@ -1,0 +1,30 @@
+{
+  "Linear Regression": {
+    "MAE": 37.15,
+    "RMSE": 48.05,
+    "R2": 0.4946,
+    "Latency_ms": 0.0001,
+    "Type": "Linear Baseline"
+  },
+  "Random Forest": {
+    "MAE": 36.63,
+    "RMSE": 48.42,
+    "R2": 0.4869,
+    "Latency_ms": 0.0035,
+    "Type": "Non-linear Ensemble"
+  },
+  "Gradient Boosting": {
+    "MAE": 36.22,
+    "RMSE": 47.76,
+    "R2": 0.5008,
+    "Latency_ms": 0.0013,
+    "Type": "Sequential Boosting"
+  },
+  "Deep LSTM (Selected)": {
+    "MAE": 24.33,
+    "RMSE": 38.19,
+    "R2": 0.6619,
+    "Latency_ms": 0.6693,
+    "Type": "Recurrent Deep Neural Net (Temporal)"
+  }
+}

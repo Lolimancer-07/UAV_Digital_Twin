@@ -60,7 +60,7 @@ fi
 hdr "4/5" "AI Inference Engine"
 echo "  → Launching backend/inference.py..."
 cd "$ROOT"
-$PYTHON "$ROOT/backend/inference.py" &
+$PYTHON -u "$ROOT/backend/inference.py" &
 INFERENCE_PID=$!
 
 # give the model up to 15 seconds to load and open port 8765
@@ -84,7 +84,7 @@ done
 # step 5: start the mission simulator
 hdr "5/5" "Mission Simulator (Python)"
 echo "  → Launching mission_sim.py (hot-reloadable profiles)..."
-$PYTHON "$ROOT/simulator/mission_sim.py" &
+$PYTHON -u "$ROOT/simulator/mission_sim.py" &
 SIM_PID=$!
 sleep 1
 if kill -0 $SIM_PID 2>/dev/null; then

@@ -21,12 +21,18 @@ export function NavMain({
 }) {
   const pathname = usePathname()
   return (
-    <SidebarGroup>
+    <SidebarGroup className="px-3 py-2">
       <SidebarGroupContent className="flex flex-col gap-2">
         <SidebarMenu>
           {items.map((item) => (
             <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton isActive={pathname === item.url} tooltip={item.title} render={<Link href={item.url} />}>
+              <SidebarMenuButton
+                isActive={pathname === item.url}
+                tooltip={item.title}
+                size="lg"
+                className="h-11 rounded-lg px-3 text-[0.95rem] font-medium tracking-[-0.01em] transition-colors data-active:bg-sidebar-accent data-active:text-sidebar-accent-foreground"
+                render={<Link href={item.url} />}
+              >
                 {item.icon}
                 <span>{item.title}</span>
               </SidebarMenuButton>

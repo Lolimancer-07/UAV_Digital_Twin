@@ -13,7 +13,6 @@ import {
   Settings2,
   Wrench,
 } from "lucide-react"
-import { NavDocuments } from "@/components/nav-documents"
 import { NavMain } from "@/components/nav-main"
 import { NavSecondary } from "@/components/nav-secondary"
 import {
@@ -45,24 +44,29 @@ const operations = [
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar collapsible="offcanvas" {...props}>
-      <SidebarHeader>
+      <SidebarHeader className="border-b border-sidebar-border px-3 py-5">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton render={<Link href="/" />} className="p-1.5!">
-              <span className="font-mono text-primary">UAV-07</span>
-              <span className="font-semibold">PROPULSION GCS</span>
+            <SidebarMenuButton render={<Link href="/" />} size="lg" className="h-auto rounded-lg px-3 py-2 hover:bg-sidebar-accent">
+              <span className="font-mono text-sm font-semibold tracking-tight text-sidebar-primary">UAV-07</span>
+              <span className="font-heading text-sm font-semibold tracking-wide">PROPULSION GCS</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
         <NavMain items={navMain} />
-        <SidebarGroup>
-          <SidebarGroupLabel>Engineering</SidebarGroupLabel>
-          <SidebarMenu>
+        <SidebarGroup className="px-3 py-4">
+          <SidebarGroupLabel className="px-3 pb-2 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-sidebar-foreground/55">Engineering</SidebarGroupLabel>
+          <SidebarMenu className="gap-1">
             {operations.map((item) => (
               <SidebarMenuItem key={item.name}>
-                <SidebarMenuButton render={<Link href={item.url} />} tooltip={item.name}>
+                <SidebarMenuButton
+                  render={<Link href={item.url} />}
+                  tooltip={item.name}
+                  size="lg"
+                  className="h-11 rounded-lg px-3 text-[0.95rem] font-medium tracking-[-0.01em] transition-colors hover:bg-sidebar-accent"
+                >
                   {item.icon}
                   <span>{item.name}</span>
                 </SidebarMenuButton>

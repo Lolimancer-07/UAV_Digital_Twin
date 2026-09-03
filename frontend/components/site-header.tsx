@@ -1,5 +1,8 @@
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
+import { Badge } from "@/components/ui/badge"
+import { Radio } from "lucide-react"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 export function SiteHeader() {
   return (
@@ -10,7 +13,17 @@ export function SiteHeader() {
           orientation="vertical"
           className="mx-2 h-4 data-vertical:self-auto"
         />
-        <h1 className="text-base font-medium">UAV-07 / PROPULSION TELEMETRY</h1>
+        <div className="flex min-w-0 flex-1 items-center justify-between gap-4">
+          <div className="min-w-0">
+            <p className="truncate text-[10px] tracking-[0.18em] text-muted-foreground">UAV-07 · PROPULSION UNIT · ROTAX 914 F ENGINE</p>
+            <h1 className="truncate text-base font-semibold tracking-wide">UAV PROPULSION GROUND CONTROL STATION</h1>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="text-primary"><Radio data-icon="inline-start" /> 10 HZ · LIVE</Badge>
+            <Badge className="bg-primary/10 text-primary">OPERATIONAL</Badge>
+            <ThemeToggle />
+          </div>
+        </div>
       </div>
     </header>
   )

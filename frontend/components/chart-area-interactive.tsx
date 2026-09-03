@@ -33,7 +33,7 @@ import {
 export const description = "An interactive area chart"
 
 const chartData = [
-  { date: "2024-04-01", desktop: 222, mobile: 150 },
+  { date: "2024-04-01", desktop: 1180, mobile: 1150 },
   { date: "2024-04-02", desktop: 97, mobile: 180 },
   { date: "2024-04-03", desktop: 167, mobile: 120 },
   { date: "2024-04-04", desktop: 242, mobile: 260 },
@@ -128,14 +128,14 @@ const chartData = [
 
 const chartConfig = {
   visitors: {
-    label: "Telemetry",
+    label: "Engine telemetry",
   },
   desktop: {
-    label: "Desktop",
+    label: "Exhaust gas temperature",
     color: "var(--primary)",
   },
   mobile: {
-    label: "Mobile",
+    label: "Cylinder head temperature",
     color: "var(--primary)",
   },
 } satisfies ChartConfig
@@ -144,19 +144,15 @@ export function ChartAreaInteractive() {
   const isMobile = useIsMobile()
   const [timeRange, setTimeRange] = React.useState("90d")
 
-  React.useEffect(() => {
-    if (isMobile) {
-      setTimeRange("7d")
-    }
-  }, [isMobile])
+  const activeTimeRange = isMobile ? "7d" : timeRange
 
   const filteredData = chartData.filter((item) => {
     const date = new Date(item.date)
     const referenceDate = new Date("2024-06-30")
     let daysToSubtract = 90
-    if (timeRange === "30d") {
+    if (activeTimeRange === "30d") {
       daysToSubtract = 30
-    } else if (timeRange === "7d") {
+    } else if (activeTimeRange === "7d") {
       daysToSubtract = 7
     }
     const startDate = new Date(referenceDate)
@@ -167,29 +163,29 @@ export function ChartAreaInteractive() {
   return (
     <Card className="@container/card">
       <CardHeader>
-        <CardTitle>TELEMETRY / RUL TREND</CardTitle>
+        <CardTitle>ENGINE TELEMETRY TREND</CardTitle>
         <CardDescription>
           <span className="hidden @[540px]/card:block">
-            Engine telemetry history
+            Propulsion telemetry history
           </span>
-          <span className="@[540px]/card:hidden">Telemetry history</span>
+          <span className="@[540px]/card:hidden">Sensor history</span>
         </CardDescription>
         <CardAction>
           <ToggleGroup
             multiple={false}
-            value={timeRange ? [timeRange] : []}
+            value={activeTimeRange ? [activeTimeRange] : []}
             onValueChange={(value) => {
               setTimeRange(value[0] ?? "90d")
             }}
             variant="outline"
             className="hidden *:data-[slot=toggle-group-item]:px-4! @[767px]/card:flex"
           >
-            <ToggleGroupItem value="90d">Last 3 months</ToggleGroupItem>
-            <ToggleGroupItem value="30d">Last 30 days</ToggleGroupItem>
-            <ToggleGroupItem value="7d">Last 7 days</ToggleGroupItem>
+            <ToggleGroupItem value="90d">90 cycles</ToggleGroupItem>
+            <ToggleGroupItem value="30d">30 cycles</ToggleGroupItem>
+            <ToggleGroupItem value="7d">7 cycles</ToggleGroupItem>
           </ToggleGroup>
           <Select
-            value={timeRange}
+            value={activeTimeRange}
             onValueChange={(value) => {
               if (value !== null) {
                 setTimeRange(value)
@@ -201,17 +197,17 @@ export function ChartAreaInteractive() {
               size="sm"
               aria-label="Select a value"
             >
-              <SelectValue placeholder="Last 3 months" />
+              <SelectValue placeholder="90 cycles" />
             </SelectTrigger>
             <SelectContent className="rounded-xl">
               <SelectItem value="90d" className="rounded-lg">
-                Last 3 months
+                90 cycles
               </SelectItem>
               <SelectItem value="30d" className="rounded-lg">
-                Last 30 days
+                30 cycles
               </SelectItem>
               <SelectItem value="7d" className="rounded-lg">
-                Last 7 days
+                7 cycles
               </SelectItem>
             </SelectContent>
           </Select>
@@ -220,7 +216,7 @@ export function ChartAreaInteractive() {
       <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
         <ChartContainer
           config={chartConfig}
-          className="aspect-auto h-[250px] w-full"
+          className="aspect-auto h-62.5 w-full"
         >
           <AreaChart data={filteredData}>
             <defs>

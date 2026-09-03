@@ -1,204 +1,77 @@
 "use client"
 
 import * as React from "react"
-
+import Link from "next/link"
+import {
+  Activity,
+  BarChart3,
+  Database,
+  FileChartColumn,
+  FileCheck2,
+  Gauge,
+  LayoutDashboard,
+  Settings2,
+  Wrench,
+} from "lucide-react"
 import { NavDocuments } from "@/components/nav-documents"
 import { NavMain } from "@/components/nav-main"
 import { NavSecondary } from "@/components/nav-secondary"
-import { NavUser } from "@/components/nav-user"
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import { LayoutDashboardIcon, ListIcon, ChartBarIcon, FolderIcon, UsersIcon, CameraIcon, FileTextIcon, Settings2Icon, CircleHelpIcon, SearchIcon, DatabaseIcon, FileChartColumnIcon, FileIcon, CommandIcon } from "lucide-react"
 
-const data = {
-  user: {
-    name: "shadcn",
-    email: "m@example.com",
-    avatar: "/avatars/shadcn.jpg",
-  },
-  navMain: [
-    {
-      title: "Telemetry Matrix",
-      url: "#",
-      icon: (
-        <LayoutDashboardIcon
-        />
-      ),
-    },
-    {
-      title: "Prognostics",
-      url: "#",
-      icon: (
-        <ListIcon
-        />
-      ),
-    },
-    {
-      title: "Thermodynamics",
-      url: "#",
-      icon: (
-        <ChartBarIcon
-        />
-      ),
-    },
-    {
-      title: "CAN Bus FDR",
-      url: "#",
-      icon: (
-        <FolderIcon
-        />
-      ),
-    },
-    {
-      title: "Maintenance",
-      url: "#",
-      icon: (
-        <UsersIcon
-        />
-      ),
-    },
-  ],
-  navClouds: [
-    {
-      title: "Capture",
-      icon: (
-        <CameraIcon
-        />
-      ),
-      isActive: true,
-      url: "#",
-      items: [
-        {
-          title: "Active Proposals",
-          url: "#",
-        },
-        {
-          title: "Archived",
-          url: "#",
-        },
-      ],
-    },
-    {
-      title: "Proposal",
-      icon: (
-        <FileTextIcon
-        />
-      ),
-      url: "#",
-      items: [
-        {
-          title: "Active Proposals",
-          url: "#",
-        },
-        {
-          title: "Archived",
-          url: "#",
-        },
-      ],
-    },
-    {
-      title: "Prompts",
-      icon: (
-        <FileTextIcon
-        />
-      ),
-      url: "#",
-      items: [
-        {
-          title: "Active Proposals",
-          url: "#",
-        },
-        {
-          title: "Archived",
-          url: "#",
-        },
-      ],
-    },
-  ],
-  navSecondary: [
-    {
-      title: "Settings",
-      url: "#",
-      icon: (
-        <Settings2Icon
-        />
-      ),
-    },
-    {
-      title: "Get Help",
-      url: "#",
-      icon: (
-        <CircleHelpIcon
-        />
-      ),
-    },
-    {
-      title: "Search",
-      url: "#",
-      icon: (
-        <SearchIcon
-        />
-      ),
-    },
-  ],
-  documents: [
-    {
-      name: "Flight Data Recorder",
-      url: "#",
-      icon: (
-        <DatabaseIcon
-        />
-      ),
-    },
-    {
-      name: "Dossier Export",
-      url: "#",
-      icon: (
-        <FileChartColumnIcon
-        />
-      ),
-    },
-    {
-      name: "Airworthiness",
-      url: "#",
-      icon: (
-        <FileIcon
-        />
-      ),
-    },
-  ],
-}
+const navMain = [
+  { title: "GCS Overview", url: "/", icon: <LayoutDashboard /> },
+  { title: "Telemetry Matrix", url: "/telemetry", icon: <Activity /> },
+  { title: "Prognostics & Attribution", url: "/prognostics", icon: <Gauge /> },
+  { title: "Thermodynamics & P-V", url: "/thermodynamics", icon: <BarChart3 /> },
+  { title: "CAN Bus FDR", url: "/can", icon: <Database /> },
+  { title: "Maintenance Advisories", url: "/maintenance", icon: <Wrench /> },
+]
+
+const operations = [
+  { name: "Airworthiness", url: "/airworthiness", icon: <FileCheck2 /> },
+  { name: "Flight Data Recorder", url: "/flight-data", icon: <Database /> },
+  { name: "Dossier Export", url: "/dossier", icon: <FileChartColumn /> },
+]
+
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton
-              className="data-[slot=sidebar-menu-button]:p-1.5!"
-              render={<a href="#" />}
-            >
-              <CommandIcon className="size-5!" />
-              <span className="text-base font-semibold">UAV-07 / GCS</span>
+            <SidebarMenuButton render={<Link href="/" />} className="p-1.5!">
+              <span className="font-mono text-primary">UAV-07</span>
+              <span className="font-semibold">PROPULSION GCS</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={data.navMain} />
-        <NavDocuments items={data.documents} />
-        <NavSecondary items={data.navSecondary} className="mt-auto" />
+        <NavMain items={navMain} />
+        <SidebarGroup>
+          <SidebarGroupLabel>Engineering</SidebarGroupLabel>
+          <SidebarMenu>
+            {operations.map((item) => (
+              <SidebarMenuItem key={item.name}>
+                <SidebarMenuButton render={<Link href={item.url} />} tooltip={item.name}>
+                  {item.icon}
+                  <span>{item.name}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            ))}
+          </SidebarMenu>
+        </SidebarGroup>
+        <NavSecondary items={[{ title: "System Settings", url: "/settings", icon: <Settings2 /> }]} className="mt-auto" />
       </SidebarContent>
-      <SidebarFooter>
-        <NavUser user={data.user} />
-      </SidebarFooter>
     </Sidebar>
   )
 }

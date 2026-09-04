@@ -10,6 +10,7 @@ import {
   FileCheck2,
   Gauge,
   LayoutDashboard,
+  Plane,
   Settings2,
   Wrench,
 } from "lucide-react"
@@ -33,6 +34,7 @@ const navMain = [
   { title: "Thermodynamics & P-V", url: "/thermodynamics", icon: <BarChart3 /> },
   { title: "CAN Bus FDR", url: "/can", icon: <Database /> },
   { title: "Maintenance Advisories", url: "/maintenance", icon: <Wrench /> },
+  { title: "Multi-UAV Fleet", url: "/fleet", icon: <Plane /> },
 ]
 
 const operations = [

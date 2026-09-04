@@ -37,27 +37,27 @@ PROFILES = {
     "NORMAL": dict(
         altitude_ft=3000, oat_c=15.0, rpm_factor=1.00, cht_offset=0.0,
         egt_factor=1.00, oil_factor=1.00, fuel_factor=1.00, vib_factor=1.00,
-        map_kpa=96.0, base_hz=10, description="Standard ISR patrol at 3,000 ft MSL"
+        map_kpa=96.0, base_hz=1.0, description="Standard ISR patrol at 3,000 ft MSL"
     ),
     "HIGH_ALTITUDE": dict(
         altitude_ft=18000, oat_c=-20.0, rpm_factor=0.92, cht_offset=-18.0,
         egt_factor=1.12, oil_factor=0.92, fuel_factor=1.16, vib_factor=1.08,
-        map_kpa=52.0, base_hz=10, description="High Altitude Loiter at 18,000 ft (Thin air, high EGT, derated MAP)"
+        map_kpa=52.0, base_hz=1.0, description="High Altitude Loiter at 18,000 ft (Thin air, high EGT, derated MAP)"
     ),
     "HOT_WEATHER": dict(
         altitude_ft=1500, oat_c=45.0, rpm_factor=0.97, cht_offset=48.0,
         egt_factor=1.06, oil_factor=0.86, fuel_factor=1.08, vib_factor=1.06,
-        map_kpa=98.0, base_hz=10, description="Desert / Hot Weather Ops (45°C ambient, elevated CHT & oil temp)"
+        map_kpa=98.0, base_hz=1.0, description="Desert / Hot Weather Ops (45°C ambient, elevated CHT & oil temp)"
     ),
     "ENDURANCE": dict(
         altitude_ft=8000, oat_c=0.0, rpm_factor=0.82, cht_offset=-12.0,
         egt_factor=0.96, oil_factor=1.04, fuel_factor=0.78, vib_factor=0.88,
-        map_kpa=75.0, base_hz=5, description="Max-Endurance Loiter (Lean of peak, fuel conservation, reduced RPM)"
+        map_kpa=75.0, base_hz=0.8, description="Max-Endurance Loiter (Lean of peak, fuel conservation, reduced RPM)"
     ),
     "RAPID_THROTTLE": dict(
         altitude_ft=4000, oat_c=12.0, rpm_factor=1.00, cht_offset=22.0,
         egt_factor=1.08, oil_factor=0.90, fuel_factor=1.20, vib_factor=1.50,
-        map_kpa=102.0, base_hz=10, description="Tactical Evasive Maneuvers (Dynamic throttle surges, high mechanical stress)"
+        map_kpa=102.0, base_hz=1.2, description="Tactical Evasive Maneuvers (Dynamic throttle surges, high mechanical stress)"
     ),
 }
 
@@ -103,47 +103,47 @@ def build_telemetry_packet(row, cycle_idx: int, prof: dict, faults: set) -> dict
     base_rpm = float(row['rpm']) * prof['rpm_factor']
     if "RAPID_THROTTLE" == sim_state["profile"]:
         base_rpm += math.sin(cycle_idx * 0.45) * 160.0
-    rpm = clamp(base_rpm + rng.normal(0, 4.0), 600.0, 2800.0)
+    rpm = clamp(base_rpm + rng.normal(0, 0.6), 600.0, 2800.0)
 
     # per-cylinder CHT — rear cylinders naturally run a bit hotter
     base_cht = float(row['cht']) * 0.60 + prof['cht_offset']  # scale raw data into aero piston range
-    cht_avg = clamp(base_cht + (deg * 35.0) + rng.normal(0, 1.5), 150.0, 520.0)
+    cht_avg = clamp(base_cht + (deg * 35.0) + rng.normal(0, 0.25), 150.0, 520.0)
     cht_cyl = [
-        round(cht_avg - 4.5 + rng.normal(0, 0.8), 1),
-        round(cht_avg - 2.0 + rng.normal(0, 0.8), 1),
-        round(cht_avg + 3.0 + rng.normal(0, 0.8), 1),
-        round(cht_avg + 5.5 + rng.normal(0, 0.8), 1),
+        round(cht_avg - 4.5 + rng.normal(0, 0.15), 1),
+        round(cht_avg - 2.0 + rng.normal(0, 0.15), 1),
+        round(cht_avg + 3.0 + rng.normal(0, 0.15), 1),
+        round(cht_avg + 5.5 + rng.normal(0, 0.15), 1),
     ]
 
     # per-cylinder EGT — same pattern, slight inter-cylinder variation
     base_egt = float(row['egt']) * prof['egt_factor']
-    egt_avg = clamp(base_egt + (deg * 25.0) + rng.normal(0, 4.0), 800.0, 1750.0)
+    egt_avg = clamp(base_egt + (deg * 25.0) + rng.normal(0, 0.6), 800.0, 1750.0)
     egt_cyl = [
-        round(egt_avg - 8.0 + rng.normal(0, 2.0), 1),
-        round(egt_avg - 3.0 + rng.normal(0, 2.0), 1),
-        round(egt_avg + 4.0 + rng.normal(0, 2.0), 1),
-        round(egt_avg + 7.0 + rng.normal(0, 2.0), 1),
+        round(egt_avg - 8.0 + rng.normal(0, 0.4), 1),
+        round(egt_avg - 3.0 + rng.normal(0, 0.4), 1),
+        round(egt_avg + 4.0 + rng.normal(0, 0.4), 1),
+        round(egt_avg + 7.0 + rng.normal(0, 0.4), 1),
     ]
 
     # oil system
-    oil_press = clamp((62.0 - deg * 26.0) * prof['oil_factor'] + rng.normal(0, 1.2), 10.0, 85.0)
-    oil_temp = clamp((175.0 + deg * 35.0 + (prof['cht_offset'] * 0.4)) + rng.normal(0, 1.0), 100.0, 260.0)
+    oil_press = clamp((62.0 - deg * 26.0) * prof['oil_factor'] + rng.normal(0, 0.2), 10.0, 85.0)
+    oil_temp = clamp((175.0 + deg * 35.0 + (prof['cht_offset'] * 0.4)) + rng.normal(0, 0.2), 100.0, 260.0)
 
     # fuel system
-    fuel_flow = clamp((rpm / 1400.0) * 8.5 * prof['fuel_factor'] + (deg * 1.5) + rng.normal(0, 0.12), 0.5, 20.0)
-    fuel_rail_bar = clamp(3.0 - (deg * 0.4) + rng.normal(0, 0.05), 1.0, 5.0)
+    fuel_flow = clamp((rpm / 1400.0) * 8.5 * prof['fuel_factor'] + (deg * 1.5) + rng.normal(0, 0.02), 0.5, 20.0)
+    fuel_rail_bar = clamp(3.0 - (deg * 0.4) + rng.normal(0, 0.01), 1.0, 5.0)
 
     # vibration — kurtosis rises before RMS does when bearing wear starts
-    vib_rms = clamp((0.40 + deg * 2.8) * prof['vib_factor'] + rng.normal(0, 0.05), 0.1, 8.0)
-    vib_kurt = clamp(3.0 + (deg * 2.0) + rng.normal(0, 0.1), 2.5, 8.0)
+    vib_rms = clamp((0.40 + deg * 2.8) * prof['vib_factor'] + rng.normal(0, 0.01), 0.1, 8.0)
+    vib_kurt = clamp(3.0 + (deg * 2.0) + rng.normal(0, 0.02), 2.5, 8.0)
 
     # electrical
-    batt_v = clamp(13.8 - (deg * 0.7) + rng.normal(0, 0.04), 10.5, 15.0)
-    bus_current = clamp(18.0 + (rpm / 2000.0) * 8.0 + rng.normal(0, 0.5), 5.0, 45.0)
+    batt_v = clamp(13.8 - (deg * 0.7) + rng.normal(0, 0.01), 10.5, 15.0)
+    bus_current = clamp(18.0 + (rpm / 2000.0) * 8.0 + rng.normal(0, 0.1), 5.0, 45.0)
 
     # ignition timing retards as wear accumulates
-    inj_timing = clamp(28.0 - (deg * 7.5) + rng.normal(0, 0.25), 12.0, 36.0)
-    map_kpa = clamp(prof['map_kpa'] + rng.normal(0, 0.8), 30.0, 120.0)
+    inj_timing = clamp(28.0 - (deg * 7.5) + rng.normal(0, 0.05), 12.0, 36.0)
+    map_kpa = clamp(prof['map_kpa'] + rng.normal(0, 0.15), 30.0, 120.0)
 
     # apply interactive fault injections — these simulate real failure modes
     misfire_flag = False
@@ -217,6 +217,8 @@ def build_telemetry_packet(row, cycle_idx: int, prof: dict, faults: set) -> dict
 
     # attach CAN frames for the bus monitor panel
     packet["can_frames"] = AeroCANBridge.generate_packet_burst(packet)
+    engine_id = packet.get("engine_id", 1)
+    packet["uav_id"] = f"UAV-0{engine_id}"
 
     return packet
 
@@ -280,13 +282,3 @@ while True:
 
     print("\n[SIM] Complete UAV engine lifecycle completed. Scheduled depot overhaul reset...\n")
     time.sleep(1.0)
-
-# patch to tag packets with UAV ID — added after initial implementation
-# wraps the original function so existing call sites don't need changes
-_original_build = build_telemetry_packet
-
-def build_telemetry_packet(row, cycle_idx, prof, faults):
-    packet = _original_build(row, cycle_idx, prof, faults)
-    engine_id = packet.get("engine_id", 1)
-    packet["uav_id"] = f"UAV-0{engine_id}"
-    return packet

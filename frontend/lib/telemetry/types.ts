@@ -62,6 +62,10 @@ export interface PhysicsResiduals {
   delta_cht?: number
   delta_oil_p?: number
   delta_fuel?: number
+  expected_egt?: number
+  expected_cht?: number
+  expected_oil_p?: number
+  expected_fuel?: number
 }
 
 export interface PhysicsState {
@@ -72,6 +76,8 @@ export interface PhysicsState {
   bsfc_g_kwh?: number
   thermal_efficiency?: number
   volumetric_eff?: number
+  volumetric_efficiency?: number
+  air_fuel_ratio?: number
   ideal_otto_eff?: number
   thermal_ratio?: number
   pv_diagram?: PvPoint[]
@@ -131,6 +137,15 @@ export interface MaintenanceAdvisory {
   steps?: string[]
 }
 
+export interface PrescriptiveRecommendation {
+  severity: "INFO" | "WARNING" | "CRITICAL" | "EMERGENCY" | string
+  action: string
+  operational?: string
+  maintenance?: string
+  expected_benefit?: string
+  source?: string
+}
+
 export interface TelemetryPayload {
   cycle?: number
   engine_id?: number
@@ -143,6 +158,7 @@ export interface TelemetryPayload {
   rul_ci_lower?: number
   rul_ci_upper?: number
   rul_mc_std?: number
+  failure_probability?: number
   physics?: PhysicsState
   rpm?: number
   cht?: number
@@ -168,6 +184,75 @@ export interface TelemetryPayload {
   xai?: XaiState
   can_frames?: CanFrame[]
   advisories?: MaintenanceAdvisory[]
+  prescriptive?: PrescriptiveRecommendation[]
+  twin_consistency?: {
+    consistency_score?: number
+    case?: string
+    case_label?: string
+    narrative?: string
+    ai_agreement?: number
+    physics_agreement?: number
+    sensor_integrity?: number
+  }
+  sensor_integrity?: {
+    integrity_score?: number
+    per_channel?: Record<string, { confidence: number; status: string; issues: string[] }>
+  }
+  telemetry_integrity?: {
+    integrity_score?: number
+    packet_loss_rate?: number
+    total_packets?: number
+    duplicate_packets?: number
+  }
+  mission_risk?: {
+    mission_completion_probability?: number
+    abort_probability?: number
+    critical_failure_probability?: number
+    safe_operating_time_h?: number
+    risk_level?: string
+    risk_narrative?: string
+    components?: {
+      engine_reliability?: number
+      thermal_margin?: number
+      rul_time_margin?: number
+      environmental?: number
+      fault_penalty?: number
+    }
+  }
+  fleet_status?: Array<{
+    uav_id: string
+    health_index: number
+    rul: number
+    alert: string
+    active_faults?: string[]
+  }>
+  demo_state?: {
+    active: boolean
+    step: number
+    title: string
+    description: string
+  }
+  whatif_result?: {
+    baseline?: Record<string, number>
+    counterfactual?: Record<string, number>
+    deltas?: Record<string, number>
+    narrative?: string
+    rul_impact?: number
+  }
+  optimize_result?: {
+    optimal_rpm?: number
+    optimal_alt?: number
+    projected_power_hp?: number
+    projected_bsfc?: number
+    risk_reduction_pct?: number
+    fuel_savings_pct?: number
+    recommendations?: string[]
+  }
+  ai_engineer_response?: {
+    question?: string
+    answer?: string
+    timestamp?: number
+  }
 }
 
 export interface SensorHistoryPoint {
@@ -206,7 +291,7 @@ export interface SetProfileCommand {
 
 export interface SetSpeedCommand {
   command: "set_speed"
-  speed: ReplaySpeed
+  speed: ReplaySpeed | number
 }
 
 export interface SetPausedCommand {
@@ -216,11 +301,44 @@ export interface SetPausedCommand {
 
 export interface InjectFaultCommand {
   command: "inject_fault"
-  fault: FaultType
+  fault: FaultType | string
 }
 
 export interface ClearFaultsCommand {
   command: "clear_faults"
+}
+
+export interface WhatIfCommand {
+  command: "whatif"
+  params: Record<string, number>
+}
+
+export interface OptimizeCommand {
+  command: "optimize"
+  constraints?: Record<string, any>
+}
+
+export interface AIEngineerCommand {
+  command: "ai_engineer_query"
+  question: string
+}
+
+export interface SelectUAVCommand {
+  command: "select_uav"
+  uav_id: string
+}
+
+export interface DemoStartCommand {
+  command: "demo_start"
+}
+
+export interface DemoStepCommand {
+  command: "demo_step"
+  step?: number
+}
+
+export interface DemoStopCommand {
+  command: "demo_stop"
 }
 
 export type TelemetryCommand =
@@ -229,3 +347,10 @@ export type TelemetryCommand =
   | SetPausedCommand
   | InjectFaultCommand
   | ClearFaultsCommand
+  | WhatIfCommand
+  | OptimizeCommand
+  | AIEngineerCommand
+  | SelectUAVCommand
+  | DemoStartCommand
+  | DemoStepCommand
+  | DemoStopCommand

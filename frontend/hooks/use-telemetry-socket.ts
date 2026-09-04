@@ -21,12 +21,26 @@ export function useTelemetrySocket(endpoint = DEFAULT_WS_ENDPOINT) {
     React.useState<ConnectionStatus>("connecting")
   const history = useTelemetryHistory()
 
+  // ── CRITICAL FIX ─────────────────────────────────────────────────────────
+  // Keep ingestTelemetry in a stable ref so it never appears in the connect()
+  // useCallback dependency array. Previously, `history` was listed as a dep,
+  // which caused React to recreate `connect` on every incoming packet (because
+  // ingestTelemetry dispatches to the reducer, which creates a new `history`
+  // object reference). That triggered the useEffect cleanup, which closed the
+  // WebSocket after the very first received message.
+  const ingestRef = React.useRef(history.ingestTelemetry)
+  React.useLayoutEffect(() => {
+    ingestRef.current = history.ingestTelemetry
+  })
+
   const clearReconnect = React.useCallback(() => {
     if (reconnectRef.current != null) {
       window.clearTimeout(reconnectRef.current)
       reconnectRef.current = null
     }
   }, [])
+
+  const lastUiUpdateRef = React.useRef(0)
 
   const connect = React.useCallback(() => {
     clearReconnect()
@@ -62,8 +76,24 @@ export function useTelemetrySocket(endpoint = DEFAULT_WS_ENDPOINT) {
         }
 
         setConnectionStatus("live")
-        setLatestTelemetry(payload)
-        history.ingestTelemetry(payload)
+        // Always ingest into rolling history and logs
+        ingestRef.current(payload)
+
+        // Calm, readable UI update rate (at most once every 600ms),
+        // but immediately push updates on urgent state changes or tool responses!
+        const now = Date.now()
+        const isUrgent =
+          payload.is_anomaly ||
+          payload.alert === "CRITICAL" ||
+          payload.alert === "WARNING" ||
+          payload.whatif_result != null ||
+          payload.optimize_result != null ||
+          payload.ai_engineer_response != null
+
+        if (now - lastUiUpdateRef.current >= 600 || isUrgent) {
+          lastUiUpdateRef.current = now
+          setLatestTelemetry(payload)
+        }
       }
 
       socket.onclose = () => {
@@ -73,7 +103,7 @@ export function useTelemetrySocket(endpoint = DEFAULT_WS_ENDPOINT) {
           return
         }
         setConnectionStatus("reconnecting")
-        reconnectRef.current = window.setTimeout(connect, 1000)
+        reconnectRef.current = window.setTimeout(connect, 1500)
       }
 
       socket.onerror = () => {
@@ -81,9 +111,10 @@ export function useTelemetrySocket(endpoint = DEFAULT_WS_ENDPOINT) {
       }
     } catch {
       setConnectionStatus("reconnecting")
-      reconnectRef.current = window.setTimeout(connect, 1000)
+      reconnectRef.current = window.setTimeout(connect, 1500)
     }
-  }, [clearReconnect, endpoint, history])
+    // NOTE: `history` is intentionally excluded from deps — we use ingestRef
+  }, [clearReconnect, endpoint])
 
   React.useEffect(() => {
     connect()

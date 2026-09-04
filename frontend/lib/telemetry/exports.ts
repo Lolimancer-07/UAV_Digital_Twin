@@ -148,3 +148,60 @@ export function downloadTextFile(filename: string, contents: string, type: strin
   anchor.click()
   URL.revokeObjectURL(url)
 }
+
+export function serializeTelemetryLogCsv(
+  telemetryLog: TelemetryPayload[],
+  latest?: TelemetryPayload
+) {
+  const list = telemetryLog.length > 0 ? telemetryLog : latest ? [latest] : []
+  const headers = [
+    "Cycle",
+    "Timestamp",
+    "RPM",
+    "CHT_C",
+    "EGT_C",
+    "Oil_Pressure_bar",
+    "Oil_Temp_C",
+    "Fuel_Flow_L_hr",
+    "Fuel_Rail_bar",
+    "Vibration_g",
+    "Vib_Kurtosis",
+    "Battery_V",
+    "Bus_Current_A",
+    "Inj_Timing_deg",
+    "Altitude_ft",
+    "OAT_C",
+    "MAP_kPa",
+    "Health_Index",
+    "Predicted_RUL",
+    "Alert_Status",
+    "Is_Anomaly",
+  ]
+
+  const rows = list.map((t, idx) => [
+    t.cycle ?? idx + 1,
+    new Date().toISOString(),
+    t.rpm != null ? t.rpm.toFixed(1) : "",
+    t.cht != null ? t.cht.toFixed(1) : "",
+    t.egt != null ? t.egt.toFixed(1) : "",
+    t.oil_pressure != null ? t.oil_pressure.toFixed(2) : "",
+    t.oil_temp != null ? t.oil_temp.toFixed(1) : "",
+    t.fuel_flow != null ? t.fuel_flow.toFixed(2) : "",
+    t.fuel_rail_pressure_bar != null ? t.fuel_rail_pressure_bar.toFixed(2) : "",
+    t.vibration != null ? t.vibration.toFixed(3) : "",
+    t.vibration_kurtosis != null ? t.vibration_kurtosis.toFixed(2) : "",
+    t.battery_v != null ? t.battery_v.toFixed(2) : "",
+    t.bus_current_a != null ? t.bus_current_a.toFixed(1) : "",
+    t.inj_timing != null ? t.inj_timing.toFixed(1) : "",
+    t.altitude_ft != null ? Math.round(t.altitude_ft) : "",
+    t.oat_c != null ? t.oat_c.toFixed(1) : "",
+    t.map_kpa != null ? t.map_kpa.toFixed(1) : "",
+    t.health?.health_index != null ? Math.round(t.health.health_index) : "",
+    t.predicted_rul != null ? Math.round(t.predicted_rul) : "",
+    `"${t.alert ?? "NOMINAL"}"`,
+    t.is_anomaly ? "TRUE" : "FALSE",
+  ].join(","))
+
+  return [headers.join(","), ...rows].join("\n")
+}
+

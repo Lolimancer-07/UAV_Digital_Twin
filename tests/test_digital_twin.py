@@ -272,5 +272,266 @@ class TestFleetManager(unittest.TestCase):
         fleet_manager.select_uav('UAV-01')
 
 
+class TestEngineConfigRegistry(unittest.TestCase):
+    """Verifies engine profile configuration and threshold management."""
+
+    def setUp(self):
+        try:
+            from engine_config import set_engine_class
+            set_engine_class("ROTAX_914_F")
+        except ImportError:
+            pass
+
+    def test_engine_profile_switching(self):
+        from engine_config import get_engine_config, set_engine_class, list_engine_classes, get_active_engine_class
+        engines = list_engine_classes()
+        self.assertIn("ROTAX_914", engines)
+        self.assertIn("AUSTRO_AE300", engines)
+
+        # Default Rotax 914
+        cfg_rotax = get_engine_config("ROTAX_914")
+        self.assertEqual(cfg_rotax["specs"]["compression_ratio"], 9.0)
+        self.assertEqual(cfg_rotax["specs"]["rated_power_hp"], 115.0)
+
+        # Switch to Austro AE300
+        set_engine_class("AUSTRO_AE300")
+        self.assertEqual(get_active_engine_class(), "AUSTRO_AE300")
+        cfg_austro = get_engine_config()
+        self.assertEqual(cfg_austro["specs"]["compression_ratio"], 17.5)
+        self.assertEqual(cfg_austro["specs"]["rated_power_hp"], 168.0)
+
+        # Revert back
+        set_engine_class("ROTAX_914")
+
+
+class TestTelemetryDriftDetector(unittest.TestCase):
+    """Verifies rolling distribution tracking and telemetry drift detection."""
+
+    def test_nominal_distribution_no_drift(self):
+        from drift_detector import TelemetryDriftDetector
+        detector = TelemetryDriftDetector(window_size=30, psi_threshold=0.25)
+        # Push 35 samples drawn from nominal baseline distribution
+        for _ in range(35):
+            sample = {
+                'rpm': float(np.random.normal(1400, 10)),
+                'cht': float(np.random.normal(380, 8)),
+                'egt': float(np.random.normal(1585, 12)),
+                'oil_pressure': float(np.random.normal(58, 2)),
+                'vibration': float(np.random.normal(0.65, 0.1))
+            }
+            res = detector.update(sample)
+
+        self.assertFalse(res.get("drift_detected", False))
+        self.assertEqual(res.get("status"), "NOMINAL")
+
+    def test_drift_detection_on_shifted_telemetry(self):
+        from drift_detector import TelemetryDriftDetector
+        detector = TelemetryDriftDetector(window_size=30, psi_threshold=0.25)
+        # Push 35 severely drifted samples (e.g. thermal runaway and oil drop)
+        for _ in range(35):
+            sample = {
+                'rpm': 2750.0,
+                'cht': 510.0,
+                'egt': 1720.0,
+                'oil_pressure': 22.0,
+                'vibration': 3.8
+            }
+            res = detector.update(sample)
+
+        self.assertTrue(res.get("drift_detected", False))
+        self.assertIn(res.get("status"), ["WARNING", "CRITICAL"])
+        self.assertGreater(res.get("max_psi", 0.0), 0.25)
+
+
+class TestAutonomousMaintenanceAdvisor(unittest.TestCase):
+    """Verifies deterministic multi-fault prioritization and ATA chapter mapping."""
+
+    def test_multi_fault_priority_ranking(self):
+        from maintenance_advisor import AutonomousMaintenanceAdvisor
+        # Active concurrent faults: high vibration (WARNING), low oil pressure (EMERGENCY), overheating (CRITICAL)
+        fault_events = [
+            {"name": "HIGH_VIBRATION", "severity": "WARNING"},
+            {"name": "LOW_OIL_PRESSURE", "severity": "CRITICAL"},
+            {"name": "OVERHEATING", "severity": "CRITICAL"},
+        ]
+        cards = AutonomousMaintenanceAdvisor.generate_advisories(
+            telemetry={"rpm": 2200},
+            fault_events=fault_events,
+            predicted_rul=120.0,
+            health_index=65.0
+        )
+        self.assertGreaterEqual(len(cards), 3)
+
+        # Rank 1 must be LOW_OIL_PRESSURE (ATA 79)
+        top_card = cards[0]
+        self.assertEqual(top_card.get("source_fault"), "LOW_OIL_PRESSURE")
+        self.assertEqual(top_card.get("priority_rank"), 1)
+        self.assertIn("79", top_card.get("ata_chapter", ""))
+
+        # Rank 2 must be OVERHEATING (ATA 75)
+        second_card = cards[1]
+        self.assertEqual(second_card.get("source_fault"), "OVERHEATING")
+        self.assertEqual(second_card.get("priority_rank"), 2)
+        self.assertIn("75", second_card.get("ata_chapter", ""))
+
+    def test_nominal_advisory_when_clear(self):
+        from maintenance_advisor import AutonomousMaintenanceAdvisor
+        cards = AutonomousMaintenanceAdvisor.generate_advisories(
+            telemetry={"rpm": 2200},
+            fault_events=[],
+            predicted_rul=180.0,
+            health_index=95.0
+        )
+        self.assertEqual(len(cards), 1)
+        self.assertEqual(cards[0].get("task_id"), "ATA 05-00-00")
+        self.assertEqual(cards[0].get("priority"), "OK")
+
+
+class TestXAIAttributionNormalization(unittest.TestCase):
+    """Verifies XAI attribution sums to exactly 100.0% and correctly identifies top drivers."""
+
+    def test_xai_attribution_normalization(self):
+        from xai_engine import XAIDiagnosticEngine
+        telemetry = {
+            'rpm': 2100.0, 'cht': 490.0, 'egt': 1420.0,
+            'oil_pressure': 22.0, 'vibration': 0.8
+        }
+        res = XAIDiagnosticEngine.explain_anomaly(
+            telemetry=telemetry,
+            is_anomaly=True,
+            anomaly_score=0.78,
+            active_faults=[{"name": "LOW_OIL_PRESSURE", "severity": "CRITICAL"}]
+        )
+        attributions = res.get("attributions", [])
+        self.assertGreater(len(attributions), 0)
+
+        total_attribution = sum(a["attribution"] for a in attributions)
+        self.assertAlmostEqual(total_attribution, 100.0, places=1)
+        self.assertTrue(len(res.get("top_driver", "")) > 0)
+
+
+class TestAeroCANBridge(unittest.TestCase):
+    """Verifies J1939 CAN frame generation, SPN schemas, and byte encoding."""
+
+    def test_j1939_can_frame_structure(self):
+        SIM_DIR = os.path.join(ROOT, 'simulator')
+        if SIM_DIR not in sys.path:
+            sys.path.insert(0, SIM_DIR)
+        from can_bridge import AeroCANBridge
+
+        telemetry = {
+            "rpm": 2400.0, "cht": 385.0, "oil_pressure": 55.0,
+            "oil_temp": 180.0, "fuel_flow": 11.5, "battery_v": 27.8,
+            "vibration": 0.95, "vibration_kurtosis": 3.1, "cycle": 42
+        }
+        frames = AeroCANBridge.generate_packet_burst(telemetry)
+        self.assertEqual(len(frames), 6)
+
+        pgns = [f["pgn"] for f in frames]
+        self.assertIn(61444, pgns)  # EEC1
+        self.assertIn(65262, pgns)  # ET1
+        self.assertIn(65263, pgns)  # EFLP
+        self.assertIn(65271, pgns)  # VEP
+
+        # Verify SPN decoding present on EEC1 frame
+        eec1_frame = next(f for f in frames if f["pgn"] == 61444)
+        self.assertIn("spns", eec1_frame)
+        self.assertGreaterEqual(len(eec1_frame["spns"]), 2)
+        spn_nums = [s["spn"] for s in eec1_frame["spns"]]
+        self.assertIn(190, spn_nums)  # Engine speed
+
+
+class TestMvpJudgeFlow(unittest.TestCase):
+    """Verifies the core MVP Detect -> Validate -> Predict -> Explain -> Simulate -> Recommend flow."""
+
+    def test_cylinder3_cooling_degradation_fault(self):
+        """Verify Cylinder 3 cooling fault creates CHT spike, high residual, and Case B fault."""
+        telemetry = {
+            "rpm": 2400.0,
+            "cht": 435.0,
+            "cht_cyl": [380.0, 395.0, 448.0, 385.0],
+            "egt": 1620.0,
+            "egt_cyl": [1460.0, 1465.0, 1530.0, 1475.0],
+            "oil_pressure": 52.0,
+            "oil_temp": 215.0,
+            "fuel_flow": 10.5,
+            "altitude_ft": 3000,
+        }
+        res = physics_model.evaluate_performance(telemetry)
+        residuals = res.get("residuals", {})
+        self.assertGreater(residuals.get("delta_cht", 0), 25.0)
+
+        # Cross-validation with high CHT, EGT, Oil P & Fuel residuals
+        twin_res = compute_twin_consistency(
+            is_anomaly=True,
+            anomaly_score=-0.28,
+            physics_residuals={"delta_cht": 58.0, "delta_egt": 110.0, "delta_oil_p": 25.0, "delta_fuel": 3.0},
+            sensor_integrity_score=95.0,
+        )
+        self.assertEqual(twin_res["case"], "B")
+        self.assertEqual(twin_res["case_label"], "HIGH_CONFIDENCE_FAULT")
+
+    def test_whatif_rpm_reduction_simulation(self):
+        """Verify What-If simulation for -200 RPM produces lower thermal load and recovered RUL."""
+        baseline = {
+            "rpm": 2400.0,
+            "cht": 425.0,
+            "egt": 1610.0,
+            "oil_pressure": 55.0,
+            "fuel_flow": 10.5,
+            "altitude_ft": 3000,
+            "cht_cyl": [380.0, 390.0, 435.0, 385.0],
+        }
+        res = simulate_whatif(
+            current_state=baseline,
+            overrides={"rpm": 2200.0},
+            current_rul=42.0,
+            current_health=52.0,
+            physics_model=physics_model,
+            health_fn=compute_health_index,
+            anomaly_score=-0.25,
+            fault_names=["COOLING_DEGRADATION"],
+        )
+        self.assertEqual(res["counterfactual"]["rpm"], 2200.0)
+        self.assertLess(res["counterfactual"]["cht"], res["current"]["cht"])
+        self.assertGreater(res["delta"]["rul"], 0.0)
+        self.assertGreater(res["counterfactual"]["health"], res["current"]["health"])
+
+    def test_prescriptive_recommendation_cooling_fault(self):
+        """Verify prescriptive engine recommends RPM reduction for cooling degradation."""
+        recs = generate_prescriptive_recommendations(
+            fault_events=[{"name": "COOLING_DEGRADATION", "severity": "WARNING"}],
+            predicted_rul=45.0,
+            health_index=60.0,
+            twin_consistency={"case": "B"},
+            mission_risk={"risk_level": "HIGH"},
+        )
+        self.assertGreater(len(recs), 0)
+        cooling_rec = next((r for r in recs if "COOLING" in r.get("source", "") or "RPM" in r.get("action", "") or "RPM" in r.get("operational", "")), recs[0])
+        self.assertTrue("power" in cooling_rec["action"] or "RPM" in cooling_rec["operational"])
+
+    def test_fleet_manager_multi_uav_switching(self):
+        """Verify FleetManager tracks 4 UAVs and updates selected active UAV."""
+        status = fleet_manager.get_fleet_status()
+        self.assertEqual(len(status), 4)
+
+        # Switch to UAV-02
+        self.assertTrue(fleet_manager.select_uav("UAV-02"))
+        self.assertEqual(fleet_manager.active_uav_id, "UAV-02")
+        self.assertEqual(fleet_manager.get_active_engine_id(), 2)
+
+        # Update UAV-02 with telemetry
+        fleet_manager.update_uav("UAV-02", {"health": {"health_index": 88.5}, "predicted_rul": 112.0})
+        uav2_status = next(u for u in fleet_manager.get_fleet_status() if u["uav_id"] == "UAV-02")
+        self.assertEqual(uav2_status["health"], 88.5)
+        self.assertEqual(uav2_status["rul"], 112.0)
+        self.assertTrue(uav2_status["is_active"])
+
+        # Switch back to UAV-01
+        fleet_manager.select_uav("UAV-01")
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
+
+

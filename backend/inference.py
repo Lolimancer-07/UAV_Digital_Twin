@@ -325,7 +325,8 @@ def on_message(client, userdata, msg):
     }
 
     # update the fleet state for the active UAV
-    fleet_manager.update_uav("UAV-01", payload)
+    active_uav = data.get("uav_id", fleet_manager.active_uav_id)
+    fleet_manager.update_uav(active_uav, payload)
 
     latest_state.update(payload)
     latest_payload = json.dumps(payload)
@@ -338,7 +339,7 @@ def process_gcs_command(cmd: Dict[str, Any]):
     action = cmd.get("command")
 
     # start with sane defaults in case the file doesn't exist yet
-    current_cfg = {"mode": "NORMAL", "speed": 1.0, "paused": False, "injected_faults": []}
+    current_cfg = {"mode": "NORMAL", "speed": 1.0, "paused": False, "injected_faults": [], "engine_id": 1, "uav_id": "UAV-01"}
     if os.path.exists(CONTROL_FILE):
         try:
             with open(CONTROL_FILE, 'r') as f:
@@ -423,7 +424,9 @@ def process_gcs_command(cmd: Dict[str, Any]):
     elif action == "select_uav":
         uav_id = cmd.get("uav_id", "UAV-01")
         fleet_manager.select_uav(uav_id)
-        print(f"[GCS CMD] Active UAV switched → {uav_id}")
+        current_cfg["uav_id"] = uav_id
+        current_cfg["engine_id"] = fleet_manager.get_active_engine_id()
+        print(f"[GCS CMD] Active UAV switched → {uav_id} (Engine #{current_cfg['engine_id']})")
 
     elif action == "demo_start":
         demo_controller.start()
@@ -436,6 +439,21 @@ def process_gcs_command(cmd: Dict[str, Any]):
         step = cmd.get("step")
         demo_controller.advance(step)
         print(f"[GCS CMD] Demo step → {demo_controller.current_step}")
+        if demo_controller.current_step == 6 and latest_state:
+            try:
+                cur_rpm = latest_state.get("rpm", 2400)
+                latest_state["whatif_result"] = simulate_whatif(
+                    current_state=latest_state,
+                    overrides={"rpm": max(1200, cur_rpm - 200)},
+                    current_rul=latest_state.get("predicted_rul", 0),
+                    current_health=latest_state.get("health", {}).get("health_index", 50),
+                    physics_model=physics_model,
+                    health_fn=compute_health_index,
+                    anomaly_score=latest_state.get("anomaly_score", 0),
+                    fault_names=[f["name"] for f in latest_state.get("fault_events", [])],
+                )
+            except Exception as e:
+                print(f"[DEMO] Auto whatif error: {e}")
 
     elif action == "demo_stop":
         demo_controller.stop()

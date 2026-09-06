@@ -7,68 +7,34 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useTelemetry } from "@/components/telemetry-provider"
 
-interface FleetUav {
-  id: string
-  callsign: string
+interface FleetItem {
+  uav_id: string
+  call_sign: string
   mission: string
   health: number
   rul: number
-  flightHours: number
-  alert: "NOMINAL" | "WARNING" | "CRITICAL"
-  faults: string[]
+  condition: string
+  fault_count: number
+  alert: string
+  status_color: string
+  status_dot: string
+  is_active: boolean
+  mission_probability: number
 }
+
+const DEFAULT_FLEET: FleetItem[] = [
+  { uav_id: "UAV-01", call_sign: "ALPHA-01", mission: "ISR-LOITER", health: 94, rul: 142, condition: "EXCELLENT", fault_count: 0, alert: "NOMINAL", status_color: "ok", status_dot: "🟢", is_active: true, mission_probability: 92.0 },
+  { uav_id: "UAV-02", call_sign: "ALPHA-02", mission: "ROUTE-SURVEY", health: 87, rul: 112, condition: "GOOD", fault_count: 0, alert: "NOMINAL", status_color: "ok", status_dot: "🟢", is_active: false, mission_probability: 88.0 },
+  { uav_id: "UAV-03", call_sign: "BRAVO-01", mission: "HOT-STANDBY", health: 78, rul: 52, condition: "FAIR", fault_count: 1, alert: "WARNING", status_color: "warn", status_dot: "🟡", is_active: false, mission_probability: 74.0 },
+  { uav_id: "UAV-04", call_sign: "BRAVO-02", mission: "MAINTENANCE", health: 68, rul: 18, condition: "CRITICAL", fault_count: 2, alert: "CRITICAL", status_color: "crit", status_dot: "🔴", is_active: false, mission_probability: 45.0 },
+]
 
 export function FleetPanel() {
   const { latestTelemetry, sendCommand } = useTelemetry()
 
-  const activeUavId = latestTelemetry?.uav_id ?? "UAV-07"
-  const liveHealth = latestTelemetry?.health?.health_index ?? 92
-  const liveRul = latestTelemetry?.predicted_rul ? Math.round(latestTelemetry.predicted_rul) : 1184
-  const liveAlert = (latestTelemetry?.alert as any) ?? "NOMINAL"
-  const liveFaults = (latestTelemetry?.fault_events ?? []).map((f) => (f.name || "FAULT").replace(/_/g, " "))
-
-  const fleet: FleetUav[] = [
-    {
-      id: "UAV-07",
-      callsign: "VIPER-07 (CURRENT)",
-      mission: "Primary ISR Patrol (3,000 ft MSL)",
-      health: Math.round(liveHealth),
-      rul: liveRul,
-      flightHours: 428.4,
-      alert: liveAlert,
-      faults: liveFaults,
-    },
-    {
-      id: "UAV-02",
-      callsign: "CONDOR-02",
-      mission: "High Altitude Loiter (18,000 ft MSL)",
-      health: 84,
-      rul: 1120,
-      flightHours: 215.1,
-      alert: "NOMINAL",
-      faults: [],
-    },
-    {
-      id: "UAV-03",
-      callsign: "GHOST-03",
-      mission: "Tactical Evasive Intercept",
-      health: 62,
-      rul: 520,
-      flightHours: 640.8,
-      alert: "WARNING",
-      faults: ["Cooling Margin Degraded"],
-    },
-    {
-      id: "UAV-04",
-      callsign: "FALCON-04",
-      mission: "Depot Overhaul Test Cell",
-      health: 28,
-      rul: 64,
-      flightHours: 980.2,
-      alert: "CRITICAL",
-      faults: ["Exhaust Valve Erosion", "Oil Scavenge Loss"],
-    },
-  ]
+  const rawFleet = latestTelemetry?.fleet_status as FleetItem[] | undefined
+  const fleetList = rawFleet && rawFleet.length > 0 ? rawFleet : DEFAULT_FLEET
+  const activeUavId = latestTelemetry?.uav_id ?? fleetList.find(u => u.is_active)?.uav_id ?? "UAV-01"
 
   const handleSelectUav = (uavId: string) => {
     sendCommand({
@@ -77,41 +43,46 @@ export function FleetPanel() {
     })
   }
 
+  const dispatchableCount = fleetList.filter(u => u.health >= 50).length
+  const fleetReadinessPct = Math.round((dispatchableCount / fleetList.length) * 100)
+  const meanHealth = Math.round(fleetList.reduce((acc, u) => acc + u.health, 0) / fleetList.length)
+  const aogCount = fleetList.filter(u => u.alert === "CRITICAL" || u.health < 50).length
+
   return (
     <div className="flex flex-col gap-4">
       {/* ── Top Status Strip ─────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Card className="bg-card/70 p-4">
           <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Fleet Readiness</div>
-          <div className="mt-1 font-mono text-xl font-bold text-emerald-500">75.0%</div>
-          <div className="text-[11px] text-muted-foreground">3 of 4 airframes dispatchable</div>
+          <div className="mt-1 font-mono text-xl font-bold text-emerald-500">{fleetReadinessPct}%</div>
+          <div className="text-[11px] text-muted-foreground">{dispatchableCount} of {fleetList.length} airframes dispatchable</div>
         </Card>
         <Card className="bg-card/70 p-4">
           <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Active Digital Twins</div>
-          <div className="mt-1 font-mono text-xl font-bold text-primary">4 Synced</div>
+          <div className="mt-1 font-mono text-xl font-bold text-primary">{fleetList.length} Synced</div>
           <div className="text-[11px] text-muted-foreground">10 Hz multi-node MQTT bridge</div>
         </Card>
         <Card className="bg-card/70 p-4">
           <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Fleet Mean Health</div>
           <div className="mt-1 font-mono text-xl font-bold text-foreground">
-            {Math.round(fleet.reduce((acc, u) => acc + u.health, 0) / fleet.length)} / 100
+            {meanHealth} / 100
           </div>
           <div className="text-[11px] text-muted-foreground">Fleet Weibull distribution</div>
         </Card>
         <Card className="bg-card/70 p-4">
           <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">AOG Warnings</div>
-          <div className="mt-1 font-mono text-xl font-bold text-destructive">1 Unit</div>
-          <div className="text-[11px] text-muted-foreground">UAV-04 scheduled for depot</div>
+          <div className="mt-1 font-mono text-xl font-bold text-destructive">{aogCount} Unit{aogCount === 1 ? "" : "s"}</div>
+          <div className="text-[11px] text-muted-foreground">Requires maintenance intervention</div>
         </Card>
       </div>
 
       {/* ── Fleet Airframe Cards Grid ─────────────────────────────────── */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {fleet.map((uav) => {
-          const isSelected = uav.id === activeUavId || (activeUavId.includes("01") && uav.id === "UAV-07")
+        {fleetList.map((uav) => {
+          const isSelected = uav.uav_id === activeUavId || uav.is_active
           return (
             <Card
-              key={uav.id}
+              key={uav.uav_id}
               className={`flex flex-col justify-between transition-all ${
                 isSelected
                   ? "border-primary bg-primary/5 shadow-md ring-1 ring-primary/40"
@@ -121,7 +92,7 @@ export function FleetPanel() {
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <Badge variant="outline" className="font-mono text-xs font-bold text-primary">
-                    {uav.id}
+                    {uav.uav_id}
                   </Badge>
                   <Badge
                     variant={uav.alert === "CRITICAL" ? "destructive" : uav.alert === "WARNING" ? "outline" : "outline"}
@@ -129,10 +100,10 @@ export function FleetPanel() {
                       uav.alert === "WARNING" ? "border-amber-500 text-amber-500" : uav.alert === "NOMINAL" ? "border-emerald-500 text-emerald-500" : ""
                     }`}
                   >
-                    {uav.alert}
+                    {uav.status_dot} {uav.alert}
                   </Badge>
                 </div>
-                <CardTitle className="mt-2 text-sm font-semibold">{uav.callsign}</CardTitle>
+                <CardTitle className="mt-2 text-sm font-semibold">{uav.call_sign} {isSelected ? "(ACTIVE)" : ""}</CardTitle>
                 <CardDescription className="text-xs">{uav.mission}</CardDescription>
               </CardHeader>
 
@@ -141,25 +112,24 @@ export function FleetPanel() {
                   <div>
                     <span className="text-[10px] text-muted-foreground uppercase">Health</span>
                     <div className={`text-base font-bold ${uav.health > 70 ? "text-emerald-500" : uav.health > 40 ? "text-amber-500" : "text-destructive"}`}>
-                      {uav.health} / 100
+                      {uav.health}%
                     </div>
                   </div>
                   <div>
                     <span className="text-[10px] text-muted-foreground uppercase">RUL</span>
-                    <div className="text-base font-bold text-foreground">{uav.rul} c</div>
+                    <div className="text-base font-bold text-foreground">{uav.rul} cycles</div>
                   </div>
-                  <div className="col-span-2 border-t border-border/30 pt-1 text-[11px] text-muted-foreground">
-                    Flight Time: <span className="text-foreground">{uav.flightHours} hrs</span>
+                  <div className="col-span-2 border-t border-border/30 pt-1 text-[11px] text-muted-foreground flex justify-between">
+                    <span>Condition: <strong className="text-foreground">{uav.condition}</strong></span>
+                    <span>Mission: <strong className="text-foreground">{uav.mission_probability}%</strong></span>
                   </div>
                 </div>
 
-                {uav.faults.length > 0 && (
+                {uav.fault_count > 0 && (
                   <div className="flex flex-wrap gap-1">
-                    {uav.faults.map((f, fIdx) => (
-                      <Badge key={fIdx} variant="destructive" className="text-[9px]">
-                        {f}
-                      </Badge>
-                    ))}
+                    <Badge variant="destructive" className="text-[9px]">
+                      {uav.fault_count} ACTIVE FAULT{uav.fault_count > 1 ? "S" : ""}
+                    </Badge>
                   </div>
                 )}
 
@@ -167,7 +137,7 @@ export function FleetPanel() {
                   size="sm"
                   variant={isSelected ? "default" : "outline"}
                   disabled={isSelected}
-                  onClick={() => handleSelectUav(uav.id)}
+                  onClick={() => handleSelectUav(uav.uav_id)}
                   className="w-full text-xs font-semibold"
                 >
                   {isSelected ? "ACTIVE TWIN TARGET" : "SWITCH DIGITAL TWIN"}
@@ -180,3 +150,4 @@ export function FleetPanel() {
     </div>
   )
 }
+

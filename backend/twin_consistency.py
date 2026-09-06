@@ -17,13 +17,24 @@ and overall sensor integrity. Low score = something is wrong somewhere.
 
 from typing import Dict, Any
 
-# thresholds for when we say the physics model is "disagreeing"
-PHYSICS_THRESHOLDS = {
+try:
+    from backend.engine_config import get_engine_config
+except ImportError:
+    try:
+        from engine_config import get_engine_config
+    except ImportError:
+        get_engine_config = lambda: {"residual_thresholds": {
+            "delta_egt": 60.0, "delta_cht": 30.0, "delta_oil_p": 12.0, "delta_fuel": 1.5
+        }}
+
+# default thresholds for when we say the physics model is "disagreeing"
+DEFAULT_PHYSICS_THRESHOLDS = {
     "delta_egt":   60.0,   # °F residual before we call it a physics violation
     "delta_cht":   30.0,   # °F
     "delta_oil_p": 12.0,   # PSI
     "delta_fuel":  1.5,    # L/h
 }
+PHYSICS_THRESHOLDS = DEFAULT_PHYSICS_THRESHOLDS
 
 # how much each component contributes to the final consistency score
 CONSISTENCY_WEIGHTS = {
@@ -38,6 +49,7 @@ def compute_twin_consistency(
     anomaly_score: float,
     physics_residuals: dict,
     sensor_integrity_score: float,
+    thresholds: dict = None,
 ) -> dict:
     """
     Computes the AI+Physics cross-validation matrix and twin consistency score.
@@ -60,9 +72,10 @@ def compute_twin_consistency(
 
     # physics agreement score (0–100)
     # count up how badly each residual exceeds its threshold
+    active_thresh = thresholds or get_engine_config().get("residual_thresholds", DEFAULT_PHYSICS_THRESHOLDS)
     physics_violations = 0.0
-    max_possible_violations = len(PHYSICS_THRESHOLDS)
-    for key, threshold in PHYSICS_THRESHOLDS.items():
+    max_possible_violations = len(active_thresh)
+    for key, threshold in active_thresh.items():
         delta = abs(physics_residuals.get(key, 0.0))
         if delta > threshold:
             violation_severity = min(1.0, (delta - threshold) / threshold)

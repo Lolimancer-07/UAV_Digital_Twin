@@ -67,8 +67,12 @@ function AlertBadge() {
 }
 
 import { ExportDialog } from "@/components/export-dialog"
+import { JargonGuideDialog } from "@/components/jargon-guide-dialog"
 
 export function SiteHeader() {
+  const { latestTelemetry } = useTelemetry()
+  const activeUavId = latestTelemetry?.uav_id ?? "UAV-01"
+
   return (
     <header className="flex h-(--header-height) shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)">
       <div className="flex w-full items-center gap-1 px-4 lg:gap-2 lg:px-6">
@@ -79,8 +83,8 @@ export function SiteHeader() {
         />
         <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
           <div className="hidden min-w-0 md:block">
-            <p className="truncate text-[10px] tracking-[0.18em] text-muted-foreground">
-              UAV-07 · PROPULSION UNIT · ROTAX 914 F ENGINE
+            <p className="truncate text-[10px] tracking-[0.18em] text-muted-foreground font-mono">
+              <span className="font-bold text-primary">{activeUavId}</span> · PROPULSION UNIT · ROTAX 914 F ENGINE
             </p>
             <h1 className="truncate text-base font-semibold tracking-wide">
               UAV PROPULSION GROUND CONTROL STATION
@@ -89,6 +93,7 @@ export function SiteHeader() {
           <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
             <ConnectionBadge />
             <AlertBadge />
+            <JargonGuideDialog />
             <ExportDialog />
             <ThemeToggle />
           </div>

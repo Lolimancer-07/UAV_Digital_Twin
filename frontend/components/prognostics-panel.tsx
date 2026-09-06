@@ -16,6 +16,7 @@ import { AlertCircleIcon, CheckCircle2Icon, GaugeIcon, ShieldAlertIcon, Sparkles
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { useTelemetry } from "@/components/telemetry-provider"
+import { ReliabilityHazardPanel } from "@/components/reliability-panel"
 
 export function PrognosticsPanel() {
   const { latestTelemetry, rulHistory } = useTelemetry()
@@ -231,6 +232,9 @@ export function PrognosticsPanel() {
           </CardContent>
         </Card>
       </div>
+
+      {/* ── Row 3: Weibull Reliability & Bathtub Hazard Analysis ───────── */}
+      <ReliabilityHazardPanel />
     </div>
   )
 }

@@ -116,6 +116,16 @@ export interface XaiState {
   subsystem_impact?: Record<string, number>
 }
 
+export interface CanSpnField {
+  spn: number
+  name: string
+  raw?: number
+  val: string
+  unit: string
+  bits: string
+  res: string
+}
+
 export interface CanFrame {
   timestamp?: number | string
   cycle?: number
@@ -125,6 +135,7 @@ export interface CanFrame {
   dlc?: number
   hex?: string
   decoded?: string
+  spns?: CanSpnField[]
 }
 
 export interface MaintenanceAdvisory {
@@ -226,19 +237,28 @@ export interface TelemetryPayload {
     alert: string
     active_faults?: string[]
   }>
+  cooling_degradation_active?: boolean
+  misfire_active?: boolean
   demo_state?: {
-    active: boolean
-    step: number
-    title: string
-    description: string
+    active?: boolean
+    step?: number
+    title?: string
+    description?: string
   }
   whatif_result?: {
-    baseline?: Record<string, number>
-    counterfactual?: Record<string, number>
-    deltas?: Record<string, number>
+    current?: Record<string, any>
+    counterfactual?: Record<string, any>
+    delta?: Record<string, any>
+    deltas?: Record<string, any>
+    baseline?: Record<string, any>
+    overrides?: Record<string, any>
+    outcome?: string
+    outcome_color?: string
+    thermal_alpha?: number
+    method?: string
     narrative?: string
     rul_impact?: number
-  }
+  } | any
   optimize_result?: {
     optimal_rpm?: number
     optimal_alt?: number

@@ -67,12 +67,14 @@ sim_state = {
     "speed": 1.0,
     "paused": False,
     "injected_faults": set(),
-    "current_cycle": 1
+    "current_cycle": 1,
+    "engine_id": 1,
+    "uav_id": "UAV-01",
 }
 
 
 def read_control():
-    """Reads profile, speed, pause state, and injected faults from the shared JSON control file."""
+    """Reads profile, speed, pause state, engine_id, and injected faults from the shared JSON control file."""
     global sim_state
     try:
         if os.path.exists(CONTROL_FILE):
@@ -82,6 +84,10 @@ def read_control():
             sim_state["speed"] = max(0.2, min(10.0, float(d.get("speed", sim_state["speed"]))))
             sim_state["paused"] = bool(d.get("paused", sim_state["paused"]))
             sim_state["injected_faults"] = set(d.get("injected_faults", []))
+            if "engine_id" in d:
+                sim_state["engine_id"] = int(d["engine_id"])
+            if "uav_id" in d:
+                sim_state["uav_id"] = str(d["uav_id"])
     except Exception:
         pass
 
@@ -163,9 +169,13 @@ def build_telemetry_packet(row, cycle_idx: int, prof: dict, faults: set) -> dict
         egt_cyl[0] += 120.0  # cylinder 1 runs lean and hot
 
     if "cooling_degradation" in faults:
-        cht_avg += 65.0
-        cht_cyl = [c + 65.0 for c in cht_cyl]
-        oil_temp += 38.0
+        # Cylinder 3 cooling efficiency degradation -> severe thermal imbalance
+        cht_cyl[2] += 78.0  # Cylinder 3 overheats (>420°F)
+        egt_cyl[2] += 65.0  # EGT rises on cylinder 3
+        cht_cyl[1] += 20.0  # Collateral rise
+        cht_avg = float(sum(cht_cyl) / len(cht_cyl))
+        egt_avg = float(sum(egt_cyl) / len(egt_cyl))
+        oil_temp += 36.0
         cooling_flag = True
 
     if "oil_leak" in faults:
@@ -187,9 +197,13 @@ def build_telemetry_packet(row, cycle_idx: int, prof: dict, faults: set) -> dict
         vib_rms += 1.6
         egt_avg += 80.0
 
+    active_engine_id = sim_state.get("engine_id", int(row.get('engine_id', 1)))
+    active_uav_id = sim_state.get("uav_id", f"UAV-0{active_engine_id}")
+
     # assemble the full telemetry packet
     packet = {
-        "engine_id":              int(row.get('engine_id', 1)),
+        "engine_id":              active_engine_id,
+        "uav_id":                 active_uav_id,
         "cycle":                  int(row.get('cycle', cycle_idx)),
         "rpm":                    round(float(rpm), 2),
         "cht":                    round(float(cht_avg), 2),
@@ -217,8 +231,6 @@ def build_telemetry_packet(row, cycle_idx: int, prof: dict, faults: set) -> dict
 
     # attach CAN frames for the bus monitor panel
     packet["can_frames"] = AeroCANBridge.generate_packet_burst(packet)
-    engine_id = packet.get("engine_id", 1)
-    packet["uav_id"] = f"UAV-0{engine_id}"
 
     return packet
 
@@ -241,18 +253,27 @@ client.loop_start()
 print(f"[SIM] Loading dataset: {CSV_PATH}")
 df = pd.read_csv(CSV_PATH)
 
-# use engine #1 as the primary UAV lifecycle — if no engine 1, take the first 192 rows
-mission_df = df[df['engine_id'] == 1].reset_index(drop=True)
+current_engine_id = sim_state.get("engine_id", 1)
+mission_df = df[df['engine_id'] == current_engine_id].reset_index(drop=True)
 if len(mission_df) == 0:
     mission_df = df.iloc[:192].reset_index(drop=True)
 
-print(f"[SIM] Initialized UAV-07 propulsion lifecycle ({len(mission_df)} flight cycles).")
+print(f"[SIM] Initialized UAV-0{current_engine_id} propulsion lifecycle ({len(mission_df)} flight cycles).")
 print(f"[SIM] Real-time 10 Hz telemetry active. Ingesting environmental & fault commands...\n")
 
 while True:
     cycle_counter = 1
     for idx, row in mission_df.iterrows():
         read_control()
+
+        # Check if active engine was switched by GCS command
+        if sim_state["engine_id"] != current_engine_id:
+            current_engine_id = sim_state["engine_id"]
+            mission_df = df[df['engine_id'] == current_engine_id].reset_index(drop=True)
+            if len(mission_df) == 0:
+                mission_df = df.iloc[:192].reset_index(drop=True)
+            print(f"\n[SIM] Engine switch triggered -> Active UAV-0{current_engine_id} ({len(mission_df)} flight cycles).\n")
+            break
 
         # pause loop — just keep checking until unpaused
         while sim_state["paused"]:
@@ -268,7 +289,7 @@ while True:
         client.publish(TOPIC, msg, qos=0)
 
         fault_str = f" [FAULTS: {','.join(faults)}]" if faults else ""
-        print(f"Tx [UAV-07 C{cycle_counter:04d}] "
+        print(f"Tx [{payload['uav_id']} C{cycle_counter:04d}] "
               f"RUL={payload['true_rul']:3.0f} | "
               f"RPM={payload['rpm']:6.1f} CHT={payload['cht']:5.1f}°F "
               f"EGT={payload['egt']:6.1f}°F OIL={payload['oil_pressure']:4.1f}PSI "
@@ -280,5 +301,6 @@ while True:
         sleep_dur = (1.0 / prof["base_hz"]) / max(0.2, sim_state["speed"])
         time.sleep(sleep_dur)
 
-    print("\n[SIM] Complete UAV engine lifecycle completed. Scheduled depot overhaul reset...\n")
+    print(f"\n[SIM] UAV-0{current_engine_id} flight cycle completed. Resetting loop...\n")
     time.sleep(1.0)
+

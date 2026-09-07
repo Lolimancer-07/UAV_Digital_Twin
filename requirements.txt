@@ -1,0 +1,18 @@
+# UAV Digital Twin — Core Python Dependencies
+# Tested and certified on Python 3.10+ (tested with Python 3.13)
+
+# Telemetry streaming & broker communication
+paho-mqtt>=2.0.0,<3.0.0      # MQTT client v2 API (tested with 2.1.0)
+websockets>=13.0.0,<18.0.0   # Bidirectional WebSocket server & client (tested with 17.1)
+
+# AI & Prognostics models
+tensorflow>=2.16.0,<2.22.0   # Deep LSTM model inference & Monte Carlo Dropout (tested with 2.21.0)
+scikit-learn>=1.5.0,<1.8.0   # Isolation Forest multivariate anomaly detector (tested with 1.7.2)
+
+# Numerical computing & Thermodynamic physics
+numpy>=1.26.0,<3.0.0         # Array calculations & signal buffers (tested with 2.3.5)
+pandas>=2.2.0,<3.0.0         # Telemetry frame ingestion & rolling windows (tested with 2.3.3)
+scipy>=1.13.0,<1.17.0        # Statistical significance & residual evaluations (tested with 1.16.3)
+
+# Test runner
+pytest>=8.0.0,<9.0.0         # Unit & integration test execution (tested with 8.4.2)

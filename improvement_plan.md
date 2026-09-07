@@ -16,7 +16,9 @@ The project has transitioned from a basic threshold-based telemetry viewer into 
 - [x] **Grounded AI Mission Engineer**: Real-time natural language query console answering pilot questions without hallucinations.
 - [x] **Defense-Grade GCS Dashboard**: 10-tab aerospace cockpit interface with live HUD, canvas sparklines, audio alerts, and theme switching.
 - [x] **Multi-UAV Fleet Monitoring**: Live tracking and individual twin state persistence for 4 UAVs.
-- [x] **Automated Test Suite**: 16 unit and integration tests passing with 100% success rate.
+- [x] **Automated Test Suite**: 32 unit and integration tests passing with 100% success rate (including WebSocket security, Mission Command center, and failure injection verification).
+- [x] **Portable Environment & Pinned Dependencies**: Fully reproducible `requirements.txt` pinning major.minor versions and portable python interpreter resolution in `run.sh`.
+- [x] **WebSocket Control Security**: Localhost-only default binding (`127.0.0.1:8765`) with shared-token authentication against unauthorized remote control injection.
 - [x] **Offline Model Benchmarking**: Legitimate measured evaluation comparing Linear, Random Forest, Gradient Boosting, and LSTM.
 
 ---

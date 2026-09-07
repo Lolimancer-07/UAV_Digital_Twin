@@ -1,7 +1,56 @@
-PYTHON=/home/rishi/anaconda3/bin/python
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 SIM_SRC="$ROOT/simulator/ecu_sim.c"
 SIM_BIN="$ROOT/simulator/ecu_sim"
+
+# Resolve python interpreter portably
+find_python() {
+    # 1. Explicitly activated virtual environment or conda environment
+    if [ -n "$VIRTUAL_ENV" ] && [ -x "$VIRTUAL_ENV/bin/python" ]; then
+        echo "$VIRTUAL_ENV/bin/python"
+        return
+    fi
+    if [ -n "$CONDA_PREFIX" ] && [ -x "$CONDA_PREFIX/bin/python" ]; then
+        echo "$CONDA_PREFIX/bin/python"
+        return
+    fi
+    # 2. Local repository virtual environment
+    if [ -x "$ROOT/.venv/bin/python" ]; then
+        echo "$ROOT/.venv/bin/python"
+        return
+    fi
+    if [ -x "$ROOT/venv/bin/python" ]; then
+        echo "$ROOT/venv/bin/python"
+        return
+    fi
+    # 3. System python3 if dependencies are present
+    if command -v python3 >/dev/null 2>&1 && python3 -c "import numpy" >/dev/null 2>&1; then
+        command -v python3
+        return
+    fi
+    # 4. Standard Anaconda / Miniconda install in user home
+    if [ -x "$HOME/anaconda3/bin/python" ]; then
+        echo "$HOME/anaconda3/bin/python"
+        return
+    fi
+    if [ -x "$HOME/miniconda3/bin/python" ]; then
+        echo "$HOME/miniconda3/bin/python"
+        return
+    fi
+    # 5. System python3 / python fallback
+    if command -v python3 >/dev/null 2>&1; then
+        command -v python3
+        return
+    fi
+    if command -v python >/dev/null 2>&1; then
+        command -v python
+        return
+    fi
+}
+PYTHON="$(find_python)"
+if [ -z "$PYTHON" ] || [ ! -x "$PYTHON" ]; then
+    echo -e "\033[0;31m✗\033[0m python3 not found. Install Python 3.10+ or activate your environment first." >&2
+    exit 1
+fi
 
 # terminal color helpers
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
@@ -103,37 +152,42 @@ if ! ss -tlnp 2>/dev/null | grep -q ':3000'; then
     pnpm dev > /tmp/uav_nextjs.log 2>&1 &
     NEXT_PID=$!
     cd "$ROOT"
-    sleep 2
-    if kill -0 $NEXT_PID 2>/dev/null; then
-        ok "Next.js GCS Dashboard live (PID $NEXT_PID) → http://127.0.0.1:3000"
-    else
-        warn "Next.js dev server starting in background. Check /tmp/uav_nextjs.log"
+    for i in $(seq 1 12); do
+        if ss -tlnp 2>/dev/null | grep -q ':3000'; then
+            ok "Next.js GCS Dashboard live (PID $NEXT_PID) → http://127.0.0.1:3000"
+            break
+        fi
+        sleep 1
+    done
+    if ! ss -tlnp 2>/dev/null | grep -q ':3000'; then
+        ok "Next.js dev server starting (PID $NEXT_PID) → http://127.0.0.1:3000"
     fi
 else
     ok "Next.js GCS Dashboard already active on port 3000"
     NEXT_PID=0
 fi
 
-# serve the fallback static frontend on localhost:8080
+# serve the fallback static frontend on localhost:8080 (zero-npm minimal offline fallback)
 pkill -f "http.server.*8080" 2>/dev/null || true
 sleep 0.5
 $PYTHON -m http.server 8080 --bind 127.0.0.1 --directory "$ROOT/frontend" > /tmp/uav_frontend.log 2>&1 &
 FRONTEND_PID=$!
 sleep 0.5
-ok "Fallback Static Dashboard live → http://127.0.0.1:8080"
+ok "Fallback Minimal Dashboard live → http://127.0.0.1:8080 (offline zero-npm fallback)"
 
 # all good — print the connection info
 echo ""
 echo -e "${BOLD}${GREEN}╔══════════════════════════════════════════════════════════════╗${NC}"
 echo -e "${BOLD}${GREEN}║               ALL UAV TWIN SYSTEMS LIVE                      ║${NC}"
 echo -e "${BOLD}${GREEN}╠══════════════════════════════════════════════════════════════╣${NC}"
-echo -e "${BOLD}${GREEN}║  Primary GCS (Next.js) →  http://127.0.0.1:3000              ║${NC}"
-echo -e "${BOLD}${GREEN}║  Fallback GCS (HTML)   →  http://127.0.0.1:8080              ║${NC}"
-echo -e "${BOLD}${GREEN}║  WebSocket Telemetry   →  ws://127.0.0.1:8765                ║${NC}"
-echo -e "${BOLD}${GREEN}║  MQTT Broker           →  localhost:1883                     ║${NC}"
+echo -e "${BOLD}${GREEN}║  ★ Primary GCS (Next.js)    →  http://localhost:3000         ║${NC}"
+echo -e "${BOLD}${GREEN}║  - Fallback GCS (Offline)   →  http://localhost:8080         ║${NC}"
+echo -e "${BOLD}${GREEN}║  - WebSocket Telemetry      →  ws://127.0.0.1:8765           ║${NC}"
+echo -e "${BOLD}${GREEN}║  - MQTT Broker              →  localhost:1883                ║${NC}"
 echo -e "${BOLD}${GREEN}╚══════════════════════════════════════════════════════════════╝${NC}"
 echo ""
-echo -e "  ${YELLOW}Open http://127.0.0.1:3000 in your browser for the full GCS.${NC}"
+echo -e "  ${YELLOW}👉 Open http://localhost:3000 in your browser for the Primary GCS.${NC}"
+echo -e "  ${CYAN}(http://localhost:8080 is a minimal fallback for offline/no-npm environments)${NC}"
 echo -e "  ${YELLOW}Press Ctrl+C to shut down all services.${NC}"
 echo ""
 

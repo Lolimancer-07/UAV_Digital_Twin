@@ -1,5 +1,25 @@
+# Node & Frontend
 node_modules/
 dist/
 .env*
+.vercel/
+.next/
+*.tsbuildinfo
+
+# Python & Caching
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+*.pkl.tmp
+
+# Agent Tooling & Cache (IDE local skills/artifacts)
+.agents/
+frontend/.agents/
+
+# IDE & OS files
 .vscode/
-__pycache__
+.idea/
+.DS_Store
+*.swp
+*.swo

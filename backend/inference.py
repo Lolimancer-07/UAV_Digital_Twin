@@ -35,6 +35,10 @@ from threading import Thread
 from collections import deque
 from typing import Dict, Any
 
+_BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
+if _BACKEND_DIR not in sys.path:
+    sys.path.insert(0, _BACKEND_DIR)
+
 import numpy as np
 import pandas as pd
 import paho.mqtt.client as mqtt
@@ -61,6 +65,12 @@ from ai_engineer         import answer as ai_engineer_answer
 from fleet_manager       import fleet_manager
 from telemetry_integrity import telemetry_integrity_monitor
 from demo_controller     import demo_controller
+from mission_command     import (
+    MissionCommandController,
+    build_mission_command_state,
+    build_recovery_plan,
+    build_simulation_summary,
+)
 
 # figure out where we are in the filesystem
 ROOT         = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -102,6 +112,10 @@ last_engine_id = None
 
 # holds the full state dict in memory so AI Engineer and What-If can access it
 latest_state: Dict[str, Any] = {}
+
+# Additive Mission Command Center state. It only records simulated recovery
+# decisions; it never sends a flight-control command to the simulator.
+mission_command_controller = MissionCommandController()
 
 # ── LSTM MC-Dropout acceleration ─────────────────────────────────────────────
 # Compiling the predict call into a single @tf.function and batching all
@@ -156,12 +170,21 @@ def on_connect(client, userdata, connect_flags, reason_code, properties):
 
 
 def on_message(client, userdata, msg):
-    global latest_payload, last_engine_id, latest_state
-
     try:
         data = json.loads(msg.payload.decode('utf-8'))
     except Exception:
         return
+
+    try:
+        _process_telemetry_packet(data)
+    except Exception as e:
+        import traceback
+        print(f"[INFERENCE ERROR in on_message] {e}")
+        traceback.print_exc()
+
+
+def _process_telemetry_packet(data):
+    global latest_payload, last_engine_id, latest_state
 
     # if the engine ID changed, we need to wipe the buffer and reset health state
     # (different engine = different degradation trajectory)
@@ -289,6 +312,13 @@ def on_message(client, userdata, msg):
         "altitude_ft":            data.get("altitude_ft", 3000),
         "oat_c":                  data.get("oat_c", 15.0),
         "mission_mode":           data.get("mission_mode", "NORMAL"),
+        # Simulated navigation fields are optional and do not alter existing
+        # propulsion telemetry or the other dashboard modules.
+        "latitude":               data.get("latitude"),
+        "longitude":              data.get("longitude"),
+        "heading_deg":            data.get("heading_deg"),
+        "ground_speed_kts":       data.get("ground_speed_kts"),
+        "mission_progress_pct":   data.get("mission_progress_pct"),
 
         # AI prognostics outputs
         "predicted_rul":          round(predicted_rul, 1),
@@ -328,8 +358,41 @@ def on_message(client, userdata, msg):
     active_uav = data.get("uav_id", fleet_manager.active_uav_id)
     fleet_manager.update_uav(active_uav, payload)
 
+    # The Mission Command Center observes the same outputs used everywhere
+    # else, then exposes an additive, human-in-the-loop recovery view model.
+    mission_command_controller.observe(
+        cycle=data.get("cycle", 0),
+        alert=alert_status,
+        mission_risk=mission_risk,
+        twin_consistency=twin_consistency,
+        fault_events=fault_events,
+    )
+
     latest_state.update(payload)
-    latest_payload = json.dumps(payload)
+    _refresh_mission_command_state()
+    latest_payload = json.dumps(latest_state)
+
+
+def _refresh_mission_command_state():
+    """Refresh the additive Mission Command Center payload from live state."""
+    if not latest_state:
+        return
+
+    latest_state["fleet_status"] = fleet_manager.get_fleet_status()
+    latest_state["mission_command"] = build_mission_command_state(
+        data=latest_state,
+        mission_risk=latest_state.get("mission_risk", {}),
+        health=latest_state.get("health", {}),
+        twin_consistency=latest_state.get("twin_consistency", {}),
+        sensor_integrity=latest_state.get("sensor_integrity", {}),
+        telemetry_integrity=latest_state.get("telemetry_integrity", {}),
+        fault_events=latest_state.get("fault_events", []),
+        fleet_status=latest_state.get("fleet_status", []),
+        is_anomaly=bool(latest_state.get("is_anomaly", False)),
+        optimize_result=latest_state.get("optimize_result"),
+        action_state=latest_state.get("mission_command_action"),
+        timeline=mission_command_controller.events(),
+    )
 
 
 def process_gcs_command(cmd: Dict[str, Any]):
@@ -407,6 +470,98 @@ def process_gcs_command(cmd: Dict[str, Any]):
             except Exception as e:
                 print(f"[GCS CMD] Optimize error: {e}")
 
+    elif action == "mission_command_simulate":
+        # This is intentionally a simulation-only action. It produces a
+        # conservative recovery comparison without changing engine controls.
+        if latest_state:
+            plan = build_recovery_plan(
+                data=latest_state,
+                mission_risk=latest_state.get("mission_risk", {}),
+                health=latest_state.get("health", {}),
+                fault_events=latest_state.get("fault_events", []),
+                optimize_result=latest_state.get("optimize_result"),
+            )
+            try:
+                parameters = plan.get("parameters", {})
+                simulation = simulate_whatif(
+                    current_state=latest_state,
+                    overrides={
+                        "rpm": parameters.get("target_rpm", latest_state.get("rpm", 1400)),
+                        "altitude_ft": parameters.get("target_altitude_ft", latest_state.get("altitude_ft", 3000)),
+                    },
+                    current_rul=latest_state.get("predicted_rul", 0),
+                    current_health=latest_state.get("health", {}).get("health_index", 50),
+                    physics_model=physics_model,
+                    health_fn=compute_health_index,
+                    anomaly_score=latest_state.get("anomaly_score", 0),
+                    fault_names=[f["name"] for f in latest_state.get("fault_events", [])],
+                )
+                counterfactual = simulation.get("counterfactual", {})
+                projected_risk = compute_mission_risk(
+                    data=counterfactual,
+                    health_index=counterfactual.get("health", latest_state.get("health", {}).get("health_index", 50)),
+                    predicted_rul=counterfactual.get("rul", latest_state.get("predicted_rul", 0)),
+                    # Keep the current fault probability to make the proposed
+                    # recovery projection conservative.
+                    failure_probability=latest_state.get("failure_probability", 0.1),
+                    fault_events=latest_state.get("fault_events", []),
+                )
+                summary = build_simulation_summary(
+                    plan=plan,
+                    whatif_result=simulation,
+                    baseline_mission_risk=latest_state.get("mission_risk", {}),
+                    projected_mission_risk=projected_risk,
+                )
+                latest_state["mission_command_action"] = {
+                    "action_id": f"RECOVERY-{latest_state.get('cycle', 0)}",
+                    "status": "SIMULATED",
+                    "plan": plan,
+                    "simulation": summary,
+                    "created_cycle": latest_state.get("cycle", 0),
+                }
+                mission_command_controller.record_action(
+                    latest_state.get("cycle", 0),
+                    "PLAN_SIMULATED",
+                    "Recovery plan simulated; awaiting operator approval to log the decision.",
+                )
+                print("[GCS CMD] Mission Command recovery plan simulated (no flight-control action issued)")
+            except Exception as e:
+                latest_state["mission_command_action"] = {
+                    "action_id": f"RECOVERY-{latest_state.get('cycle', 0)}",
+                    "status": "SIMULATION_ERROR",
+                    "plan": plan,
+                    "simulation": None,
+                }
+                mission_command_controller.record_action(
+                    latest_state.get("cycle", 0),
+                    "PLAN_SIMULATION_ERROR",
+                    "Recovery plan could not be simulated; review the live evidence manually.",
+                )
+                print(f"[GCS CMD] Mission Command simulation error: {e}")
+
+    elif action == "mission_command_approve":
+        # Approval is audit-only by design. A real flight-control integration
+        # must be a separately certified and explicitly authorized pathway.
+        action_state = latest_state.get("mission_command_action") if latest_state else None
+        if action_state and action_state.get("status") == "SIMULATED":
+            approved = dict(action_state)
+            approved["status"] = "APPROVED_AND_LOGGED"
+            approved["approved_cycle"] = latest_state.get("cycle", 0)
+            latest_state["mission_command_action"] = approved
+            mission_command_controller.record_action(
+                latest_state.get("cycle", 0),
+                "PLAN_APPROVED",
+                "Operator approved and logged the simulated recovery plan. No flight-control command was issued.",
+            )
+            print("[GCS CMD] Mission Command recovery plan approved and audit-logged")
+        elif latest_state:
+            mission_command_controller.record_action(
+                latest_state.get("cycle", 0),
+                "PLAN_APPROVAL_BLOCKED",
+                "Approval requires a completed recovery simulation first.",
+            )
+            print("[GCS CMD] Mission Command approval ignored: no simulated plan available")
+
     elif action == "ai_engineer_query":
         question = cmd.get("question", "")
         if question and latest_state:
@@ -433,6 +588,8 @@ def process_gcs_command(cmd: Dict[str, Any]):
         current_cfg["injected_faults"] = []
         current_cfg["mode"] = "NORMAL"
         current_cfg["speed"] = 2.0
+        latest_state.pop("mission_command_action", None)
+        mission_command_controller.reset()
         print("[GCS CMD] Demo mode started")
 
     elif action == "demo_step":
@@ -467,7 +624,13 @@ def process_gcs_command(cmd: Dict[str, Any]):
 
     # immediately push updated state to connected clients
     if latest_state:
+        _refresh_mission_command_state()
         latest_payload = json.dumps(latest_state)
+
+
+WS_HOST = os.environ.get("UAV_TWIN_WS_HOST", "127.0.0.1")
+WS_PORT = int(os.environ.get("UAV_TWIN_WS_PORT", "8765"))
+WS_AUTH_TOKEN = os.environ.get("UAV_TWIN_AUTH_TOKEN", "").strip()
 
 
 async def ws_handler(websocket):
@@ -485,6 +648,20 @@ async def ws_handler(websocket):
             async for raw in websocket:
                 try:
                     cmd = json.loads(raw)
+                    # Auth check if UAV_TWIN_AUTH_TOKEN is configured
+                    if WS_AUTH_TOKEN:
+                        provided_token = cmd.get("token") or cmd.get("auth_token")
+                        if provided_token != WS_AUTH_TOKEN:
+                            print("[WS SECURITY] Unauthorized command attempt — rejecting and closing connection.")
+                            try:
+                                await websocket.send(json.dumps({
+                                    "status": "UNAUTHORIZED",
+                                    "error": "Authentication token missing or invalid",
+                                }))
+                                await websocket.close(1008, "Unauthorized")
+                            except Exception:
+                                pass
+                            break
                     process_gcs_command(cmd)
                 except (json.JSONDecodeError, Exception):
                     pass
@@ -495,8 +672,9 @@ async def ws_handler(websocket):
 
 
 async def run_ws_server():
-    async with websockets.serve(ws_handler, "0.0.0.0", 8765):
-        print("[WS]  Defense GCS WebSocket Server Active → ws://0.0.0.0:8765")
+    async with websockets.serve(ws_handler, WS_HOST, WS_PORT):
+        auth_note = f" (Auth: {'ENABLED' if WS_AUTH_TOKEN else 'DISABLED'})"
+        print(f"[WS]  Defense GCS WebSocket Server Active → ws://{WS_HOST}:{WS_PORT}{auth_note}")
         await asyncio.Future()
 
 
@@ -504,23 +682,28 @@ def start_ws_thread():
     asyncio.run(run_ws_server())
 
 
-# kick off the WebSocket server in the background so MQTT can run in the foreground
-ws_thread = Thread(target=start_ws_thread, daemon=True)
-ws_thread.start()
+def start_service():
+    # kick off the WebSocket server in the background so MQTT can run in the foreground
+    ws_thread = Thread(target=start_ws_thread, daemon=True)
+    ws_thread.start()
 
-# connect to the MQTT broker and start consuming telemetry
-client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-client.on_connect = on_connect
-client.on_message = on_message
-client.connect("localhost", 1883, 60)
-print("[MQTT] Connecting to MQTT broker at localhost:1883...")
-import traceback as _tb
-try:
-    client.loop_forever()
-except Exception as _e:
-    print(f"[MQTT] loop_forever raised exception: {_e}")
-    _tb.print_exc()
-print("[MQTT] loop_forever exited — process will continue with WS thread only")
-# Keep process alive even if MQTT loop exits, so WS thread stays up
-import signal
-signal.pause()
+    # connect to the MQTT broker and start consuming telemetry
+    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+    client.on_connect = on_connect
+    client.on_message = on_message
+    client.connect("localhost", 1883, 60)
+    print("[MQTT] Connecting to MQTT broker at localhost:1883...")
+    import traceback as _tb
+    try:
+        client.loop_forever()
+    except Exception as _e:
+        print(f"[MQTT] loop_forever raised exception: {_e}")
+        _tb.print_exc()
+    print("[MQTT] loop_forever exited — process will continue with WS thread only")
+    # Keep process alive even if MQTT loop exits, so WS thread stays up
+    import signal
+    signal.pause()
+
+
+if __name__ == "__main__":
+    start_service()

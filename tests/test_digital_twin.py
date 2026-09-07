@@ -19,8 +19,10 @@ import os
 import unittest
 import numpy as np
 
-# Add backend directory to sys.path
+# Add project root and backend directory to sys.path
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
 BACKEND_DIR = os.path.join(ROOT, 'backend')
 if BACKEND_DIR not in sys.path:
     sys.path.insert(0, BACKEND_DIR)
@@ -529,6 +531,55 @@ class TestMvpJudgeFlow(unittest.TestCase):
 
         # Switch back to UAV-01
         fleet_manager.select_uav("UAV-01")
+
+
+class TestWebSocketSecurity(unittest.TestCase):
+    """Verifies that unauthorized WebSocket control commands are rejected when auth is enabled."""
+
+    def test_unauthorized_command_rejected_when_auth_enabled(self):
+        import asyncio
+        import json
+        import websockets
+        from unittest.mock import patch
+        import backend.inference as inf
+
+        async def run_test():
+            test_port = 8798
+            with patch.object(inf, "WS_AUTH_TOKEN", "TEST_DEFENSE_TOKEN_456"):
+                with patch.object(inf, "process_gcs_command") as mock_process:
+                    server = await websockets.serve(inf.ws_handler, "127.0.0.1", test_port)
+                    try:
+                        # 1. Connect without token and attempt inject_fault
+                        async with websockets.connect(f"ws://127.0.0.1:{test_port}") as ws:
+                            await ws.send(json.dumps({"command": "inject_fault", "fault": "misfire"}))
+                            unauthorized_seen = False
+                            try:
+                                for _ in range(5):
+                                    msg = await asyncio.wait_for(ws.recv(), timeout=0.5)
+                                    data = json.loads(msg)
+                                    if data.get("status") == "UNAUTHORIZED":
+                                        unauthorized_seen = True
+                                        self.assertIn("Authentication token missing or invalid", data.get("error", ""))
+                                        break
+                            except websockets.exceptions.ConnectionClosed:
+                                pass
+                            self.assertTrue(unauthorized_seen, "Expected UNAUTHORIZED rejection packet")
+                            mock_process.assert_not_called()
+
+                        # 2. Connect with the correct token
+                        async with websockets.connect(f"ws://127.0.0.1:{test_port}") as ws2:
+                            await ws2.send(json.dumps({
+                                "command": "inject_fault",
+                                "fault": "misfire",
+                                "token": "TEST_DEFENSE_TOKEN_456"
+                            }))
+                            await asyncio.sleep(0.08)
+                            mock_process.assert_called_once()
+                    finally:
+                        server.close()
+                        await server.wait_closed()
+
+        asyncio.run(run_test())
 
 
 if __name__ == '__main__':

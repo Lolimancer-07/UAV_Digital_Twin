@@ -932,7 +932,8 @@ function connect(){
   clearTimeout(reconn);
   if(ws){try{ws.close();}catch(e){}ws=null;}
   $('ws-text','CONNECTING...');setPip(false);
-  try{ws=new WebSocket('ws://127.0.0.1:8765');}
+  var wsHost = (typeof location !== 'undefined' && location.hostname) ? location.hostname : '127.0.0.1';
+  try{ws=new WebSocket('ws://' + wsHost + ':8765');}
   catch(e){$('ws-text','RECONNECTING...');reconn=setTimeout(connect,2000);return;}
   ws.onopen=()=>{
     setPip(true);$('ws-text','10 Hz · LIVE');

@@ -11,6 +11,7 @@ import {
   Gauge,
   LayoutDashboard,
   Plane,
+  Radar,
   Settings2,
   Wrench,
 } from "lucide-react"
@@ -35,6 +36,7 @@ const navMain = [
   { title: "CAN Bus FDR", url: "/can", icon: <Database /> },
   { title: "Maintenance Advisories", url: "/maintenance", icon: <Wrench /> },
   { title: "Multi-UAV Fleet", url: "/fleet", icon: <Plane /> },
+  { title: "Mission Command", url: "/mission-command", icon: <Radar /> },
 ]
 
 const operations = [

@@ -41,6 +41,23 @@ export function useTelemetrySocket(endpoint = DEFAULT_WS_ENDPOINT) {
   }, [])
 
   const lastUiUpdateRef = React.useRef(0)
+  const attemptRef = React.useRef(0)
+
+  const resolveTargetEndpoint = React.useCallback(() => {
+    if (process.env.NEXT_PUBLIC_TELEMETRY_WS_URL) {
+      return process.env.NEXT_PUBLIC_TELEMETRY_WS_URL
+    }
+    if (typeof window !== "undefined") {
+      const browserHost = window.location.hostname || "127.0.0.1"
+      // If alternate retry attempts occur, flip between hostname and 127.0.0.1/localhost
+      if (attemptRef.current % 2 === 1) {
+        const altHost = browserHost === "localhost" ? "127.0.0.1" : "localhost"
+        return `ws://${altHost}:8765`
+      }
+      return `ws://${browserHost}:8765`
+    }
+    return endpoint
+  }, [endpoint])
 
   const connect = React.useCallback(() => {
     clearReconnect()
@@ -57,11 +74,14 @@ export function useTelemetrySocket(endpoint = DEFAULT_WS_ENDPOINT) {
       }
     }
 
+    const targetUrl = resolveTargetEndpoint()
+
     try {
-      const socket = new WebSocket(endpoint)
+      const socket = new WebSocket(targetUrl)
       socketRef.current = socket
 
       socket.onopen = () => {
+        attemptRef.current = 0
         setConnectionStatus("live")
       }
 
@@ -72,6 +92,12 @@ export function useTelemetrySocket(endpoint = DEFAULT_WS_ENDPOINT) {
 
         const payload = parseTelemetryMessage(event.data)
         if (!payload) {
+          try {
+            const raw = JSON.parse(event.data)
+            if (raw && (raw.status === "INITIALIZING" || raw.cycle != null)) {
+              setConnectionStatus("live")
+            }
+          } catch {}
           return
         }
 
@@ -102,19 +128,22 @@ export function useTelemetrySocket(endpoint = DEFAULT_WS_ENDPOINT) {
           setConnectionStatus("disconnected")
           return
         }
+        attemptRef.current += 1
         setConnectionStatus("reconnecting")
         reconnectRef.current = window.setTimeout(connect, 1500)
       }
 
       socket.onerror = () => {
+        attemptRef.current += 1
         setConnectionStatus("reconnecting")
       }
     } catch {
+      attemptRef.current += 1
       setConnectionStatus("reconnecting")
       reconnectRef.current = window.setTimeout(connect, 1500)
     }
     // NOTE: `history` is intentionally excluded from deps — we use ingestRef
-  }, [clearReconnect, endpoint])
+  }, [clearReconnect, resolveTargetEndpoint])
 
   React.useEffect(() => {
     connect()
@@ -146,7 +175,9 @@ export function useTelemetrySocket(endpoint = DEFAULT_WS_ENDPOINT) {
       return false
     }
 
-    socket.send(JSON.stringify(command))
+    const token = process.env.NEXT_PUBLIC_UAV_TWIN_AUTH_TOKEN
+    const message = token ? { ...command, token } : command
+    socket.send(JSON.stringify(message))
     return true
   }, [])
 

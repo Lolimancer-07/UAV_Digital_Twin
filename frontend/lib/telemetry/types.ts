@@ -157,6 +157,163 @@ export interface PrescriptiveRecommendation {
   source?: string
 }
 
+export interface MissionCommandPosition {
+  latitude: number
+  longitude: number
+  mission_progress_pct: number
+  heading_deg: number
+  ground_speed_kts: number
+}
+
+export interface MissionCommandWaypoint {
+  id: string
+  name: string
+  latitude: number
+  longitude: number
+}
+
+export interface MissionCommandRecoverySite extends MissionCommandWaypoint {
+  terrain: string
+  distance_nm: number
+  suitability_score: number
+  within_powerplant_safe_radius: boolean
+}
+
+export interface MissionCommandPlan {
+  decision: string
+  action: string
+  requires_operator_approval: boolean
+  execution_mode: "SIMULATION_ONLY" | string
+  rationale: string
+  evidence: string[]
+  parameters: {
+    current_rpm: number
+    target_rpm: number
+    current_altitude_ft: number
+    target_altitude_ft: number
+  }
+}
+
+export interface MissionCommandSimulation {
+  plan_action: string
+  baseline_completion_probability: number
+  projected_completion_probability: number
+  probability_delta: number
+  baseline_rul: number
+  projected_rul: number
+  rul_delta: number
+  thermal_relief_f: number
+  target_rpm: number | null
+  status: "SIMULATED" | string
+}
+
+export interface MissionCommandAuditEvent {
+  id: string
+  cycle: number
+  type: string
+  severity: "INFO" | "WARNING" | "CRITICAL" | string
+  message: string
+}
+
+export interface MissionCommandFleetCandidate {
+  uav_id: string
+  call_sign?: string
+  mission?: string
+  health?: number
+  rul?: number
+  mission_probability?: number
+  readiness_score: number
+}
+
+export interface MissionCommandState {
+  schema_version: string
+  mode: "SIMULATED_TRAINING_CORRIDOR" | string
+  mission: {
+    completion_probability: number
+    risk_level: string
+    risk_color: "ok" | "warn" | "crit" | string
+    safe_operating_time_h: number
+    narrative: string
+  }
+  environment: {
+    label: string
+    score: number
+    oat_c: number
+    altitude_ft: number
+    factors: string[]
+    source: string
+  }
+  route: {
+    label: string
+    is_simulated: boolean
+    position: MissionCommandPosition
+    waypoints: MissionCommandWaypoint[]
+    safe_radius_nm: number
+    recovery_sites: MissionCommandRecoverySite[]
+  }
+  trust: {
+    confidence: number
+    label: string
+    twin_score: number
+    sensor_score: number
+    telemetry_score: number
+    evidence: Array<{ source: string; state: string }>
+  }
+  fleet_reassignment: {
+    required: boolean
+    candidate: MissionCommandFleetCandidate | null
+    alternates: MissionCommandFleetCandidate[]
+    recommendation: string
+  }
+  action: {
+    action_id: string
+    status: "READY" | "SIMULATED" | "APPROVED_AND_LOGGED" | "SIMULATION_ERROR" | string
+    execution_mode: "SIMULATION_ONLY" | string
+    plan: MissionCommandPlan
+    simulation?: MissionCommandSimulation | null
+    approved_cycle?: number | null
+  }
+  timeline: MissionCommandAuditEvent[]
+  disclaimer: string
+}
+
+export interface WhatIfOperatingState {
+  rpm: number
+  cht: number
+  egt: number
+  health: number
+  rul: number
+  oil_pressure?: number
+  vibration?: number
+  fuel_flow?: number
+  thermal_load?: number
+  brake_power_hp?: number
+  bsfc_g_kwh?: number
+}
+
+export interface WhatIfDelta {
+  rul?: number
+  health?: number
+  cht?: number
+  egt?: number
+  fuel_pct?: number
+}
+
+export interface WhatIfResult {
+  current?: WhatIfOperatingState
+  counterfactual?: WhatIfOperatingState
+  delta?: WhatIfDelta
+  deltas?: WhatIfDelta
+  baseline?: Partial<WhatIfOperatingState>
+  overrides?: Record<string, number>
+  outcome?: string
+  outcome_color?: string
+  thermal_alpha?: number
+  method?: string
+  narrative?: string
+  rul_impact?: number
+}
+
 export interface TelemetryPayload {
   cycle?: number
   engine_id?: number
@@ -186,6 +343,11 @@ export interface TelemetryPayload {
   altitude_ft?: number
   oat_c?: number
   map_kpa?: number
+  latitude?: number
+  longitude?: number
+  heading_deg?: number
+  ground_speed_kts?: number
+  mission_progress_pct?: number
   anomaly_score?: number
   buffer_pct?: number
   is_anomaly?: boolean
@@ -245,20 +407,7 @@ export interface TelemetryPayload {
     title?: string
     description?: string
   }
-  whatif_result?: {
-    current?: Record<string, any>
-    counterfactual?: Record<string, any>
-    delta?: Record<string, any>
-    deltas?: Record<string, any>
-    baseline?: Record<string, any>
-    overrides?: Record<string, any>
-    outcome?: string
-    outcome_color?: string
-    thermal_alpha?: number
-    method?: string
-    narrative?: string
-    rul_impact?: number
-  } | any
+  whatif_result?: WhatIfResult
   optimize_result?: {
     optimal_rpm?: number
     optimal_alt?: number
@@ -273,6 +422,7 @@ export interface TelemetryPayload {
     answer?: string
     timestamp?: number
   }
+  mission_command?: MissionCommandState
 }
 
 export interface SensorHistoryPoint {
@@ -335,7 +485,7 @@ export interface WhatIfCommand {
 
 export interface OptimizeCommand {
   command: "optimize"
-  constraints?: Record<string, any>
+  constraints?: Record<string, string | number | boolean>
 }
 
 export interface AIEngineerCommand {
@@ -361,6 +511,14 @@ export interface DemoStopCommand {
   command: "demo_stop"
 }
 
+export interface MissionCommandSimulateCommand {
+  command: "mission_command_simulate"
+}
+
+export interface MissionCommandApproveCommand {
+  command: "mission_command_approve"
+}
+
 export type TelemetryCommand =
   | SetProfileCommand
   | SetSpeedCommand
@@ -374,3 +532,5 @@ export type TelemetryCommand =
   | DemoStartCommand
   | DemoStepCommand
   | DemoStopCommand
+  | MissionCommandSimulateCommand
+  | MissionCommandApproveCommand

@@ -18,6 +18,7 @@ the inference engine writes commands to it and we pick them up each loop.
 
 import paho.mqtt.client as mqtt
 import json, os, sys, time, math
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import numpy as np
 import pandas as pd
 
@@ -94,6 +95,40 @@ def read_control():
 
 def clamp(val, lo, hi):
     return max(lo, min(hi, val))
+
+
+SIMULATED_NAV_ROUTE = [
+    (26.706, 78.026),  # Home Base
+    (26.755, 78.118),  # Alpha Ridge
+    (26.812, 78.208),  # Bravo Survey
+    (26.858, 78.120),  # Charlie Loiter
+    (26.706, 78.026),  # Return to Home Base
+]
+
+
+def simulated_navigation(cycle_idx: int) -> dict:
+    """Generate a deterministic training-corridor track for the GCS map.
+
+    These values are explicitly simulated—not a replacement for an onboard
+    GNSS receiver—and are additive to the existing propulsion telemetry.
+    """
+    progress = ((cycle_idx - 1) % 320) / 319.0
+    segment_position = progress * (len(SIMULATED_NAV_ROUTE) - 1)
+    segment = min(len(SIMULATED_NAV_ROUTE) - 2, int(segment_position))
+    local_progress = segment_position - segment
+    lat_a, lon_a = SIMULATED_NAV_ROUTE[segment]
+    lat_b, lon_b = SIMULATED_NAV_ROUTE[segment + 1]
+    latitude = lat_a + (lat_b - lat_a) * local_progress
+    longitude = lon_a + (lon_b - lon_a) * local_progress
+    heading_deg = (math.degrees(math.atan2(lon_b - lon_a, lat_b - lat_a)) + 360.0) % 360.0
+    ground_speed_kts = 58.0 + math.sin(cycle_idx * 0.08) * 3.0
+    return {
+        "latitude": round(latitude, 5),
+        "longitude": round(longitude, 5),
+        "heading_deg": round(heading_deg, 0),
+        "ground_speed_kts": round(ground_speed_kts, 1),
+        "mission_progress_pct": round(progress * 100.0, 1),
+    }
 
 
 def build_telemetry_packet(row, cycle_idx: int, prof: dict, faults: set) -> dict:
@@ -199,6 +234,7 @@ def build_telemetry_packet(row, cycle_idx: int, prof: dict, faults: set) -> dict
 
     active_engine_id = sim_state.get("engine_id", int(row.get('engine_id', 1)))
     active_uav_id = sim_state.get("uav_id", f"UAV-0{active_engine_id}")
+    navigation = simulated_navigation(cycle_idx)
 
     # assemble the full telemetry packet
     packet = {
@@ -224,6 +260,8 @@ def build_telemetry_packet(row, cycle_idx: int, prof: dict, faults: set) -> dict
         "altitude_ft":            prof.get("altitude_ft", 3000),
         "oat_c":                  prof.get("oat_c", 15.0),
         "mission_mode":           sim_state["profile"],
+        # Simulated GNSS-like track used only by the Mission Command Center map.
+        **navigation,
         "active_faults":          list(faults),
         "misfire_active":         misfire_flag,
         "cooling_degradation_active": cooling_flag,
@@ -303,4 +341,3 @@ while True:
 
     print(f"\n[SIM] UAV-0{current_engine_id} flight cycle completed. Resetting loop...\n")
     time.sleep(1.0)
-

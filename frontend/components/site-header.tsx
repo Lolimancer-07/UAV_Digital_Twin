@@ -8,12 +8,12 @@ import { ThemeToggle } from "@/components/theme-toggle"
 import { useTelemetry } from "@/components/telemetry-provider"
 
 function ConnectionBadge() {
-  const { connectionStatus } = useTelemetry()
+  const { connectionStatus, reconnect } = useTelemetry()
 
   if (connectionStatus === "live") {
     return (
-      <Badge variant="outline" className="text-primary">
-        <Radio data-icon="inline-start" />
+      <Badge variant="outline" className="text-emerald-600 dark:text-emerald-400 border-emerald-500/50">
+        <Radio data-icon="inline-start" className="text-emerald-500" />
         <span className="hidden sm:inline">10 HZ · LIVE</span>
         <span className="sm:hidden">LIVE</span>
       </Badge>
@@ -22,7 +22,11 @@ function ConnectionBadge() {
 
   if (connectionStatus === "connecting" || connectionStatus === "reconnecting") {
     return (
-      <Badge variant="outline" className="border-amber-500 text-amber-600 dark:text-amber-400">
+      <Badge
+        variant="outline"
+        className="border-amber-500 text-amber-600 dark:text-amber-400 cursor-pointer hover:bg-amber-500/10"
+        onClick={reconnect}
+      >
         <Radio data-icon="inline-start" className="animate-pulse" />
         <span className="hidden sm:inline">
           {connectionStatus === "reconnecting" ? "RECONNECTING…" : "CONNECTING…"}
@@ -33,9 +37,13 @@ function ConnectionBadge() {
   }
 
   return (
-    <Badge variant="outline" className="border-destructive text-destructive">
+    <Badge
+      variant="outline"
+      className="border-destructive text-destructive cursor-pointer hover:bg-destructive/10 animate-pulse"
+      onClick={reconnect}
+    >
       <Radio data-icon="inline-start" />
-      <span className="hidden sm:inline">OFFLINE</span>
+      <span className="hidden sm:inline">TWIN OFFLINE</span>
       <span className="sm:hidden">OFF</span>
     </Badge>
   )

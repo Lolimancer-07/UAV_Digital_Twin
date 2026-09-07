@@ -5,8 +5,18 @@ import type {
   ReplaySpeed,
 } from "@/lib/telemetry/types"
 
-export const DEFAULT_WS_ENDPOINT =
-  process.env.NEXT_PUBLIC_TELEMETRY_WS_URL ?? "ws://127.0.0.1:8765"
+// Use the same host the browser used to load the page so we never hit
+// cross-origin WebSocket issues (localhost vs 127.0.0.1 mismatch).
+function getWsEndpoint(): string {
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname // "localhost" or "127.0.0.1"
+    return `ws://${host}:8765`
+  }
+  // SSR fallback — never actually used for WS connections
+  return process.env.NEXT_PUBLIC_TELEMETRY_WS_URL ?? "ws://127.0.0.1:8765"
+}
+
+export const DEFAULT_WS_ENDPOINT = getWsEndpoint()
 
 export const THEME_STORAGE_KEY = "uav_stealth_theme"
 

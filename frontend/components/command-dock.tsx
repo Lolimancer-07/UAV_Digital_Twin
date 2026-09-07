@@ -9,6 +9,7 @@ import {
   FlameIcon,
   PauseIcon,
   PlayIcon,
+  Radio,
   RotateCcwIcon,
   StepForwardIcon,
   XCircleIcon,
@@ -39,7 +40,8 @@ const FAULT_OPTIONS = [
 ]
 
 export function CommandDock() {
-  const { latestTelemetry, sendCommand } = useTelemetry()
+  const { latestTelemetry, sendCommand, connectionStatus, reconnect } = useTelemetry()
+  const isLive = connectionStatus === "live"
 
   const [selectedProfile, setSelectedProfile] = React.useState<string>("NORMAL")
   const [selectedFault, setSelectedFault] = React.useState<string>("misfire")
@@ -148,6 +150,15 @@ export function CommandDock() {
 
       {/* ── Persistent Bottom Command Dock ─────────────────────────────── */}
       <footer className="sticky bottom-0 z-30 flex flex-wrap items-center justify-between gap-3 border-t border-border/80 bg-background/95 px-4 py-2.5 backdrop-blur-md">
+        {/* Offline indicator strip */}
+        {!isLive && (
+          <div className="w-full flex items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-[11px] font-semibold text-amber-700 dark:text-amber-300 mb-1">
+            <Radio className="size-3.5 animate-pulse" />
+            <span>Backend not connected — commands are disabled until the Digital Twin Core is live.</span>
+            <button onClick={reconnect} className="ml-auto underline underline-offset-2 hover:opacity-80">Retry</button>
+          </div>
+        )}
+        <div className={`flex w-full flex-wrap items-center justify-between gap-3 ${!isLive ? "pointer-events-none opacity-40" : ""}`}>
         {/* Group 1: Mission Profile */}
         <div className="flex items-center gap-2">
           <span className="hidden text-[10px] font-bold uppercase tracking-wider text-muted-foreground lg:inline">
@@ -261,6 +272,7 @@ export function CommandDock() {
           <WhatIfDialog />
           <OptimizeDialog />
           <AICopilotSheet />
+        </div>
         </div>
       </footer>
     </>

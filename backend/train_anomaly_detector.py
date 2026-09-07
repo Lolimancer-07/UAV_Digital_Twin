@@ -6,7 +6,7 @@ CMAPSS dataset (RUL > 100 cycles). Uses the same synthetic sensor physics
 model as ecu_sim.c so the detector sees realistic 7-feature vectors.
 
 Run from UAV_Digital_Twin root:
-    /home/rishi/anaconda3/bin/python backend/train_anomaly_detector.py
+    python3 backend/train_anomaly_detector.py
 """
 import pandas as pd
 import numpy as np

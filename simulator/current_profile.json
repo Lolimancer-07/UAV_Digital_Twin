@@ -1,8 +1,8 @@
 {
-  "mode": "HOT_WEATHER",
+  "mode": "NORMAL",
   "injected_faults": [],
   "paused": false,
-  "speed": 1.0,
-  "uav_id": "UAV-04",
-  "engine_id": 4
+  "speed": 2.0,
+  "uav_id": "UAV-02",
+  "engine_id": 2
 }

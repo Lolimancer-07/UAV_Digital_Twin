@@ -274,12 +274,15 @@ The frontend GCS (`frontend/index.html`) is structured into 10 operational tabs:
 git clone https://github.com/Lolimancer-07/UAV_Digital_Twin.git
 cd UAV_Digital_Twin
 
-# Create / activate your python environment
+# Create / activate your python environment (Python 3.10+)
 conda create -n uav_twin python=3.11 -y
 conda activate uav_twin
 
-# Install dependencies
-pip install paho-mqtt websockets tensorflow scikit-learn pandas numpy scipy
+# Install pinned dependencies
+pip install -r requirements.txt
+
+# Install frontend dependencies (for primary Next.js GCS dashboard)
+cd frontend && pnpm install && cd ..
 ```
 
 ### Launch System
@@ -290,13 +293,42 @@ chmod +x run.sh
 ```
 
 This single command starts:
-1. Mosquitto MQTT Broker (port 1883)
-2. C ECU Simulator (`simulator/ecu_sim`)
-3. AI + Physics Digital Twin Core (`backend/inference.py` on WebSocket `ws://127.0.0.1:8765`)
-4. Python Mission Telemetry Simulator (`simulator/mission_sim.py`)
-5. GCS Frontend HTTP Server (`http://127.0.0.1:8080`)
+1. **Mosquitto MQTT Broker** (port 1883)
+2. **C ECU Simulator** (`simulator/ecu_sim`)
+3. **AI + Physics Digital Twin Core** (`backend/inference.py` on WebSocket `ws://127.0.0.1:8765`)
+4. **Python Mission Telemetry Simulator** (`simulator/mission_sim.py`)
+5. **Primary Next.js Ground Control Station** on port 3000
+6. **Fallback Minimal Static Dashboard** (`frontend/index.html`) on port 8080
 
-Open your browser at **[http://127.0.0.1:8080](http://127.0.0.1:8080)**.
+👉 **Open your browser at: [http://localhost:3000](http://localhost:3000)** (Primary Next.js GCS)
+
+*(Note: `http://localhost:8080` serves a minimal zero-dependency offline fallback dashboard for environments without Node.js/pnpm build tools; it may lag behind the primary Next.js GCS in advanced features).*
+
+### Pre-trained Artifacts & Regeneration
+The repository bundles pre-trained, validated model artifacts so evaluators and judges can launch the system instantly without waiting for a lengthy training step:
+- `backend/uav_rul_model.h5`: Pre-trained Deep LSTM prognostics model with Monte Carlo Dropout uncertainty heads.
+- `backend/anomaly_model.pkl`: Pre-trained Multi-Channel Isolation Forest detector fitted on 10,531 nominal aero samples.
+- `data/train_FD001(1).txt` & `data/telemetry_ready.csv`: C-MAPSS run-to-failure lifecycle training & validation datasets.
+
+To retrain and regenerate all models from scratch:
+```bash
+python3 train_models.py
+```
+*(Optionally retrain only the Isolation Forest: `python3 backend/train_anomaly_detector.py`)*
+
+### WebSocket Control Security & Authentication
+By default, the telemetry WebSocket server binds strictly to `127.0.0.1:8765` (localhost-only) to protect against unauthorized command injection over shared networks:
+- **Remote Access Mode (Opt-in):** To allow external network clients to connect, launch with `UAV_TWIN_WS_HOST=0.0.0.0`:
+  ```bash
+  UAV_TWIN_WS_HOST=0.0.0.0 ./run.sh
+  ```
+- **Shared-Token Authentication:** To enforce authentication on all control commands (`inject_fault`, `whatif`, `optimize`, `set_profile`, `set_speed`, `set_paused`, etc.), configure `UAV_TWIN_AUTH_TOKEN`:
+  ```bash
+  export UAV_TWIN_AUTH_TOKEN="your-secure-defense-token"
+  ./run.sh
+  ```
+  When enabled, any inbound GCS command must include `"token": "your-secure-defense-token"`. Unauthenticated commands are rejected and the connection is closed.
+
 
 ---
 

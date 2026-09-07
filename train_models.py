@@ -12,7 +12,7 @@ Run this once before starting the system, or re-run it if you change
 the dataset or want to retrain from scratch.
 
 Usage:
-  /home/rishi/anaconda3/bin/python train_models.py
+  python3 train_models.py
 """
 
 import os

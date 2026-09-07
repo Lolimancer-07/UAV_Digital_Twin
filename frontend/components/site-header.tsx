@@ -76,6 +76,7 @@ function AlertBadge() {
 
 import { ExportDialog } from "@/components/export-dialog"
 import { JargonGuideDialog } from "@/components/jargon-guide-dialog"
+import { SecurityPostureDialog } from "@/components/security-posture-dialog"
 
 export function SiteHeader() {
   const { latestTelemetry } = useTelemetry()
@@ -100,6 +101,7 @@ export function SiteHeader() {
           </div>
           <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
             <ConnectionBadge />
+            <SecurityPostureDialog />
             <AlertBadge />
             <JargonGuideDialog />
             <ExportDialog />

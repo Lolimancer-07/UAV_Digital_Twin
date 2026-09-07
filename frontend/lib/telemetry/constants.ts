@@ -22,8 +22,8 @@ export const THEME_STORAGE_KEY = "uav_stealth_theme"
 
 export const TELEMETRY_HISTORY_LIMIT = 500
 export const CAN_HISTORY_LIMIT = 200
-export const SPARKLINE_HISTORY_LIMIT = 40
-export const RUL_HISTORY_LIMIT = 80
+export const SPARKLINE_HISTORY_LIMIT = 120
+export const RUL_HISTORY_LIMIT = 120
 
 export const THEME_OPTIONS: Array<{
   value: DashboardTheme

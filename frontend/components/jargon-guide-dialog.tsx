@@ -150,7 +150,56 @@ const JARGON_DICTIONARY: TermItem[] = [
     technical: "Standardized aircraft technical data numbering schema organizing aircraft maintenance documentation, troubleshooting logs, and flight line work orders.",
     nominalRange: "ATA 72 (Core), 73 (Fuel), 75 (Cooling), 77 (Indicating), 79 (Oil), 80 (Ignition)",
   },
+  {
+    id: "fedavg",
+    term: "FedAvg",
+    name: "Federated Averaging Algorithm",
+    category: "AI & Prognostics",
+    layman: "A smart way for a fleet of drones to learn from each other's engine experiences without ever sharing their private telemetry data. Each drone trains its own model locally and shares only math updates.",
+    technical: "Distributed optimization algorithm (McMahan et al., 2017) aggregating client model parameters via sample-weighted averaging: w_{t+1} = sum((n_k / N) * w_{t+1}^k).",
+    nominalRange: "10 – 50 telemetry cycles per round, 4 participating UAVs",
+    formula: "w_global = sum( (n_i / N) * w_i )",
+  },
+  {
+    id: "model-delta",
+    term: "Model Delta",
+    name: "Parameter Gradient Differential",
+    category: "AI & Prognostics",
+    layman: "The tiny adjustment in mathematical weights an AI drone calculates after flying. It summarizes what changed in the engine without revealing the exact flight path or raw sensor numbers.",
+    technical: "The difference vector Δw = w_local - w_global computed via local stochastic gradient steps on edge telemetry distributions.",
+    nominalRange: "L2 Norm ||Δw||: 0.01 – 0.15",
+    formula: "Δw_i = w_i^{local} - w^{global}",
+  },
+  {
+    id: "swap",
+    term: "SWaP",
+    name: "Size, Weight, and Power Constraint",
+    category: "Standards & Maintenance",
+    layman: "The strict physical budget for aircraft avionics. Every computer onboard must be small, light, and sip minimal electrical power so the drone can fly longer.",
+    technical: "Defense engineering operational metric governing payload limits. Onboard edge computers target <15W TDP and <500g footprint versus 250W+ ground server stations.",
+    nominalRange: "Edge: <15W TDP, <50MB RAM | GCS: 250W TDP, 400MB+ RAM",
+  },
+  {
+    id: "quantization",
+    term: "INT8 Quantization",
+    name: "8-Bit Post-Training Fixed-Point Quantization",
+    category: "AI & Prognostics",
+    layman: "Compressing heavy 32-bit computer numbers into compact 8-bit integers. It makes AI models run 4x faster and use 90% less memory on small onboard drone chips with almost no loss in accuracy.",
+    technical: "Mapping continuous 32-bit floating point weights and activations to discrete 8-bit integers [-128, 127] via affine scaling: q = round(r / S) + Z.",
+    nominalRange: "Model size: 18.4 MB (FP32) → 2.3 MB (INT8); <2% RUL MAE delta",
+    formula: "q = clamp(round(x / scale) + zero_point, -128, 127)",
+  },
+  {
+    id: "tls",
+    term: "TLS",
+    name: "Transport Layer Security",
+    category: "Avionics & CAN",
+    layman: "The cryptographic armor that locks down data links between the drone and the ground station, preventing adversaries from listening in or hijacking commands.",
+    technical: "Cryptographic protocol (TLS 1.3 / RFC 8446) providing end-to-end authentication, confidentiality, and data integrity over TCP/IP telemetry streams.",
+    nominalRange: "AES-256-GCM / ChaCha20-Poly1305, 2048-bit RSA / ECDSA",
+  },
 ]
+
 
 export function JargonGuideDialog() {
   const [open, setOpen] = React.useState(false)

@@ -26,6 +26,7 @@ import {
 import { useTelemetry } from "@/components/telemetry-provider"
 import { WhatIfDialog } from "@/components/what-if-dialog"
 import { OptimizeDialog } from "@/components/optimize-dialog"
+import { EdgeSwapDialog } from "@/components/edge-swap-dialog"
 import { AICopilotSheet } from "@/components/ai-copilot-sheet"
 import { MISSION_PROFILE_OPTIONS } from "@/lib/telemetry/constants"
 import type { MissionProfile } from "@/lib/telemetry/types"
@@ -271,6 +272,7 @@ export function CommandDock() {
           )}
           <WhatIfDialog />
           <OptimizeDialog />
+          <EdgeSwapDialog />
           <AICopilotSheet />
         </div>
         </div>

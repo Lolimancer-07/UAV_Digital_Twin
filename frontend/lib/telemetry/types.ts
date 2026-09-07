@@ -423,6 +423,9 @@ export interface TelemetryPayload {
     timestamp?: number
   }
   mission_command?: MissionCommandState
+  federated_round?: FederatedRoundState
+  edge_profile?: EdgeProfileState
+  security_status?: SecurityStatusState
 }
 
 export interface SensorHistoryPoint {
@@ -519,6 +522,57 @@ export interface MissionCommandApproveCommand {
   command: "mission_command_approve"
 }
 
+export interface FederatedRoundState {
+  round: number
+  global_model_version: string
+  participating_uavs: string[]
+  sample_counts: Record<string, number>
+  delta_norms: Record<string, number>
+  aggregate_delta_norm: number
+  fleet_loss: number
+  status: string
+  privacy_guarantee: string
+  global_weights?: Record<string, number>
+  rounds_completed?: number
+  timestamp_cycles?: number
+}
+
+export interface EdgeProfileState {
+  mode_id: "GCS_FLOAT32" | "EDGE_INT8" | string
+  name: string
+  hardware_target: string
+  precision: string
+  inference_latency_ms: number
+  memory_footprint_mb: number
+  model_size_mb: number
+  power_tdp_w: number
+  rul_mae_cycles: number
+  accuracy_retention_pct: number
+  swap_score: string
+  quantization_active: boolean
+  description: string
+}
+
+export interface SecurityStatusState {
+  ws_host: string
+  ws_port: number
+  auth_required: boolean
+  is_localhost_only: boolean
+  transport: string
+  replay_guard: string
+  can_checksum: string
+}
+
+export interface TriggerFederatedRoundCommand {
+  command: "trigger_federated_round"
+  participating_uavs?: string[]
+}
+
+export interface SetEdgeModeCommand {
+  command: "set_edge_mode"
+  mode: "GCS_FLOAT32" | "EDGE_INT8"
+}
+
 export type TelemetryCommand =
   | SetProfileCommand
   | SetSpeedCommand
@@ -534,3 +588,5 @@ export type TelemetryCommand =
   | DemoStopCommand
   | MissionCommandSimulateCommand
   | MissionCommandApproveCommand
+  | TriggerFederatedRoundCommand
+  | SetEdgeModeCommand

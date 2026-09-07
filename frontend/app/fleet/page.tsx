@@ -1,6 +1,7 @@
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { FleetPanel } from "@/components/fleet-panel"
+import { FederatedLearningPanel } from "@/components/federated-learning-panel"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 
 export default function FleetPage() {
@@ -11,8 +12,9 @@ export default function FleetPage() {
       <AppSidebar variant="inset" />
       <SidebarInset>
         <SiteHeader />
-        <main className="flex min-w-0 flex-1 flex-col gap-4 p-4 md:p-6">
+        <main className="flex min-w-0 flex-1 flex-col gap-6 p-4 md:p-6">
           <FleetPanel />
+          <FederatedLearningPanel />
         </main>
       </SidebarInset>
     </SidebarProvider>

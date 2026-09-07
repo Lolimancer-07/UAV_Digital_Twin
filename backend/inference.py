@@ -63,6 +63,8 @@ from optimizer           import find_optimal_operating_point
 from prescriptive        import generate_prescriptive_recommendations
 from ai_engineer         import answer as ai_engineer_answer
 from fleet_manager       import fleet_manager
+from federated_coordinator import federated_coordinator
+from edge_profile        import edge_profile_manager
 from telemetry_integrity import telemetry_integrity_monitor
 from demo_controller     import demo_controller
 from mission_command     import (
@@ -352,11 +354,31 @@ def _process_telemetry_packet(data):
         "whatif_result":          latest_state.get("whatif_result"),
         "optimize_result":        latest_state.get("optimize_result"),
         "ai_engineer_response":   latest_state.get("ai_engineer_response"),
+
+        # Federated learning, Edge SWaP, and security architecture status
+        "federated_round":        federated_coordinator.get_status(),
+        "edge_profile":           edge_profile_manager.get_active_profile(),
+        "security_status": {
+            "ws_host":            WS_HOST,
+            "ws_port":            WS_PORT,
+            "auth_required":      bool(WS_AUTH_TOKEN),
+            "is_localhost_only":  WS_HOST in ("127.0.0.1", "localhost"),
+            "transport":          "WS_DEFENSE_LOCAL",
+            "replay_guard":       "ACTIVE_SEQ_COUNTER",
+            "can_checksum":       "CRC-16_J1939",
+        },
     }
 
     # update the fleet state for the active UAV
     active_uav = data.get("uav_id", fleet_manager.active_uav_id)
     fleet_manager.update_uav(active_uav, payload)
+
+    # Record edge observation for federated learning & execute round periodically
+    federated_coordinator.record_local_observation(active_uav, data)
+    cycle = data.get("cycle", 0)
+    if cycle > 0 and cycle % 30 == 0:
+        federated_coordinator.execute_round()
+        payload["federated_round"] = federated_coordinator.get_status()
 
     # The Mission Command Center observes the same outputs used everywhere
     # else, then exposes an additive, human-in-the-loop recovery view model.
@@ -379,6 +401,17 @@ def _refresh_mission_command_state():
         return
 
     latest_state["fleet_status"] = fleet_manager.get_fleet_status()
+    latest_state["federated_round"] = federated_coordinator.get_status()
+    latest_state["edge_profile"] = edge_profile_manager.get_active_profile()
+    latest_state["security_status"] = {
+        "ws_host": WS_HOST,
+        "ws_port": WS_PORT,
+        "auth_required": bool(WS_AUTH_TOKEN),
+        "is_localhost_only": WS_HOST in ("127.0.0.1", "localhost"),
+        "transport": "WS_DEFENSE_LOCAL",
+        "replay_guard": "ACTIVE_SEQ_COUNTER",
+        "can_checksum": "CRC-16_J1939",
+    }
     latest_state["mission_command"] = build_mission_command_state(
         data=latest_state,
         mission_risk=latest_state.get("mission_risk", {}),
@@ -616,6 +649,20 @@ def process_gcs_command(cmd: Dict[str, Any]):
         demo_controller.stop()
         current_cfg["injected_faults"] = []
         print("[GCS CMD] Demo mode stopped")
+
+    elif action == "trigger_federated_round":
+        participating = cmd.get("participating_uavs")
+        round_res = federated_coordinator.execute_round(participating)
+        if latest_state:
+            latest_state["federated_round"] = federated_coordinator.get_status()
+        print(f"[GCS CMD] Federated learning round triggered → Round #{round_res['round']} ({round_res['global_model_version']})")
+
+    elif action == "set_edge_mode":
+        target_mode = cmd.get("mode", "GCS_FLOAT32")
+        new_prof = edge_profile_manager.set_mode(target_mode)
+        if latest_state:
+            latest_state["edge_profile"] = new_prof
+        print(f"[GCS CMD] Edge/SWaP deployment mode switched → {new_prof['mode_id']} ({new_prof['name']})")
 
     # write back to the shared control file so the simulator picks it up
     os.makedirs(os.path.dirname(CONTROL_FILE), exist_ok=True)

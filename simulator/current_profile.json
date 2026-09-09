@@ -1,8 +1,10 @@
 {
   "mode": "NORMAL",
-  "injected_faults": [],
+  "injected_faults": [
+    "cooling_degradation"
+  ],
   "paused": false,
   "speed": 2.0,
-  "uav_id": "UAV-02",
-  "engine_id": 2
+  "uav_id": "UAV-03",
+  "engine_id": 3
 }

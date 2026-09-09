@@ -47,9 +47,9 @@ export function SecurityPostureDialog() {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
         render={
-          <Badge
-            variant="outline"
-            className={`cursor-pointer gap-1 text-[11px] font-mono transition-colors hover:bg-muted/40 ${
+          <button
+            type="button"
+            className={`inline-flex h-5 w-fit shrink-0 cursor-pointer items-center justify-center gap-1 overflow-hidden rounded-full border px-2 py-0.5 text-[11px] font-mono font-medium whitespace-nowrap transition-colors hover:bg-muted/40 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none ${
               isLocal
                 ? "border-emerald-500/50 text-emerald-600 dark:text-emerald-400"
                 : "border-amber-500/50 text-amber-500"
@@ -63,7 +63,7 @@ export function SecurityPostureDialog() {
                 AUTH
               </span>
             )}
-          </Badge>
+          </button>
         }
       />
       <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col p-0 gap-0 border-border/70 overflow-hidden">

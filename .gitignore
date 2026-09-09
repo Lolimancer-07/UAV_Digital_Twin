@@ -19,6 +19,7 @@ frontend/.agents/
 
 # IDE & OS files
 .vscode/
+.superbrain/
 .idea/
 .DS_Store
 *.swp

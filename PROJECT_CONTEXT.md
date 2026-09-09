@@ -1,4 +1,4 @@
-# UAV Digital Twin — AI + Physics Powered Propulsion Intelligence v2.0
+# UAV Digital Twin — AI + Physics Powered Propulsion Intelligence
 
 [![Defense Grade](https://img.shields.io/badge/Certification-DO--178C%20Level%20B-green.svg)](https://www.easa.europa.eu/)
 [![Engine Target](https://img.shields.io/badge/Engine-Rotax%20914%20F%20Turbo-blue.svg)](https://www.rotax-owner.com/)
@@ -13,7 +13,7 @@ The platform bridges real-time high-rate CAN/J1939 and MQTT telemetry, thermodyn
 
 ---
 
-## 📑 Table of Contents
+## Table of Contents
 
 - [System Architecture](#system-architecture)
 - [End-to-End Data Flow](#end-to-end-data-flow)

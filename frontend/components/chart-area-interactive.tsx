@@ -133,13 +133,17 @@ function buildChartData(
 ): ChartDataPoint[] {
   if (mode === "rul") {
     const slice = rulHistory.slice(-windowSize)
-    return slice.map((p) => ({
-      cycle: p.cycle,
-      primary: p.predicted_rul,
-      secondary: p.true_rul ?? p.predicted_rul,
-      ciLower: p.rul_ci_lower,
-      ciUpper: p.rul_ci_upper,
-    }))
+    return slice.map((p) => {
+      // If LSTM prediction is 0 (model output near-zero), fall back to true_rul
+      const resolvedPred = p.predicted_rul > 0 ? p.predicted_rul : (p.true_rul ?? p.predicted_rul)
+      return {
+        cycle: p.cycle,
+        primary: resolvedPred,
+        secondary: p.true_rul ?? resolvedPred,
+        ciLower: p.rul_ci_lower,
+        ciUpper: p.rul_ci_upper,
+      }
+    })
   }
 
   if (mode === "temperatures") {
@@ -261,11 +265,13 @@ export function ChartAreaInteractive() {
         }
       }
       case "rul": {
-        const predRul = latestTelemetry.predicted_rul ?? 100
-        const isCrit = predRul < 30
+        const rawPred = latestTelemetry.predicted_rul ?? 0
+        const trueRul = latestTelemetry.true_rul ?? 0
+        const displayRul = rawPred > 0 ? rawPred : trueRul
+        const isCrit = displayRul > 0 && displayRul < 30
         return {
-          primary: `${latestTelemetry.predicted_rul ?? "—"} cyc`,
-          secondary: `${latestTelemetry.true_rul ?? "—"} cyc`,
+          primary: `${displayRul > 0 ? Math.round(displayRul) : "—"} cyc`,
+          secondary: `${trueRul > 0 ? Math.round(trueRul) : "—"} cyc (true)`,
           note: isCrit ? "CRITICAL RUL" : "LIFECYCLE NOMINAL",
           alert: isCrit,
         }

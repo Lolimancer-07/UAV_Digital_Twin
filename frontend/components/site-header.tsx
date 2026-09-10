@@ -1,11 +1,42 @@
 "use client"
 
+import { usePathname } from "next/navigation"
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Badge } from "@/components/ui/badge"
-import { Radio } from "lucide-react"
+import { ChevronRight, Radio } from "lucide-react"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { useTelemetry } from "@/components/telemetry-provider"
+
+const ROUTE_LABELS: Record<string, { label: string; parent?: string }> = {
+  "/": { label: "GCS Overview" },
+  "/dashboard": { label: "GCS Overview" },
+  "/telemetry": { label: "Telemetry Matrix", parent: "GCS Overview" },
+  "/prognostics": { label: "Prognostics & Attribution", parent: "GCS Overview" },
+  "/thermodynamics": { label: "Thermodynamics & P-V", parent: "GCS Overview" },
+  "/can": { label: "CAN Bus FDR", parent: "GCS Overview" },
+  "/maintenance": { label: "Maintenance Advisories", parent: "GCS Overview" },
+  "/fleet": { label: "Multi-UAV Fleet", parent: "GCS Overview" },
+  "/mission-command": { label: "Mission Command", parent: "GCS Overview" },
+  "/dossier": { label: "Dossier Export", parent: "GCS Overview" },
+  "/airworthiness": { label: "Airworthiness", parent: "GCS Overview" },
+}
+
+function Breadcrumb() {
+  const pathname = usePathname()
+  const route = ROUTE_LABELS[pathname] ?? { label: pathname.replace(/\//g, "").replace(/-/g, " ").toUpperCase() }
+  return (
+    <nav aria-label="Breadcrumb" className="hidden items-center gap-1 text-[11px] font-mono md:flex">
+      {route.parent && (
+        <>
+          <span className="text-muted-foreground/60">{route.parent}</span>
+          <ChevronRight className="h-3 w-3 text-muted-foreground/40" />
+        </>
+      )}
+      <span className="font-semibold text-foreground tracking-wide">{route.label}</span>
+    </nav>
+  )
+}
 
 function ConnectionBadge() {
   const { connectionStatus, reconnect } = useTelemetry()
@@ -91,13 +122,11 @@ export function SiteHeader() {
           className="mx-2 h-4 data-vertical:self-auto"
         />
         <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
-          <div className="hidden min-w-0 md:block">
-            <p className="truncate text-[10px] tracking-[0.18em] text-muted-foreground font-mono">
-              <span className="font-bold text-primary">{activeUavId}</span> · PROPULSION UNIT · ROTAX 914 F ENGINE
+          <div className="hidden min-w-0 flex-col gap-0.5 md:flex">
+            <Breadcrumb />
+            <p className="truncate text-[10px] tracking-[0.14em] text-muted-foreground font-mono leading-none">
+              <span className="font-bold text-primary">{activeUavId}</span> · ROTAX 914 F · PROPULSION GCS
             </p>
-            <h1 className="truncate text-base font-semibold tracking-wide">
-              UAV PROPULSION GROUND CONTROL STATION
-            </h1>
           </div>
           <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
             <ConnectionBadge />

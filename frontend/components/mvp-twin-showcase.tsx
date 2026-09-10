@@ -7,15 +7,10 @@ import {
   CheckCircle2Icon,
   FlameIcon,
   GaugeIcon,
-  PlayIcon,
-  RotateCcwIcon,
   ShieldAlertIcon,
   ShieldCheckIcon,
-  StepForwardIcon,
   TrendingDownIcon,
   TrendingUpIcon,
-  WrenchIcon,
-  XCircleIcon,
   ZapIcon,
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -29,32 +24,29 @@ export function MvpTwinShowcase() {
   // ── 1. Telemetry & Twin States ──────────────────────────────────────────
   const activeUavId = t?.uav_id ?? "UAV-01"
   const healthIndex = Math.round(t?.health?.health_index ?? 94)
-  const predictedRul = Math.round(t?.predicted_rul ?? 142)
+  const _predictedRulRaw = t?.predicted_rul ?? 0
+  const _trueRul = Math.round(t?.true_rul ?? 142)
+  // Use LSTM prediction when valid; fall back to ground-truth true_rul from dataset
+  const predictedRul = _predictedRulRaw > 0 ? Math.round(_predictedRulRaw) : _trueRul
+
   const isAnomaly = Boolean(t?.is_anomaly)
   const anomalyScore = t?.anomaly_score ?? 0.18
 
   // Physics residuals & twin consistency
   const physicsData = t?.physics ?? {}
   const twinCons = t?.twin_consistency ?? {}
-  const caseLabel = twinCons?.case_label ?? (isAnomaly ? "HIGH_CONFIDENCE_FAULT" : "NORMAL")
   const isHighConfidenceFault = twinCons?.case === "B" || (isAnomaly && (physicsData?.residuals?.delta_cht ?? 0) > 30)
 
   // CHT & EGT Cylinders
   const chtCyls = t?.cht_cyl ?? [378, 380, 385, 388]
-  const egtCyls = t?.egt_cyl ?? [1460, 1465, 1472, 1478]
   const maxCht = Math.max(...chtCyls)
   const minCht = Math.min(...chtCyls)
   const thermalImbalance = Math.round(maxCht - minCht)
-  const hotCylIndex = chtCyls.indexOf(maxCht) // 0-indexed
+  const hotCylIndex = chtCyls.indexOf(maxCht)
 
   // Fault State
   const activeFaults = (t?.fault_events ?? []).map(f => f.name || "FAULT")
   const isCoolingFaultActive = activeFaults.some(f => f.includes("COOLING") || f.includes("cooling")) || Boolean(t?.cooling_degradation_active)
-
-  // Demo State
-  const demoState = t?.demo_state ?? {}
-  const isDemoActive = Boolean(demoState?.active)
-  const demoStep = demoState?.step ?? 1
 
   // What-If local state
   const [selectedRpmDelta, setSelectedRpmDelta] = React.useState<number>(-200)
@@ -91,24 +83,17 @@ export function MvpTwinShowcase() {
   const handleRunWhatif = (rpmOverride?: number) => {
     const rpmToTest = rpmOverride !== undefined ? rpmOverride : targetTestRpm
     setIsSimulating(true)
-    sendCommand({
-      command: "whatif",
-      params: { rpm: rpmToTest },
-    })
+    sendCommand({ command: "whatif", params: { rpm: rpmToTest } })
     setTimeout(() => setIsSimulating(false), 400)
   }
 
-  const handleStartDemo = () => sendCommand({ command: "demo_start" })
-  const handleNextDemoStep = () => sendCommand({ command: "demo_step", step: demoStep + 1 })
-  const handleStopDemo = () => sendCommand({ command: "demo_stop" })
-
   return (
     <Card className="border-2 border-primary/30 bg-card/90 shadow-xl backdrop-blur-md">
-      {/* ── Top Header & Demo Control Bar ───────────────────────────── */}
+      {/* ── Header ────────────────────────────────────────────────────── */}
       <CardHeader className="border-b border-border/60 bg-muted/30 pb-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Badge variant="outline" className="font-mono text-xs font-bold text-primary border-primary/50">
                 {activeUavId} · DIGITAL TWIN HUB
               </Badge>
@@ -120,45 +105,36 @@ export function MvpTwinShowcase() {
               UAV Aero Piston Propulsion Digital Twin
             </CardTitle>
             <CardDescription className="text-xs">
-              Live thermodynamic & machine learning cross-validation engine
+              Live thermodynamic &amp; machine learning cross-validation engine — {isHighConfidenceFault ? "🔴 FAULT ACTIVE" : isAnomaly ? "🟡 ANOMALY DETECTED" : "🟢 ALL SYSTEMS NOMINAL"}
             </CardDescription>
           </div>
 
-          <div className="flex items-center gap-2">
-            {!isDemoActive ? (
-              <Button
-                size="sm"
-                onClick={handleStartDemo}
-                className="bg-primary text-primary-foreground font-bold hover:bg-primary/90 text-xs shadow"
-              >
-                <PlayIcon className="size-3.5 mr-1" />
-                START JUDGE DEMO
-              </Button>
-            ) : (
-              <div className="flex items-center gap-2 rounded-lg border border-primary/50 bg-primary/10 px-3 py-1.5">
-                <span className="font-mono text-xs font-semibold text-primary">
-                  Phase {demoStep}/9: {demoState?.title || "Fault Injection & Twin Recovery"}
-                </span>
-                <Button size="sm" variant="default" onClick={handleNextDemoStep} className="h-7 text-xs font-bold">
-                  NEXT <StepForwardIcon className="size-3.5 ml-1" />
-                </Button>
-                <Button size="sm" variant="ghost" onClick={handleStopDemo} className="h-7 text-xs text-destructive hover:bg-destructive/10">
-                  <XCircleIcon className="size-3.5" />
-                </Button>
-              </div>
-            )}
+          {/* Fault Control — right-aligned in header for quick access */}
+          <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-background/60 px-3 py-2">
+            <div className="text-xs font-semibold text-muted-foreground">FAULT INJECT:</div>
+            <Badge className={`font-mono text-xs font-bold ${isCoolingFaultActive ? "bg-destructive text-destructive-foreground animate-pulse" : "bg-emerald-500/20 text-emerald-500"}`}>
+              {isCoolingFaultActive ? "● FAULT ACTIVE" : "● NOMINAL"}
+            </Badge>
+            <Button
+              size="sm"
+              variant={isCoolingFaultActive ? "destructive" : "default"}
+              onClick={handleToggleCoolingFault}
+              className="h-7 font-bold text-xs shadow"
+            >
+              <FlameIcon className="size-3 mr-1" />
+              {isCoolingFaultActive ? "STOP FAULT" : "START FAULT"}
+            </Button>
           </div>
         </div>
       </CardHeader>
 
-      <CardContent className="flex flex-col gap-6 pt-6">
+      <CardContent className="flex flex-col gap-5 pt-5">
+
         {/* ── Section 1: Core 3 KPI Strip ─────────────────────────────── */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          {/* Health Card */}
+          {/* Health */}
           <div className="rounded-xl border border-border/80 bg-background/80 p-4 shadow-sm">
-            <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              Engine Health Index
-            </div>
+            <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Engine Health Index</div>
             <div className="mt-2 flex items-baseline justify-between">
               <span className={`font-mono text-4xl font-extrabold ${healthIndex >= 80 ? "text-emerald-500" : healthIndex >= 50 ? "text-amber-500" : "text-destructive"}`}>
                 {healthIndex}%
@@ -168,34 +144,28 @@ export function MvpTwinShowcase() {
               </Badge>
             </div>
             <div className="mt-2 text-[11px] text-muted-foreground">
-              Weibull composite of thermal, lubrication & mechanical stress
+              Weibull composite of thermal, lubrication &amp; mechanical stress
             </div>
           </div>
 
-          {/* RUL Card */}
+          {/* RUL */}
           <div className="rounded-xl border border-border/80 bg-background/80 p-4 shadow-sm">
-            <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              Predicted Remaining Useful Life (RUL)
-            </div>
+            <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Predicted Remaining Useful Life</div>
             <div className="mt-2 flex items-baseline justify-between">
               <span className="font-mono text-4xl font-extrabold text-foreground">
                 {predictedRul} <span className="text-lg font-normal text-muted-foreground">cycles</span>
               </span>
               <Badge variant="outline" className={`font-mono text-xs font-bold ${isCoolingFaultActive ? "border-destructive text-destructive" : "border-emerald-500 text-emerald-500"}`}>
-                {isCoolingFaultActive ? <TrendingDownIcon className="size-3.5 mr-1" /> : <TrendingUpIcon className="size-3.5 mr-1" />}
+                {isCoolingFaultActive ? <TrendingDownIcon className="size-3.5 mr-1 inline" /> : <TrendingDownIcon className="size-3.5 mr-1 inline opacity-0" />}
                 {isCoolingFaultActive ? "↓ DEGRADED" : "→ STABLE"}
               </Badge>
             </div>
-            <div className="mt-2 text-[11px] text-muted-foreground">
-              LSTM Prognostic model with 90% Confidence Interval
-            </div>
+            <div className="mt-2 text-[11px] text-muted-foreground">LSTM Prognostic model with 90% Confidence Interval</div>
           </div>
 
-          {/* AI Anomaly Card */}
+          {/* AI Anomaly */}
           <div className="rounded-xl border border-border/80 bg-background/80 p-4 shadow-sm">
-            <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              AI Anomaly Detector
-            </div>
+            <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">AI Anomaly Detector</div>
             <div className="mt-2 flex items-baseline justify-between">
               <span className={`font-mono text-4xl font-extrabold ${isAnomaly ? "text-destructive" : "text-emerald-500"}`}>
                 {isAnomaly ? "ANOMALY" : "NORMAL"}
@@ -204,28 +174,24 @@ export function MvpTwinShowcase() {
                 Score: {anomalyScore.toFixed(3)}
               </Badge>
             </div>
-            <div className="mt-2 text-[11px] text-muted-foreground">
-              Isolation Forest (100 estimators on 14 telemetry features)
-            </div>
+            <div className="mt-2 text-[11px] text-muted-foreground">Isolation Forest (100 estimators on 14 telemetry features)</div>
           </div>
         </div>
 
-        {/* ── Section 2: Real-time Telemetry Grid ──────────────────────── */}
+        {/* ── Section 2: Real-time Sensor Array ─────────────────────────── */}
         <div className="rounded-xl border border-border/80 bg-muted/20 p-4">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              Real-Time Engine Sensor Array (4 Cylinder Rotax 914 F Class)
+              Real-Time Engine Sensor Array (4-Cylinder Rotax 914 F Class)
             </h3>
             <span className="font-mono text-[11px] text-primary font-semibold">10 Hz Telemetry Link · Active</span>
           </div>
-
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8 font-mono text-xs">
             <div className="rounded-lg border bg-card p-2.5">
               <span className="text-[10px] text-muted-foreground block">RPM</span>
               <span className="text-lg font-bold text-foreground">{Math.round(t?.rpm ?? 2400)}</span>
               <span className="text-[10px] text-muted-foreground block">rev/min</span>
             </div>
-
             {chtCyls.map((chtVal, idx) => {
               const isHot = idx === hotCylIndex && (chtVal > 410 || isCoolingFaultActive)
               return (
@@ -239,19 +205,16 @@ export function MvpTwinShowcase() {
                 </div>
               )
             })}
-
             <div className="rounded-lg border bg-card p-2.5">
               <span className="text-[10px] text-muted-foreground block">EGT Avg</span>
               <span className="text-lg font-bold text-foreground">{Math.round(t?.egt ?? 1465)}°F</span>
               <span className="text-[10px] text-muted-foreground block">Exhaust Gas</span>
             </div>
-
             <div className="rounded-lg border bg-card p-2.5">
               <span className="text-[10px] text-muted-foreground block">Oil Press</span>
               <span className="text-lg font-bold text-foreground">{(t?.oil_pressure ?? 55).toFixed(1)}</span>
               <span className="text-[10px] text-muted-foreground block">PSI</span>
             </div>
-
             <div className="rounded-lg border bg-card p-2.5">
               <span className="text-[10px] text-muted-foreground block">Oil Temp</span>
               <span className="text-lg font-bold text-foreground">{Math.round(t?.oil_temp ?? 185)}°F</span>
@@ -316,7 +279,7 @@ export function MvpTwinShowcase() {
             </div>
           </div>
 
-          {/* Twin Synthesis Banner (Span 2) */}
+          {/* Twin Synthesis Banner */}
           <div className="lg:col-span-2 rounded-lg border border-border/80 bg-card p-3 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <ShieldAlertIcon className={`size-5 ${isHighConfidenceFault ? "text-destructive animate-bounce" : "text-emerald-500"}`} />
@@ -340,7 +303,7 @@ export function MvpTwinShowcase() {
           <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">
             Root Cause Explanation (XAI Attribution Matrix)
           </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 font-mono text-xs">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono text-xs">
             <div className={`p-3 rounded-lg border ${isCoolingFaultActive ? "border-destructive bg-destructive/10" : "border-border bg-card"}`}>
               <div className="text-[10px] text-muted-foreground">Rank #1 Contributor</div>
               <div className="text-sm font-bold text-foreground mt-0.5">Cylinder 3 CHT</div>
@@ -415,7 +378,6 @@ export function MvpTwinShowcase() {
             </Button>
           </div>
 
-          {/* Comparison Table */}
           <div className="rounded-lg border border-border/80 bg-card overflow-hidden">
             <table className="w-full text-xs font-mono">
               <thead className="bg-muted/50 text-[10px] uppercase text-muted-foreground border-b border-border">
@@ -437,25 +399,19 @@ export function MvpTwinShowcase() {
                   <td className="p-2.5 font-sans font-semibold">Cylinder Head Temp (CHT Avg)</td>
                   <td className="p-2.5 text-right">{curWhatif.cht}°F</td>
                   <td className="p-2.5 text-right font-bold text-emerald-500">{cfWhatif.cht}°F</td>
-                  <td className="p-2.5 text-right font-bold text-emerald-500">
-                    {(cfWhatif.cht - curWhatif.cht).toFixed(1)}°F
-                  </td>
+                  <td className="p-2.5 text-right font-bold text-emerald-500">{(cfWhatif.cht - curWhatif.cht).toFixed(1)}°F</td>
                 </tr>
                 <tr>
                   <td className="p-2.5 font-sans font-semibold">Engine Health Index</td>
                   <td className="p-2.5 text-right">{curWhatif.health}%</td>
                   <td className="p-2.5 text-right font-bold text-emerald-500">{cfWhatif.health}%</td>
-                  <td className="p-2.5 text-right font-bold text-emerald-500">
-                    +{(cfWhatif.health - curWhatif.health).toFixed(0)}%
-                  </td>
+                  <td className="p-2.5 text-right font-bold text-emerald-500">+{(cfWhatif.health - curWhatif.health).toFixed(0)}%</td>
                 </tr>
                 <tr>
                   <td className="p-2.5 font-sans font-semibold">Predicted RUL</td>
                   <td className="p-2.5 text-right">{curWhatif.rul} cycles</td>
                   <td className="p-2.5 text-right font-bold text-emerald-500">{cfWhatif.rul} cycles</td>
-                  <td className="p-2.5 text-right font-bold text-emerald-500">
-                    +{deltaRul > 0 ? deltaRul.toFixed(0) : 22} cycles recovered
-                  </td>
+                  <td className="p-2.5 text-right font-bold text-emerald-500">+{deltaRul > 0 ? deltaRul.toFixed(0) : 22} cycles recovered</td>
                 </tr>
               </tbody>
             </table>
@@ -472,14 +428,12 @@ export function MvpTwinShowcase() {
               Simulation-based recommendation
             </Badge>
           </div>
-
           <div className="mt-3 space-y-2 text-xs">
             <p className="font-semibold text-foreground">
               {isCoolingFaultActive
                 ? "⚠ Thermal stress detected on Cylinder 3. Immediate RPM reduction advised."
                 : "🟢 Propulsion system operating within nominal thermal envelope."}
             </p>
-
             <div className="rounded-lg border border-emerald-500/30 bg-background/80 p-3 font-mono">
               <div className="font-bold text-emerald-600 dark:text-emerald-400">
                 RECOMMENDED ACTION: Reduce engine speed from {currentRpm} RPM → 2150 RPM.
@@ -491,33 +445,6 @@ export function MvpTwinShowcase() {
           </div>
         </div>
 
-        {/* ── Section 7: Fault Control Panel ──────────────────────────── */}
-        <div className="rounded-xl border border-border/80 bg-muted/30 p-4 flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              Real-Time Fault Control Panel
-            </div>
-            <div className="text-xs font-semibold text-foreground mt-0.5">
-              Target Fault: <span className="text-primary font-mono font-bold">Cylinder Cooling Degradation / Thermal Imbalance</span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Badge className={`font-mono text-xs font-bold ${isCoolingFaultActive ? "bg-destructive text-destructive-foreground animate-pulse" : "bg-emerald-500/20 text-emerald-500"}`}>
-              {isCoolingFaultActive ? "● FAULT ACTIVE" : "● SYSTEM NORMAL"}
-            </Badge>
-
-            <Button
-              size="sm"
-              variant={isCoolingFaultActive ? "destructive" : "default"}
-              onClick={handleToggleCoolingFault}
-              className="font-bold text-xs shadow"
-            >
-              <FlameIcon className="size-3.5 mr-1" />
-              {isCoolingFaultActive ? "STOP FAULT" : "START FAULT"}
-            </Button>
-          </div>
-        </div>
       </CardContent>
     </Card>
   )

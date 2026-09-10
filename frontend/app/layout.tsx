@@ -8,6 +8,8 @@ import { TelemetryProvider } from "@/components/telemetry-provider";
 import { CommandDock } from "@/components/command-dock";
 import { BackendGate } from "@/components/backend-gate";
 
+import { PageTransition } from "@/components/page-transition";
+
 export const metadata: Metadata = {
   title: "UAV-07 | Propulsion GCS",
   description: "UAV propulsion ground control station",
@@ -25,7 +27,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <TelemetryProvider>
             <BackendGate>
               <div className="flex min-h-screen flex-col">
-                <div className="flex-1">{children}</div>
+                <PageTransition>{children}</PageTransition>
                 <CommandDock />
               </div>
             </BackendGate>

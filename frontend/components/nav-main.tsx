@@ -42,11 +42,11 @@ export function NavMain({
                   isActive={active}
                   tooltip={item.title}
                   size="lg"
-                  className="relative h-11 rounded-lg px-3 text-[0.92rem] font-medium tracking-[-0.01em] transition-all duration-150 data-active:bg-sidebar-accent data-active:text-sidebar-accent-foreground data-active:shadow-sm"
+                  className="relative h-11 rounded-lg px-3 text-[0.92rem] font-medium tracking-[-0.01em] transition-all duration-200 ease-out data-active:bg-sidebar-accent data-active:text-sidebar-accent-foreground data-active:shadow-sm hover:translate-x-0.5 active:scale-[0.99]"
                   render={<Link href={item.url} />}
                 >
                   {active && (
-                    <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-[3px] rounded-r-full bg-primary" />
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-[3.5px] rounded-r-full bg-primary transition-all duration-300 ease-out shadow-[0_0_8px_rgba(var(--primary),0.5)] animate-in fade-in zoom-in-75 duration-200" />
                   )}
                   {item.icon}
                   <span>{item.title}</span>

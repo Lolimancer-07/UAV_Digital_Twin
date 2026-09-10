@@ -74,6 +74,16 @@ pkill -9 -f "simulator/ecu_sim" 2>/dev/null || true
 fuser -k 8765/tcp 2>/dev/null || true
 fuser -k 8080/tcp 2>/dev/null || true
 
+# preflight: ensure required python dependencies are available
+if ! "$PYTHON" -c "import paho.mqtt.client, websockets" >/dev/null 2>&1; then
+    warn "Missing required Python libraries in $PYTHON"
+    echo "  → Auto-installing from requirements.txt..."
+    "$PYTHON" -m pip install -r "$ROOT/requirements.txt" || {
+        fail "Failed to auto-install dependencies. Please run: pip install -r requirements.txt"
+    }
+    ok "Dependencies installed"
+fi
+
 # step 1: make sure mosquitto is running
 hdr "1/5" "MQTT Broker (Mosquitto)"
 if systemctl is-active --quiet mosquitto 2>/dev/null; then

@@ -126,7 +126,7 @@ export function CommandDock() {
     <>
       {/* ── Demo Mode Stage Banner ─────────────────────────────────────── */}
       {isDemoActive && (
-        <div className="sticky top-0 z-40 flex items-center justify-between border-b border-primary/40 bg-primary/15 px-4 py-2 text-xs backdrop-blur-md">
+        <div className="sticky top-0 z-40 flex items-center justify-between border-b border-border bg-card px-4 py-2 text-xs shadow-sm">
           <div className="flex items-center gap-2">
             <Badge className="bg-primary text-primary-foreground font-bold">DEMO MODE</Badge>
             <span className="font-semibold text-foreground">
@@ -137,11 +137,11 @@ export function CommandDock() {
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <Button size="sm" variant="default" onClick={handleNextDemoStep} className="h-7 gap-1 text-xs">
+            <Button size="sm" variant="default" onClick={handleNextDemoStep} className="h-7 gap-1 text-xs bg-primary text-primary-foreground hover:bg-primary/90">
               <span>NEXT</span>
               <StepForwardIcon className="size-3.5" />
             </Button>
-            <Button size="sm" variant="outline" onClick={handleStopDemo} className="h-7 text-xs">
+            <Button size="sm" variant="outline" onClick={handleStopDemo} className="h-7 text-xs border-border bg-background hover:bg-muted">
               <XCircleIcon className="size-3.5 mr-1 text-destructive" />
               EXIT
             </Button>
@@ -150,11 +150,11 @@ export function CommandDock() {
       )}
 
       {/* ── Persistent Bottom Command Dock ─────────────────────────────── */}
-      <footer className="sticky bottom-0 z-30 flex flex-wrap items-center justify-between gap-3 border-t border-border/80 bg-background/95 px-4 py-2.5 backdrop-blur-md">
+      <footer className="sticky bottom-0 z-30 flex flex-wrap items-center justify-between gap-3 border-t border-border bg-background px-4 py-2.5 shadow-lg">
         {/* Offline indicator strip */}
         {!isLive && (
-          <div className="w-full flex items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-[11px] font-semibold text-amber-700 dark:text-amber-300 mb-1">
-            <Radio className="size-3.5 animate-pulse" />
+          <div className="w-full flex items-center gap-2 rounded-md border border-amber-500 bg-amber-50 dark:bg-amber-950 px-3 py-1.5 text-[11px] font-semibold text-amber-900 dark:text-amber-200 mb-1">
+            <Radio className="size-3.5 animate-pulse text-amber-600 dark:text-amber-400" />
             <span>Backend not connected — commands are disabled until the Digital Twin Core is live.</span>
             <button onClick={reconnect} className="ml-auto underline underline-offset-2 hover:opacity-80">Retry</button>
           </div>
@@ -166,10 +166,10 @@ export function CommandDock() {
             PROFILE:
           </span>
           <Select value={selectedProfile} onValueChange={(v) => { if (v) handleProfileChange(v) }}>
-            <SelectTrigger className="h-8 w-44 text-xs font-medium">
+            <SelectTrigger className="h-8 w-44 text-xs font-medium bg-background border-border text-foreground hover:bg-muted">
               <SelectValue placeholder="Mission Profile" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="bg-card dark:bg-zinc-900 border border-border shadow-2xl">
               {MISSION_PROFILE_OPTIONS.map((opt) => (
                 <SelectItem key={opt.value} value={opt.value} className="text-xs">
                   {opt.shortLabel}
@@ -185,10 +185,10 @@ export function CommandDock() {
             FAULT:
           </span>
           <Select value={selectedFault} onValueChange={(v) => { if (v) setSelectedFault(v) }}>
-            <SelectTrigger className="h-8 w-48 text-xs font-medium">
+            <SelectTrigger className="h-8 w-48 text-xs font-medium bg-background border-border text-foreground hover:bg-muted">
               <SelectValue placeholder="Select Fault" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="bg-card dark:bg-zinc-900 border border-border shadow-2xl">
               {FAULT_OPTIONS.map((opt) => (
                 <SelectItem key={opt.value} value={opt.value} className="text-xs">
                   {opt.label}
@@ -200,7 +200,7 @@ export function CommandDock() {
             size="sm"
             variant="outline"
             onClick={handleInjectFault}
-            className="h-8 gap-1 border-amber-500/40 text-xs text-amber-500 hover:bg-amber-500/10"
+            className="h-8 gap-1 border-amber-500 bg-background text-xs text-amber-600 dark:text-amber-400 font-semibold hover:bg-amber-500 hover:text-white dark:hover:bg-amber-600 dark:hover:text-white"
           >
             <FlameIcon className="size-3.5" />
             <span>INJECT</span>
@@ -209,14 +209,14 @@ export function CommandDock() {
             size="sm"
             variant="outline"
             onClick={handleClearFaults}
-            className="h-8 gap-1 border-border/60 text-xs hover:bg-muted/40"
+            className="h-8 gap-1 border-border bg-background text-xs font-medium hover:bg-muted text-foreground"
           >
             <RotateCcwIcon className="size-3.5" />
             <span>CLEAR</span>
           </Button>
 
           {activeFaults.length > 0 && (
-            <Badge variant="destructive" className="ml-1 text-[10px] font-bold">
+            <Badge variant="destructive" className="ml-1 text-[10px] font-bold bg-destructive text-destructive-foreground">
               {activeFaults.length} FAULT{activeFaults.length > 1 ? "S" : ""}
             </Badge>
           )}
@@ -228,10 +228,10 @@ export function CommandDock() {
             SPEED:
           </span>
           <Select value={speed} onValueChange={(v) => { if (v) handleSpeedChange(v) }}>
-            <SelectTrigger className="h-8 w-24 text-xs font-medium">
+            <SelectTrigger className="h-8 w-24 text-xs font-medium bg-background border-border text-foreground hover:bg-muted">
               <SelectValue placeholder="Speed" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="bg-card dark:bg-zinc-900 border border-border shadow-2xl">
               <SelectItem value="1.0" className="text-xs">1.0× Real</SelectItem>
               <SelectItem value="2.0" className="text-xs">2.0× Fast</SelectItem>
               <SelectItem value="5.0" className="text-xs">5.0× Ultra</SelectItem>
@@ -241,7 +241,7 @@ export function CommandDock() {
             size="sm"
             variant={isPaused ? "destructive" : "outline"}
             onClick={handleTogglePause}
-            className="h-8 w-20 text-xs font-medium"
+            className="h-8 w-20 text-xs font-medium bg-background border-border hover:bg-muted"
           >
             {isPaused ? (
               <>

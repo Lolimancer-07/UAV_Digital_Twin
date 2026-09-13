@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Slider } from "@/components/ui/slider"
 import { useTelemetry } from "@/components/telemetry-provider"
 
 const TARGETS = [
@@ -89,14 +90,13 @@ export function OptimizeDialog() {
           <div className="flex items-center justify-between rounded-lg border border-border/60 bg-muted/20 p-3">
             <span className="text-xs font-medium">Max Allowable CHT</span>
             <div className="flex items-center gap-3">
-              <input
-                type="range"
+              <Slider
                 min={360}
                 max={460}
                 step={5}
                 value={maxCht}
-                onChange={(e) => setMaxCht(Number(e.target.value))}
-                className="w-32 accent-primary"
+                onValueChange={setMaxCht}
+                className="w-36 py-1"
               />
               <span className="font-mono text-xs font-semibold text-primary">{maxCht} °F</span>
             </div>

@@ -79,16 +79,28 @@ def _estimate_counterfactual_state(baseline: dict, overrides: dict) -> dict:
         thermal_penalty = 1.0 - pct * 0.5
         cf["cht"] = cf.get("cht", CHT_NOMINAL) * thermal_penalty
         cf["oil_temp"] = cf.get("oil_temp", 185.0) * thermal_penalty
+    elif "cooling_degradation" in overrides:
+        deg = float(overrides["cooling_degradation"])
+        thermal_penalty = 1.0 + deg * 0.5
+        cf["cht"] = cf.get("cht", CHT_NOMINAL) * thermal_penalty
+        cf["oil_temp"] = cf.get("oil_temp", 185.0) * thermal_penalty
 
     # injector efficiency affects fuel flow and EGT (richer/leaner mixture)
     if "injector_efficiency_pct" in overrides:
         pct = float(overrides["injector_efficiency_pct"]) / 100.0
         cf["fuel_flow"] = cf.get("fuel_flow", 8.5) * (1.0 + pct)
         cf["egt"] = cf.get("egt", EGT_NOMINAL) * (1.0 - pct * 0.3)
+    elif "inj_timing_offset" in overrides:
+        offset = float(overrides["inj_timing_offset"])
+        cf["egt"] = cf.get("egt", EGT_NOMINAL) + offset * 8.0
 
     # ambient temperature change — hot day = higher CHT and oil temp
     if "ambient_temp_c" in overrides:
         delta_t = cf["ambient_temp_c"] - baseline.get("oat_c", 15.0)
+        cf["cht"] = cf.get("cht", CHT_NOMINAL) + delta_t * 0.8
+        cf["oil_temp"] = cf.get("oil_temp", 185.0) + delta_t * 0.5
+    elif "oat_c" in overrides:
+        delta_t = float(overrides["oat_c"]) - baseline.get("oat_c", 15.0)
         cf["cht"] = cf.get("cht", CHT_NOMINAL) + delta_t * 0.8
         cf["oil_temp"] = cf.get("oil_temp", 185.0) + delta_t * 0.5
 

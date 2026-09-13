@@ -32,8 +32,8 @@ return (
               <SidebarMenuButton
                 isActive={pathname === item.url}
                 size="lg"
-                className="h-11 rounded-lg px-3 text-[0.95rem] font-medium"
-                render={<Link href={item.url} />}
+                className="h-11 rounded-lg px-3 text-[0.95rem] font-medium transition-all duration-150 ease-out hover:translate-x-0.5 active:scale-[0.99]"
+                render={<Link href={item.url} prefetch={true} />}
               >
                 {item.icon}
                 <span>{item.title}</span>

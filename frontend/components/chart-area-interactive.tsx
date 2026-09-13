@@ -332,7 +332,7 @@ export function ChartAreaInteractive() {
                   key={m.value}
                   type="button"
                   onClick={() => setMode(m.value)}
-                  className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all ${
+                  className={`rounded-md px-2.5 py-1 text-xs font-medium transition-all duration-150 ease-out active:scale-95 ${
                     active
                       ? "bg-background text-foreground shadow-xs ring-1 ring-border/80"
                       : "text-muted-foreground hover:bg-background/50 hover:text-foreground"
@@ -620,6 +620,7 @@ export function ChartAreaInteractive() {
                 strokeWidth={2.2}
                 dot={false}
                 activeDot={{ r: 4, strokeWidth: 1, stroke: "#fff" }}
+                isAnimationActive={false}
               />
 
               {/* Primary Channel Area Curve */}
@@ -632,6 +633,7 @@ export function ChartAreaInteractive() {
                 strokeWidth={2.5}
                 dot={false}
                 activeDot={{ r: 4, strokeWidth: 1, stroke: "#fff" }}
+                isAnimationActive={false}
               />
 
               {/* RUL Confidence Interval Envelope */}
@@ -646,6 +648,7 @@ export function ChartAreaInteractive() {
                     strokeWidth={1.2}
                     strokeDasharray="4 4"
                     dot={false}
+                    isAnimationActive={false}
                   />
                   <Area
                     yAxisId="left"
@@ -656,6 +659,7 @@ export function ChartAreaInteractive() {
                     strokeWidth={1.2}
                     strokeDasharray="4 4"
                     dot={false}
+                    isAnimationActive={false}
                   />
                 </>
               )}

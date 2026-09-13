@@ -65,14 +65,14 @@ export function GcsMissionStatusBar() {
     : "SYSTEM NOMINAL"
 
   const statusBg = isCritical
-    ? "bg-red-950/40 border-red-900/60"
+    ? "bg-red-50 border-red-600 dark:bg-red-950 dark:border-red-800"
     : isWarning
-    ? "bg-amber-950/30 border-amber-900/50"
-    : "bg-emerald-950/20 border-emerald-900/30"
+    ? "bg-amber-50 border-amber-600 dark:bg-amber-950 dark:border-amber-800"
+    : "bg-card border-border"
 
   return (
     <div
-      className={`mx-4 mb-1 mt-0 rounded-xl border px-5 py-3 lg:mx-6 ${statusBg} transition-colors duration-700`}
+      className={`mx-4 mb-1 mt-0 rounded-xl border px-5 py-3 lg:mx-6 ${statusBg} shadow-sm transition-colors duration-500`}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         {/* Left: UAV ID + status */}
@@ -80,7 +80,7 @@ export function GcsMissionStatusBar() {
           {/* Status indicator dot */}
           <span className="relative flex h-3 w-3 shrink-0">
             <span
-              className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-60 ${statusColor}`}
+              className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-40 ${statusColor}`}
             />
             <span className={`relative inline-flex h-3 w-3 rounded-full ${statusColor}`} />
           </span>
@@ -92,7 +92,7 @@ export function GcsMissionStatusBar() {
               {uavId}
             </span>
           </div>
-          <div className="hidden h-8 w-px bg-border/60 sm:block" />
+          <div className="hidden h-8 w-px bg-border sm:block" />
           <div className="hidden flex-col leading-none sm:flex">
             <span className="font-mono text-[10px] tracking-widest text-muted-foreground">
               TWIN STATUS
@@ -100,10 +100,10 @@ export function GcsMissionStatusBar() {
             <span
               className={`text-sm font-bold ${
                 isCritical
-                  ? "text-red-500"
+                  ? "text-red-600 dark:text-red-400"
                   : isWarning
-                  ? "text-amber-500"
-                  : "text-emerald-500"
+                  ? "text-amber-600 dark:text-amber-400"
+                  : "text-emerald-600 dark:text-emerald-400"
               }`}
             >
               {statusText}
@@ -127,12 +127,12 @@ export function GcsMissionStatusBar() {
               <LiveClock />
             </span>
           </div>
-          <div className="hidden h-6 w-px bg-border/50 lg:block" />
+          <div className="hidden h-6 w-px bg-border lg:block" />
           <div
-            className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ${
+            className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold border ${
               isLive
-                ? "bg-emerald-500/10 text-emerald-500 ring-emerald-500/30"
-                : "bg-muted text-muted-foreground ring-border"
+                ? "bg-emerald-600 text-white border-emerald-600"
+                : "bg-muted text-muted-foreground border-border"
             }`}
           >
             <Radio className="h-3 w-3" />

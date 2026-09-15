@@ -4,22 +4,24 @@ SIM_BIN="$ROOT/simulator/ecu_sim"
 
 # Resolve python interpreter portably
 find_python() {
-    # 1. Explicitly activated virtual environment or conda environment
-    if [ -n "$VIRTUAL_ENV" ] && [ -x "$VIRTUAL_ENV/bin/python" ]; then
-        echo "$VIRTUAL_ENV/bin/python"
-        return
-    fi
-    if [ -n "$CONDA_PREFIX" ] && [ -x "$CONDA_PREFIX/bin/python" ]; then
-        echo "$CONDA_PREFIX/bin/python"
-        return
-    fi
-    # 2. Local repository virtual environment
+    # 1. Local repository virtual environment takes priority — it has all the
+    #    project dependencies (TensorFlow etc.) regardless of any active conda
+    #    base environment that may be present but lack those packages.
     if [ -x "$ROOT/.venv/bin/python" ]; then
         echo "$ROOT/.venv/bin/python"
         return
     fi
     if [ -x "$ROOT/venv/bin/python" ]; then
         echo "$ROOT/venv/bin/python"
+        return
+    fi
+    # 2. Explicitly activated virtual environment or named conda environment
+    if [ -n "$VIRTUAL_ENV" ] && [ -x "$VIRTUAL_ENV/bin/python" ]; then
+        echo "$VIRTUAL_ENV/bin/python"
+        return
+    fi
+    if [ -n "$CONDA_PREFIX" ] && [ -x "$CONDA_PREFIX/bin/python" ]; then
+        echo "$CONDA_PREFIX/bin/python"
         return
     fi
     # 3. System python3 if dependencies are present

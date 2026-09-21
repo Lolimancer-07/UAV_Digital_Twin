@@ -11,7 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { ActivityIcon, GaugeIcon, ShieldCheckIcon, ZapIcon } from "lucide-react"
+import { ActivityIcon, GaugeIcon, ShieldCheckIcon, TrendingDownIcon, TrendingUpIcon, ZapIcon } from "lucide-react"
 import { useTelemetry } from "@/components/telemetry-provider"
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -37,6 +37,72 @@ function alertBadge(alert: string | undefined) {
   if (a === "CRITICAL") return <Badge variant="destructive">CRITICAL</Badge>
   if (a === "WARNING")  return <Badge className="border-amber-500 text-amber-600 dark:text-amber-400" variant="outline">WARNING</Badge>
   return <Badge variant="outline"><ShieldCheckIcon data-icon="inline-start" /> NOMINAL</Badge>
+}
+
+function SubsystemBar({ label, value }: { label: string; value: number }) {
+  const prevRef = React.useRef(value)
+  const [delta, setDelta] = React.useState<number>(0)
+  const [isChanging, setIsChanging] = React.useState(false)
+
+  React.useEffect(() => {
+    const diff = value - prevRef.current
+    if (diff !== 0) {
+      setDelta(diff)
+      setIsChanging(true)
+      prevRef.current = value
+
+      const timer = setTimeout(() => {
+        setDelta(0)
+        setIsChanging(false)
+      }, 3500)
+      return () => clearTimeout(timer)
+    }
+  }, [value])
+
+  const barColor =
+    value >= 80
+      ? "bg-emerald-500"
+      : value >= 60
+      ? "bg-amber-500"
+      : "bg-red-500"
+
+  return (
+    <div className="flex flex-col gap-1 w-full min-w-0">
+      <div className="flex items-center justify-between text-[11px] leading-tight">
+        <span className="font-semibold text-muted-foreground tracking-tight">{label}</span>
+        <div className="flex items-center gap-1 font-mono text-[11px] tabular-nums">
+          <span className="font-bold text-foreground">{value}%</span>
+          {delta !== 0 && (
+            <span
+              className={`text-[9.5px] font-bold transition-opacity duration-300 animate-in fade-in inline-flex items-center gap-0.5 ${
+                delta > 0 ? "text-emerald-500" : "text-amber-500 dark:text-amber-400"
+              }`}
+            >
+              {delta > 0 ? (
+                <>
+                  <TrendingUpIcon className="size-2.5 inline" />
+                  +{delta}%
+                </>
+              ) : (
+                <>
+                  <TrendingDownIcon className="size-2.5 inline" />
+                  {delta}%
+                </>
+              )}
+            </span>
+          )}
+        </div>
+      </div>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted/80 dark:bg-muted/40 relative">
+        <div
+          className={`h-full rounded-full transition-all duration-500 ease-out ${barColor} ${
+            isChanging ? "ring-1 ring-primary/40 brightness-110" : ""
+          }`}
+          style={{ width: `${Math.min(Math.max(value, 0), 100)}%` }}
+        />
+      </div>
+    </div>
+  )
 }
 
 // ─── Cards ────────────────────────────────────────────────────────────────────
@@ -107,12 +173,15 @@ export function SectionCards() {
                 {alertBadge(t?.alert)}
               </CardAction>
             </CardHeader>
-            <CardFooter className="flex-col items-start gap-1 px-5 pb-4 text-xs">
-              <div className="line-clamp-1 flex gap-2 font-medium">
-                THRML {subThermal}% · LUBR {subLubr}%
+            <CardFooter className="flex-col items-start gap-2 px-5 pb-4 text-xs w-full">
+              <div className="grid grid-cols-2 gap-3 w-full">
+                <SubsystemBar label="THRML" value={subThermal} />
+                <SubsystemBar label="LUBR" value={subLubr} />
               </div>
-              <div className="text-muted-foreground">
-                MECH {subMech}% · ELEC {subElec}%
+              <div className="flex items-center justify-between text-[10.5px] text-muted-foreground w-full pt-0.5">
+                <span>MECH {subMech}%</span>
+                <span className="text-muted-foreground/30">•</span>
+                <span>ELEC {subElec}%</span>
               </div>
             </CardFooter>
           </Card>

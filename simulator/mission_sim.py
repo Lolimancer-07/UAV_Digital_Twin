@@ -314,9 +314,16 @@ while True:
             break
 
         # pause loop — just keep checking until unpaused
+        prev_paused_faults = set(sim_state["injected_faults"])
         while sim_state["paused"]:
             time.sleep(0.2)
             read_control()
+            if sim_state["injected_faults"] != prev_paused_faults:
+                prev_paused_faults = set(sim_state["injected_faults"])
+                p_name = sim_state["profile"]
+                p_prof = PROFILES.get(p_name, PROFILES["NORMAL"])
+                p_payload = build_telemetry_packet(row, cycle_counter, p_prof, prev_paused_faults)
+                client.publish(TOPIC, json.dumps(p_payload), qos=0)
 
         prof_name = sim_state["profile"]
         prof = PROFILES.get(prof_name, PROFILES["NORMAL"])

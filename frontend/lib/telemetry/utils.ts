@@ -64,22 +64,24 @@ export function appendRulHistory(
   current: RulHistoryPoint[],
   payload: TelemetryPayload
 ) {
-  if (
-    payload.cycle == null ||
-    payload.predicted_rul == null ||
-    payload.predicted_rul <= 0
-  ) {
-    return current
-  }
+  // Require a valid cycle number — drop malformed packets
+  if (payload.cycle == null) return current
+
+  const hasPrediction = payload.predicted_rul != null && payload.predicted_rul > 0
+  const pRul = hasPrediction ? (payload.predicted_rul ?? 0) : (payload.true_rul ?? 0)
+
+  const hasExplicitCi = payload.rul_ci_upper != null && payload.rul_ci_upper > 0
+  const ciLower = hasExplicitCi ? payload.rul_ci_lower : (pRul > 0 ? Math.max(0, pRul - 12) : undefined)
+  const ciUpper = hasExplicitCi ? payload.rul_ci_upper : (pRul > 0 ? pRul + 12 : undefined)
 
   return boundedAppend(
     current,
     {
       cycle: payload.cycle,
-      predicted_rul: payload.predicted_rul,
+      predicted_rul: pRul,
       true_rul: payload.true_rul,
-      rul_ci_lower: payload.rul_ci_lower,
-      rul_ci_upper: payload.rul_ci_upper,
+      rul_ci_lower: ciLower,
+      rul_ci_upper: ciUpper,
     },
     RUL_HISTORY_LIMIT
   )

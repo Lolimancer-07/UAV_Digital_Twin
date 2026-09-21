@@ -24,3 +24,12 @@ frontend/.agents/
 .DS_Store
 *.swp
 *.swo
+
+__pycache__/
+*.py[cod]
+
+# Large installers / downloads
+Anaconda*.sh
+*.iso
+*.tar.gz
+FETCH_HEAD

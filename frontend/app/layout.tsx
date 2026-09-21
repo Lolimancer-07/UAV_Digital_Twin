@@ -5,6 +5,8 @@ import { GeistPixelSquare } from "geist/font/pixel";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TelemetryProvider } from "@/components/telemetry-provider";
+import { AICopilotProvider } from "@/components/ai-copilot-context";
+import { AICopilotRightPanel } from "@/components/ai-copilot-right-panel";
 import { CommandDock } from "@/components/command-dock";
 import { BackendGate } from "@/components/backend-gate";
 
@@ -20,17 +22,26 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${GeistSans.variable} ${GeistMono.variable} ${GeistPixelSquare.variable} h-full antialiased`}
+      className={`${GeistSans.variable} ${GeistMono.variable} ${GeistPixelSquare.variable} h-full overflow-hidden overscroll-none antialiased`}
     >
-      <body className="min-h-full flex flex-col">
+      <body className="h-screen w-screen overflow-hidden overscroll-none flex flex-col antialiased">
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
           <TelemetryProvider>
-            <BackendGate>
-              <div className="flex min-h-screen flex-col">
-                <PageTransition>{children}</PageTransition>
-                <CommandDock />
-              </div>
-            </BackendGate>
+            <AICopilotProvider>
+              <BackendGate>
+                <div className="flex h-screen max-h-screen flex-col overflow-hidden">
+                  <div className="flex flex-1 min-h-0 w-full overflow-hidden">
+                    {/* Main page independent scroll container */}
+                    <div className="flex-1 min-w-0 h-full overflow-y-auto overflow-x-hidden overscroll-contain scrollbar-thin">
+                      <PageTransition>{children}</PageTransition>
+                    </div>
+                    {/* Dedicated Chatbot right sidebar — independent scroll container */}
+                    <AICopilotRightPanel />
+                  </div>
+                  <CommandDock />
+                </div>
+              </BackendGate>
+            </AICopilotProvider>
           </TelemetryProvider>
         </ThemeProvider>
       </body>

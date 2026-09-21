@@ -27,7 +27,6 @@ import { useTelemetry } from "@/components/telemetry-provider"
 import { WhatIfDialog } from "@/components/what-if-dialog"
 import { OptimizeDialog } from "@/components/optimize-dialog"
 import { EdgeSwapDialog } from "@/components/edge-swap-dialog"
-import { AICopilotSheet } from "@/components/ai-copilot-sheet"
 import { MISSION_PROFILE_OPTIONS } from "@/lib/telemetry/constants"
 import type { MissionProfile } from "@/lib/telemetry/types"
 
@@ -89,8 +88,11 @@ export function CommandDock() {
     })
   }
 
+  const [justCleared, setJustCleared] = React.useState<boolean>(false)
+
   const handleInjectFault = () => {
     if (!selectedFault) return
+    setJustCleared(false)
     sendCommand({
       command: "inject_fault",
       fault: selectedFault,
@@ -101,6 +103,8 @@ export function CommandDock() {
     sendCommand({
       command: "clear_faults",
     })
+    setJustCleared(true)
+    setTimeout(() => setJustCleared(false), 2500)
   }
 
   const handleStartDemo = () => {
@@ -120,7 +124,7 @@ export function CommandDock() {
     sendCommand({ command: "demo_stop" })
   }
 
-  const activeFaults = latestTelemetry?.fault_events ?? []
+  const activeFaults = justCleared ? [] : (latestTelemetry?.fault_events ?? [])
 
   return (
     <>
@@ -207,17 +211,36 @@ export function CommandDock() {
           </Button>
           <Button
             size="sm"
-            variant="outline"
+            variant={justCleared ? "default" : "outline"}
             onClick={handleClearFaults}
-            className="h-8 gap-1 border-border bg-background text-xs font-medium hover:bg-muted text-foreground"
+            className={`h-8 gap-1 text-xs font-medium transition-all ${
+              justCleared
+                ? "border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700"
+                : "border-border bg-background hover:bg-muted text-foreground"
+            }`}
           >
-            <RotateCcwIcon className="size-3.5" />
-            <span>CLEAR</span>
+            {justCleared ? (
+              <>
+                <CheckCircle2Icon className="size-3.5 text-white" />
+                <span>CLEARED</span>
+              </>
+            ) : (
+              <>
+                <RotateCcwIcon className="size-3.5" />
+                <span>CLEAR</span>
+              </>
+            )}
           </Button>
 
           {activeFaults.length > 0 && (
-            <Badge variant="destructive" className="ml-1 text-[10px] font-bold bg-destructive text-destructive-foreground">
+            <Badge variant="destructive" className="ml-1 text-[10px] font-bold bg-destructive text-destructive-foreground animate-pulse">
               {activeFaults.length} FAULT{activeFaults.length > 1 ? "S" : ""}
+            </Badge>
+          )}
+
+          {justCleared && (
+            <Badge variant="outline" className="ml-1 text-[10px] font-bold border-emerald-500 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+              FAULTS CLEARED
             </Badge>
           )}
         </div>
@@ -273,7 +296,6 @@ export function CommandDock() {
           <WhatIfDialog />
           <OptimizeDialog />
           <EdgeSwapDialog />
-          <AICopilotSheet />
         </div>
         </div>
       </footer>

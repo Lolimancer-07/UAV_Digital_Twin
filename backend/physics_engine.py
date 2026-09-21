@@ -209,28 +209,25 @@ class AeroEnginePhysicsModel:
         # Volumetric efficiency
         eta_volumetric = min(1.05, max(0.60, (map_kpa / 101.325) * 0.88))
 
-        # 6. Expected sensor baselines per AI_MODELS_SPEC.md Section 2.2
-        # CHT_expected = T_ambient + k1*(RPM/1000)^1.3 + k2*BHP
+        # 6. Expected sensor baselines per aero engine first-principles thermodynamics
         k1 = self.constants.get("k1_cht_rpm", 38.0)
         k2 = self.constants.get("k2_cht_bhp", 2.25)
         # Cooling airflow scaling: density sigma reduces convective cooling efficiency at altitude
         cooling_margin_factor = 1.0 / max(0.55, (sigma ** 0.45))
         thermal_rise = (k1 * ((rpm / 1000.0) ** 1.3) + k2 * brake_power_hp) * cooling_margin_factor
-        expected_cht = t_ambient_f + thermal_rise * 0.72
+        expected_cht = 255.0 + (t_ambient_f - 59.0) * 0.3 + thermal_rise * 0.72
 
-        # EGT_expected = 1480.0 + k3*(RPM/1000)^1.1 - k4*(Fuel Flow - 9.0)
-        k3 = self.constants.get("k3_egt_rpm", 65.0)
+        # EGT_expected = 1280.0 + k3*(RPM/1000)^1.1 - k4*(Fuel Flow - 9.0)
+        k3 = self.constants.get("k3_egt_rpm", 60.0)
         k4 = self.constants.get("k4_egt_fuel", 12.0)
-        expected_egt = 1480.0 + k3 * ((rpm / 1000.0) ** 1.1) - k4 * (fuel_flow_l_h - 9.0)
+        expected_egt = 1280.0 + k3 * ((rpm / 1000.0) ** 1.1) - k4 * (fuel_flow_l_h - 9.0)
 
-        # OilPressure_expected = 15.0 + 35.0*(RPM/2400)*(210.0/OilTemp)^0.5
-        k_oil_base = self.constants.get("k_oil_base", 15.0)
-        k_oil_slope = self.constants.get("k_oil_slope", 35.0)
+        # OilPressure_expected calibrated for Rotax 914 lubrication circuit
         clamped_oil_t = max(100.0, min(280.0, oil_t))
-        expected_oil_p = k_oil_base + k_oil_slope * (rpm / 2400.0) * math.sqrt(210.0 / clamped_oil_t)
+        expected_oil_p = 15.0 + 38.0 * (rpm / 2400.0) * math.sqrt(200.0 / clamped_oil_t)
 
-        # Expected fuel flow based on brake power and specific fuel consumption
-        expected_fuel_flow = (brake_power_kw * 0.30) / self.fuel_dens
+        # Expected fuel flow based on engine shaft RPM (nominal ~9.8 L/h at 2400 RPM cruise)
+        expected_fuel_flow = (rpm / 2400.0) * 9.8
 
         # 7. Residual deltas: Sensor - Expected
         res_egt = egt - expected_egt
@@ -252,7 +249,8 @@ class AeroEnginePhysicsModel:
             "bmep_bar":            round(bmep_bar, 2),
             "bsfc_g_kwh":          round(bsfc_g_kwh, 1),
             "thermal_efficiency":  round(eta_bth * 100.0, 2),
-            "volumetric_eff":      round(eta_volumetric * 100.0, 2),
+            "volumetric_eff":        round(eta_volumetric * 100.0, 2),
+            "volumetric_efficiency": round(eta_volumetric * 100.0, 2),
             "ideal_otto_eff":      round(self.ideal_thermal_eff * 100.0, 2),
             "thermal_ratio":       round(thermal_ratio, 3),
             "isa_ambient_temp_c":  isa["temp_c"],
@@ -264,10 +262,14 @@ class AeroEnginePhysicsModel:
                 "fuel_flow":  round(expected_fuel_flow, 2),
             },
             "residuals": {
-                "delta_egt":   round(res_egt, 1),
-                "delta_cht":   round(res_cht, 1),
-                "delta_oil_p": round(res_oil_p, 1),
-                "delta_fuel":  round(res_fuel, 2),
+                "delta_egt":      round(res_egt, 1),
+                "delta_cht":      round(res_cht, 1),
+                "delta_oil_p":    round(res_oil_p, 1),
+                "delta_fuel":     round(res_fuel, 2),
+                "expected_egt":   round(expected_egt, 1),
+                "expected_cht":   round(expected_cht, 1),
+                "expected_oil_p": round(expected_oil_p, 1),
+                "expected_fuel":  round(expected_fuel_flow, 2),
             },
             "residual_thresholds": self.residual_thresholds,
             "pv_diagram": pv_points

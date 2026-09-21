@@ -41,6 +41,9 @@ export function useTelemetrySocket(endpoint = DEFAULT_WS_ENDPOINT) {
   }, [])
 
   const lastUiUpdateRef = React.useRef(0)
+  const lastFaultCountRef = React.useRef(0)
+  const lastAlertRef = React.useRef<string | undefined>(undefined)
+  const lastAnomalyRef = React.useRef<boolean | undefined>(undefined)
   const attemptRef = React.useRef(0)
 
   const resolveTargetEndpoint = React.useCallback(() => {
@@ -105,18 +108,28 @@ export function useTelemetrySocket(endpoint = DEFAULT_WS_ENDPOINT) {
         // Always ingest into rolling history and logs
         ingestRef.current(payload)
 
-        // Calm, readable UI update rate (at most once every 600ms),
-        // but immediately push updates on urgent state changes or tool responses!
+        // Calm, readable UI update rate (at most once every 400ms),
+        // but immediately push updates on urgent state transitions or tool responses!
         const now = Date.now()
+        const faultCount = (payload.fault_events?.length ?? 0) + (payload.active_faults?.length ?? 0)
+        const faultTransition = faultCount !== lastFaultCountRef.current
+        lastFaultCountRef.current = faultCount
+
+        const alertTransition = payload.alert !== lastAlertRef.current
+        lastAlertRef.current = payload.alert
+
+        const anomalyTransition = Boolean(payload.is_anomaly) !== Boolean(lastAnomalyRef.current)
+        lastAnomalyRef.current = payload.is_anomaly
+
         const isUrgent =
-          payload.is_anomaly ||
-          payload.alert === "CRITICAL" ||
-          payload.alert === "WARNING" ||
+          faultTransition ||
+          alertTransition ||
+          anomalyTransition ||
           payload.whatif_result != null ||
           payload.optimize_result != null ||
           payload.ai_engineer_response != null
 
-        if (now - lastUiUpdateRef.current >= 600 || isUrgent) {
+        if (now - lastUiUpdateRef.current >= 400 || isUrgent) {
           lastUiUpdateRef.current = now
           setLatestTelemetry(payload)
         }

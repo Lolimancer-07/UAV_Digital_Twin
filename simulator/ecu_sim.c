@@ -26,9 +26,7 @@ static float gaussian(float mean, float stddev) {
 static float clampf(float v, float lo, float hi) {
     return v < lo ? lo : (v > hi ? hi : v);
 }
-
-/* ---------- main ------------------------------------------------------- */
-
+/*Main Function*/
 int main(int argc, char* argv[]) {
     srand((unsigned int)time(NULL));
 

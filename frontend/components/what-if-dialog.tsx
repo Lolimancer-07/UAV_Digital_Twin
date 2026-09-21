@@ -31,7 +31,7 @@ import { Slider } from "@/components/ui/slider"
 import { useTelemetry } from "@/components/telemetry-provider"
 
 interface WhatIfDialogProps {
-  trigger?: React.ReactNode
+  trigger?: React.ReactElement
   initialRpm?: number
 }
 
@@ -208,9 +208,7 @@ export function WhatIfDialog({ trigger, initialRpm }: WhatIfDialogProps) {
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger
         render={
-          trigger ? (
-            <>{trigger}</>
-          ) : (
+          trigger ?? (
             <Button variant="outline" size="sm" className="gap-1.5 text-xs">
               <SlidersHorizontalIcon className="size-3.5" />
               <span>WHAT-IF</span>

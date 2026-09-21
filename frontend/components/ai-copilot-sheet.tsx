@@ -14,81 +14,13 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { useTelemetry } from "@/components/telemetry-provider"
-
-interface ChatMessage {
-  id: string
-  role: "user" | "assistant"
-  text: string
-  timestamp: string
-}
-
-const QUICK_PROMPTS = [
-  "Why is the engine health degraded?",
-  "What is the top driver for the current anomaly?",
-  "Can this engine complete the planned mission safely?",
-  "What maintenance action is recommended right now?",
-  "What happens to CHT if I derate RPM by 200?",
-]
+import { QUICK_PROMPTS, useAICopilot } from "@/components/ai-copilot-context"
 
 export function AICopilotSheet() {
-  const { latestTelemetry, sendCommand } = useTelemetry()
-  const [messages, setMessages] = React.useState<ChatMessage[]>([
-    {
-      id: "initial",
-      role: "assistant",
-      text: "Hello, Commander. I am your Digital Twin AI Mission Engineer. I have direct access to live first-principles thermodynamics, LSTM RUL predictions, sensor integrity scores, and isolation forest anomaly drivers. How can I assist with your flight envelope?",
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
-    },
-  ])
-  const [input, setInput] = React.useState("")
-  const [waiting, setWaiting] = React.useState(false)
-  const lastProcessedRef = React.useRef<number | null>(null)
-
-  // Ingest answers from backend WebSocket
-  React.useEffect(() => {
-    const resp = latestTelemetry?.ai_engineer_response
-    if (!resp || !resp.answer) return
-
-    const ts = resp.timestamp ?? Date.now()
-    if (lastProcessedRef.current === ts) return
-    lastProcessedRef.current = ts
-
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: `resp-${ts}-${Math.random()}`,
-        role: "assistant",
-        text: resp.answer || "",
-        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
-      },
-    ])
-    setWaiting(false)
-  }, [latestTelemetry?.ai_engineer_response])
-
-  const handleSend = (textToSend?: string) => {
-    const q = (textToSend || input).trim()
-    if (!q) return
-
-    const userMsg: ChatMessage = {
-      id: `user-${Date.now()}`,
-      role: "user",
-      text: q,
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
-    }
-
-    setMessages((prev) => [...prev, userMsg])
-    setInput("")
-    setWaiting(true)
-
-    sendCommand({
-      command: "ai_engineer_query",
-      question: q,
-    })
-  }
+  const { messages, input, setInput, waiting, isOpen, setIsOpen, handleSend } = useAICopilot()
 
   return (
-    <Sheet>
+    <Sheet open={isOpen} onOpenChange={setIsOpen}>
       <SheetTrigger
         render={
           <Button variant="outline" size="sm" className="gap-1.5 text-xs text-primary border-primary bg-background hover:bg-primary hover:text-primary-foreground font-semibold">

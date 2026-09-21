@@ -52,19 +52,12 @@ button, input { font-family:inherit; }
 
 /* Page Transition: fast, subtle glide-in starting at 0.88 opacity (zero blank flash) */
 @keyframes pageFade {
-  from {
-    opacity: 0.88;
-    transform: translateY(3px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0.88; }
+  to   { opacity: 1; }
 }
 
 .animate-page-fade {
-  animation: pageFade 200ms cubic-bezier(0.16, 1, 0.3, 1) both;
-  will-change: transform, opacity;
+  animation: pageFade 200ms ease-out both;
 }
 
 /* Tab content: snappy micro-fade for panel transitions */
@@ -192,4 +185,24 @@ input[type="range"]:active::-moz-range-thumb {
   .animate-tab-content {
     animation: none !important;
   }
+}
+
+/* Aerospace Precision Scrollbars */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklch, var(--foreground) 20%, transparent) transparent;
+}
+.scrollbar-thin::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: color-mix(in oklch, var(--foreground) 20%, transparent);
+  border-radius: 9999px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in oklch, var(--foreground) 38%, transparent);
 }

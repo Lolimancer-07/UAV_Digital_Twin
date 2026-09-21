@@ -254,7 +254,8 @@ export function MvpTwinShowcase() {
               <span className="text-[10px] text-muted-foreground block">rev/min</span>
             </div>
             {chtCyls.map((chtVal, idx) => {
-              const isHot = idx === hotCylIndex && (chtVal > 410 || isCoolingFaultActive)
+              const CHT_WARN = 410  // °F — alert any cylinder individually over this limit
+              const isHot = chtVal > CHT_WARN || (isCoolingFaultActive && idx === hotCylIndex)
               return (
                 <div key={idx} className={`rounded-lg border p-2.5 transition-colors ${isHot ? "border-destructive bg-destructive text-destructive-foreground font-bold shadow-xs animate-pulse" : "bg-card"}`}>
                   <div className="flex justify-between items-center">

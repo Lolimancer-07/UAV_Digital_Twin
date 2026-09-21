@@ -157,11 +157,18 @@ def simulate_whatif(
     cur_thermal_load = (cur_cht / CHT_NOMINAL) * (cur_egt / EGT_NOMINAL)
     cf_thermal_load = (cf_cht / CHT_NOMINAL) * (cf_egt / EGT_NOMINAL)
 
-    if current_rul > 0 and cf_thermal_load > 0 and cur_thermal_load > 0:
+    if cf_thermal_load > 0 and cur_thermal_load > 0:
         thermal_ratio = cur_thermal_load / cf_thermal_load
-        cf_rul = min(MAX_RUL, max(0.0, current_rul * (thermal_ratio ** THERMAL_ALPHA)))
+        if current_rul > 0:
+            # LSTM prediction available — scale it by the thermal ratio
+            cf_rul = min(MAX_RUL, max(0.0, current_rul * (thermal_ratio ** THERMAL_ALPHA)))
+        else:
+            # LSTM still warming up — derive a physics-only estimate from MAX_RUL
+            # so the operator still gets useful counterfactual numbers
+            cf_rul = min(MAX_RUL, max(0.0, MAX_RUL * (thermal_ratio ** THERMAL_ALPHA)))
+            current_rul = MAX_RUL  # align the baseline for a consistent delta
     else:
-        cf_rul = current_rul
+        cf_rul = max(current_rul, 0.0)
 
     rul_delta = cf_rul - current_rul
 

@@ -72,6 +72,14 @@ class FaultHysteresisFilter:
 
         return list(self.latched_faults.values())
 
+    def force_clear_all(self):
+        """Immediately evict all latched faults — called when the GCS operator
+        issues an explicit CLEAR command. Bypasses the normal clear_threshold
+        hysteresis so the dashboard responds instantly."""
+        self.active_counts.clear()
+        self.clear_counts.clear()
+        self.latched_faults.clear()
+
 
 class AnomalyDetector:
     """
@@ -96,6 +104,10 @@ class AnomalyDetector:
             print(f"[AnomalyDetector] Warning: Could not load {model_path}: {e}")
             self.model = None
             self.features = ['rpm', 'cht', 'egt', 'oil_pressure', 'fuel_flow', 'vibration', 'battery_v', 'inj_timing']
+
+    def force_clear(self):
+        """Immediately evict all latched/debounced faults from the hysteresis filter."""
+        self.hysteresis_filter.force_clear_all()
 
     def get_fault_rules(self, th: Dict[str, float]) -> Dict[str, Tuple[callable, str]]:
         """

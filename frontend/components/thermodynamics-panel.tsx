@@ -10,6 +10,7 @@ export function ThermodynamicsPanel() {
   const { latestTelemetry } = useTelemetry()
   const p = latestTelemetry?.physics
   const res = p?.residuals
+  const exp = p?.expected_baselines
 
   // Synthesize 60-point Otto Cycle P-V indicator loop based on IMEP
   const imep = p?.imep_bar ?? 8.4
@@ -41,8 +42,8 @@ export function ThermodynamicsPanel() {
   const residuals = [
     {
       channel: "EXHAUST GAS TEMP (EGT)",
-      measured: latestTelemetry?.egt ?? 0,
-      expected: res?.expected_egt ?? 0,
+      measured: latestTelemetry?.egt ?? (p && res?.delta_egt != null && (res?.expected_egt != null || exp?.egt != null) ? (res?.expected_egt ?? exp?.egt!) + res.delta_egt : undefined),
+      expected: res?.expected_egt ?? exp?.egt ?? (latestTelemetry?.egt != null && res?.delta_egt != null ? latestTelemetry.egt - res.delta_egt : undefined),
       delta: res?.delta_egt ?? 0,
       unit: "°F",
       limit: 80,
@@ -50,8 +51,8 @@ export function ThermodynamicsPanel() {
     },
     {
       channel: "CYLINDER HEAD TEMP (CHT)",
-      measured: latestTelemetry?.cht ?? 0,
-      expected: res?.expected_cht ?? 0,
+      measured: latestTelemetry?.cht ?? (p && res?.delta_cht != null && (res?.expected_cht != null || exp?.cht != null) ? (res?.expected_cht ?? exp?.cht!) + res.delta_cht : undefined),
+      expected: res?.expected_cht ?? exp?.cht ?? (latestTelemetry?.cht != null && res?.delta_cht != null ? latestTelemetry.cht - res.delta_cht : undefined),
       delta: res?.delta_cht ?? 0,
       unit: "°F",
       limit: 40,
@@ -59,8 +60,8 @@ export function ThermodynamicsPanel() {
     },
     {
       channel: "OIL GALLERY PRESSURE",
-      measured: latestTelemetry?.oil_pressure ?? 0,
-      expected: res?.expected_oil_p ?? 0,
+      measured: latestTelemetry?.oil_pressure ?? (p && res?.delta_oil_p != null && (res?.expected_oil_p != null || exp?.oil_p != null) ? (res?.expected_oil_p ?? exp?.oil_p!) + res.delta_oil_p : undefined),
+      expected: res?.expected_oil_p ?? exp?.oil_p ?? (latestTelemetry?.oil_pressure != null && res?.delta_oil_p != null ? latestTelemetry.oil_pressure - res.delta_oil_p : undefined),
       delta: res?.delta_oil_p ?? 0,
       unit: "PSI",
       limit: 12,
@@ -69,8 +70,8 @@ export function ThermodynamicsPanel() {
     },
     {
       channel: "FUEL MASS FLOW",
-      measured: latestTelemetry?.fuel_flow ?? 0,
-      expected: res?.expected_fuel ?? 0,
+      measured: latestTelemetry?.fuel_flow ?? (p && res?.delta_fuel != null && (res?.expected_fuel != null || exp?.fuel_flow != null) ? (res?.expected_fuel ?? exp?.fuel_flow!) + res.delta_fuel : undefined),
+      expected: res?.expected_fuel ?? exp?.fuel_flow ?? (latestTelemetry?.fuel_flow != null && res?.delta_fuel != null ? latestTelemetry.fuel_flow - res.delta_fuel : undefined),
       delta: res?.delta_fuel ?? 0,
       unit: "L/H",
       limit: 1.5,
@@ -85,44 +86,44 @@ export function ThermodynamicsPanel() {
         <Card className="bg-card/70 p-4">
           <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Brake Power</div>
           <div className="mt-1 font-mono text-2xl font-bold text-foreground">
-            {p?.brake_power_hp?.toFixed(1) ?? "—"} <span className="text-xs font-normal text-muted-foreground">HP</span>
+            {p?.brake_power_hp != null ? `${p.brake_power_hp.toFixed(1)}` : "—"} <span className="text-xs font-normal text-muted-foreground">HP</span>
           </div>
-          <div className="text-[11px] text-muted-foreground font-mono">{p?.brake_power_kw?.toFixed(1) ?? "—"} kW</div>
+          <div className="text-[11px] text-muted-foreground font-mono">{p?.brake_power_kw != null ? `${p.brake_power_kw.toFixed(1)} kW` : "—"}</div>
         </Card>
         <Card className="bg-card/70 p-4">
           <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Thermal Eff. (η_th)</div>
           <div className="mt-1 font-mono text-2xl font-bold text-emerald-500">
-            {p?.thermal_efficiency?.toFixed(1) ?? "—"}%
+            {p?.thermal_efficiency != null ? `${p.thermal_efficiency.toFixed(1)}%` : "—"}
           </div>
           <div className="text-[11px] text-muted-foreground">Target band 29–34%</div>
         </Card>
         <Card className="bg-card/70 p-4">
           <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">IMEP (Indicated)</div>
           <div className="mt-1 font-mono text-2xl font-bold text-primary">
-            {p?.imep_bar?.toFixed(2) ?? "—"} <span className="text-xs font-normal text-muted-foreground">bar</span>
+            {p?.imep_bar != null ? `${p.imep_bar.toFixed(2)}` : "—"} <span className="text-xs font-normal text-muted-foreground">bar</span>
           </div>
-          <div className="text-[11px] text-muted-foreground">BMEP: {p?.bmep_bar?.toFixed(2) ?? "—"} bar</div>
+          <div className="text-[11px] text-muted-foreground">BMEP: {p?.bmep_bar != null ? `${p.bmep_bar.toFixed(2)} bar` : "—"}</div>
         </Card>
         <Card className="bg-card/70 p-4">
           <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">BSFC</div>
           <div className="mt-1 font-mono text-2xl font-bold text-foreground">
-            {p?.bsfc_g_kwh?.toFixed(0) ?? "—"} <span className="text-xs font-normal text-muted-foreground">g/kWh</span>
+            {p?.bsfc_g_kwh != null ? `${p.bsfc_g_kwh.toFixed(0)}` : "—"} <span className="text-xs font-normal text-muted-foreground">g/kWh</span>
           </div>
           <div className="text-[11px] text-muted-foreground">Specific fuel burn</div>
         </Card>
         <Card className="bg-card/70 p-4">
           <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Volumetric Eff.</div>
           <div className="mt-1 font-mono text-2xl font-bold text-primary">
-            {p?.volumetric_efficiency?.toFixed(1) ?? "—"}%
+            {(p?.volumetric_efficiency ?? p?.volumetric_eff) != null ? `${(p?.volumetric_efficiency ?? p?.volumetric_eff)!.toFixed(1)}%` : "—"}
           </div>
-          <div className="text-[11px] text-muted-foreground">MAP: {latestTelemetry?.map_kpa ?? 96} kPa</div>
+          <div className="text-[11px] text-muted-foreground">MAP: {latestTelemetry?.map_kpa != null ? `${latestTelemetry.map_kpa} kPa` : "96 kPa"}</div>
         </Card>
         <Card className="bg-card/70 p-4">
           <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Air-Fuel Equiv (λ)</div>
           <div className="mt-1 font-mono text-2xl font-bold text-foreground">
             {p?.air_fuel_ratio ? (p.air_fuel_ratio / 14.7).toFixed(2) : "1.02"}
           </div>
-          <div className="text-[11px] text-muted-foreground">AFR: {p?.air_fuel_ratio?.toFixed(1) ?? "15.0"}:1</div>
+          <div className="text-[11px] text-muted-foreground">AFR: {p?.air_fuel_ratio != null ? `${p.air_fuel_ratio.toFixed(1)}:1` : "15.0:1"}</div>
         </Card>
       </div>
 
@@ -224,15 +225,15 @@ export function ThermodynamicsPanel() {
                         <td className="px-4 py-3 font-medium text-foreground text-[11px] font-sans">
                           {r.channel}
                         </td>
-                        <td className="px-3 py-3 font-semibold text-primary">
-                          {r.measured ? r.measured.toFixed(r.decimals) : "—"} {r.unit}
+                        <td className="px-3 py-3 font-semibold text-primary font-mono">
+                          {r.measured != null ? `${r.measured.toFixed(r.decimals)} ${r.unit}` : "—"}
                         </td>
-                        <td className="px-3 py-3 text-muted-foreground">
-                          {r.expected ? r.expected.toFixed(r.decimals) : "—"} {r.unit}
+                        <td className="px-3 py-3 text-muted-foreground font-mono">
+                          {r.expected != null ? `${r.expected.toFixed(r.decimals)} ${r.unit}` : "—"}
                         </td>
-                        <td className="px-3 py-3">
+                        <td className="px-3 py-3 font-mono">
                           <span className={isDrift ? "font-bold text-destructive" : "text-muted-foreground"}>
-                            {r.delta >= 0 ? `+${r.delta.toFixed(r.decimals)}` : r.delta.toFixed(r.decimals)} {r.unit}
+                            {r.delta != null ? `${r.delta >= 0 ? `+${r.delta.toFixed(r.decimals)}` : r.delta.toFixed(r.decimals)} ${r.unit}` : "—"}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-right">

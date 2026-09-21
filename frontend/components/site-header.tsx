@@ -18,8 +18,10 @@ const ROUTE_LABELS: Record<string, { label: string; parent?: string }> = {
   "/maintenance": { label: "Maintenance Advisories", parent: "GCS Overview" },
   "/fleet": { label: "Multi-UAV Fleet", parent: "GCS Overview" },
   "/mission-command": { label: "Mission Command", parent: "GCS Overview" },
-  "/dossier": { label: "Dossier Export", parent: "GCS Overview" },
-  "/airworthiness": { label: "Airworthiness", parent: "GCS Overview" },
+  "/airworthiness": { label: "Airworthiness", parent: "Engineering" },
+  "/flight-data": { label: "Flight Data Recorder", parent: "Engineering" },
+  "/dossier": { label: "Dossier Export", parent: "Engineering" },
+  "/settings": { label: "System Settings", parent: "System" },
 }
 
 function Breadcrumb() {
@@ -114,7 +116,7 @@ export function SiteHeader() {
   const activeUavId = latestTelemetry?.uav_id ?? "UAV-01"
 
   return (
-    <header className="flex h-(--header-height) shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)">
+    <header className="sticky top-0 z-20 flex h-(--header-height) shrink-0 items-center gap-2 border-b border-border bg-background/95 backdrop-blur-md supports-backdrop-filter:backdrop-blur-md transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height) shadow-xs">
       <div className="flex w-full items-center gap-1 px-4 lg:gap-2 lg:px-6">
         <SidebarTrigger className="-ml-1" />
         <Separator

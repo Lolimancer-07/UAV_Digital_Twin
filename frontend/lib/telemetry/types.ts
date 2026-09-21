@@ -354,6 +354,8 @@ export interface TelemetryPayload {
   cht_cyl?: number[]
   egt_cyl?: number[]
   fault_events?: FaultEvent[]
+  active_faults?: string[]
+  injected_faults?: string[]
   xai?: XaiState
   can_frames?: CanFrame[]
   advisories?: MaintenanceAdvisory[]

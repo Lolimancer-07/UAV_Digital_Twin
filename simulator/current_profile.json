@@ -1,8 +1,6 @@
 {
   "mode": "NORMAL",
-  "injected_faults": [],
+  "speed": 1.0,
   "paused": false,
-  "speed": 2.0,
-  "uav_id": "UAV-04",
-  "engine_id": 4
+  "injected_faults": []
 }

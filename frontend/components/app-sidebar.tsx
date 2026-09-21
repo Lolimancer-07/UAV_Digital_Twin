@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation"
 import {
   Activity,
   BarChart3,
-  Bot,
+  BrainIcon,
   Database,
   FileChartColumn,
   FileCheck2,
@@ -51,6 +51,7 @@ const operations = [
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { isOpen, setIsOpen } = useAICopilot()
   const pathname = usePathname()
+  const isAiActive = pathname === "/neural-engine" || pathname === "/nexus"
 
   return (
     <Sidebar collapsible="offcanvas" {...props}>
@@ -59,7 +60,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarMenuItem>
             <SidebarMenuButton render={<Link href="/" />} size="lg" className="h-auto rounded-lg px-3 py-2 hover:bg-sidebar-accent">
               <span className="font-mono text-sm font-semibold tracking-tight text-sidebar-primary">UAV-07</span>
-              <span className="font-heading text-sm font-semibold tracking-wide">PROPULSION GCS</span>
+              <span className="font-heading text-sm font-semibold tracking-wide">PropulsionX GCS</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
@@ -67,30 +68,50 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarContent>
         <NavMain items={navMain} />
 
-        {/* ── AI Copilot Side Panel Toggle ──────────────────────── */}
-        <SidebarGroup className="px-3 py-1.5">
+        {/* ── PropulsionX Neural Engine — Dedicated AI Command Page ─────────── */}
+        <SidebarGroup className="px-3 py-2">
           <SidebarMenu>
+            <SidebarMenuItem>
+              {/* Full-page PropulsionX Neural Engine link */}
+              <SidebarMenuButton
+                render={<Link href="/neural-engine" />}
+                isActive={isAiActive}
+                tooltip="Open PropulsionX Neural Engine HUD"
+                size="lg"
+                className={`h-11 rounded-xl px-3 text-[0.92rem] font-medium tracking-[-0.01em] transition-all duration-150 ease-out active:scale-[0.99] border ${
+                  isAiActive
+                    ? "border-cyan-500/60 bg-gradient-to-r from-cyan-500/20 via-primary/15 to-violet-500/10 text-cyan-400 font-semibold shadow-md ring-1 ring-cyan-500/30"
+                    : "border-cyan-500/30 bg-cyan-500/5 text-foreground hover:bg-cyan-500/10 hover:text-cyan-400"
+                }`}
+              >
+                <div className="relative flex size-5 items-center justify-center text-cyan-400">
+                  <BrainIcon className="size-4 animate-pulse" />
+                </div>
+                <span className="font-semibold tracking-wide">Neural Engine</span>
+                <span className={`ml-auto rounded-full px-2 py-0.5 text-[9px] font-mono font-bold ${
+                  isAiActive
+                    ? "bg-cyan-500 text-black shadow-xs"
+                    : "bg-emerald-500/15 border border-emerald-500/30 text-emerald-400"
+                }`}>
+                  {isAiActive ? "LIVE HUD" : "AERO-AI"}
+                </span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+
+            {/* Side console quick drawer toggle */}
             <SidebarMenuItem>
               <SidebarMenuButton
                 onClick={() => setIsOpen(!isOpen)}
                 isActive={isOpen}
-                tooltip={isOpen ? "Close AI Copilot Panel" : "Open AI Copilot Side Panel"}
-                size="lg"
-                className={`h-11 rounded-lg px-3 text-[0.92rem] font-medium tracking-[-0.01em] transition-all duration-150 ease-out active:scale-[0.99] border ${
+                tooltip={isOpen ? "Close Side Console" : "Open Side Console"}
+                size="sm"
+                className={`h-7.5 rounded-lg px-3 text-[0.8rem] font-mono transition-all duration-150 ease-out active:scale-[0.99] ${
                   isOpen
-                    ? "border-primary bg-primary/15 text-primary font-semibold shadow-xs"
-                    : "border-primary/30 bg-primary/5 text-foreground hover:bg-primary/10 hover:text-primary"
+                    ? "text-cyan-400 bg-cyan-500/10"
+                    : "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent"
                 }`}
               >
-                <Bot className="size-4 text-primary animate-pulse" />
-                <span className="font-semibold">AI Copilot</span>
-                <span className={`ml-auto rounded-full px-1.5 py-0.5 text-[9px] font-mono font-bold ${
-                  isOpen
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-emerald-500/15 border border-emerald-500/30 text-emerald-500"
-                }`}>
-                  {isOpen ? "OPEN" : "LIVE"}
-                </span>
+                <span className="ml-5 text-[10px]">↗ Open Side Console</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>

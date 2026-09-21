@@ -701,13 +701,17 @@ def process_gcs_command(cmd: Dict[str, Any]):
         question = cmd.get("question", "")
         if question and latest_state:
             try:
-                answer = ai_engineer_answer(question, latest_state)
+                result = ai_engineer_answer(question, latest_state)
+                # result is now a dict: { answer, category, confidence, follow_ups }
                 latest_state["ai_engineer_response"] = {
-                    "question": question,
-                    "answer": answer,
-                    "timestamp": latest_state.get("cycle", 0),
+                    "question":   question,
+                    "answer":     result.get("answer", ""),
+                    "category":   result.get("category", "GENERAL_STATUS"),
+                    "confidence": result.get("confidence", 0.5),
+                    "follow_ups": result.get("follow_ups", []),
+                    "timestamp":  latest_state.get("cycle", 0),
                 }
-                print(f"[GCS CMD] AI Engineer query: '{question[:50]}...'")
+                print(f"[GCS CMD] AI Engineer query: '{question[:50]}...' -> {result.get('category')}")
             except Exception as e:
                 print(f"[GCS CMD] AI Engineer error: {e}")
 

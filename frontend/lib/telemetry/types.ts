@@ -423,6 +423,9 @@ export interface TelemetryPayload {
     question?: string
     answer?: string
     timestamp?: number
+    category?: string
+    confidence?: number
+    follow_ups?: string[]
   }
   mission_command?: MissionCommandState
   federated_round?: FederatedRoundState

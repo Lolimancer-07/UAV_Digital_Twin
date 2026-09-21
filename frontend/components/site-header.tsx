@@ -18,6 +18,8 @@ const ROUTE_LABELS: Record<string, { label: string; parent?: string }> = {
   "/maintenance": { label: "Maintenance Advisories", parent: "GCS Overview" },
   "/fleet": { label: "Multi-UAV Fleet", parent: "GCS Overview" },
   "/mission-command": { label: "Mission Command", parent: "GCS Overview" },
+  "/neural-engine": { label: "PropulsionX Neural Engine", parent: "AI Intelligence" },
+  "/nexus": { label: "PropulsionX Neural Engine", parent: "AI Intelligence" },
   "/airworthiness": { label: "Airworthiness", parent: "Engineering" },
   "/flight-data": { label: "Flight Data Recorder", parent: "Engineering" },
   "/dossier": { label: "Dossier Export", parent: "Engineering" },

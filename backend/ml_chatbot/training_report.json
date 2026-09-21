@@ -1,0 +1,22 @@
+{
+  "cv_accuracy_mean": 0.9214,
+  "cv_accuracy_std": 0.0147,
+  "train_accuracy": 1.0,
+  "n_examples": 585,
+  "n_classes": 13,
+  "intent_labels": [
+    "GENERAL_STATUS",
+    "GREETING",
+    "MAINTENANCE",
+    "MISSION_RISK",
+    "OIL",
+    "RECOMMENDATION",
+    "RPM_ADVICE",
+    "RUL_STATUS",
+    "SENSOR_STATUS",
+    "THERMAL",
+    "VIBRATION",
+    "WHY_ANOMALY",
+    "WHY_UNHEALTHY"
+  ]
+}

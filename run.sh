@@ -119,6 +119,17 @@ else
     ok "Anomaly model already exists (skip training)"
 fi
 
+# step 3b: train the ML intent classifier on first run (~3s, only once)
+ML_MODEL="$ROOT/backend/ml_chatbot/intent_clf.joblib"
+if [ ! -f "$ML_MODEL" ]; then
+    echo "  → Training AI Copilot ML intent classifier (one-time, ~3s)..."
+    $PYTHON "$ROOT/backend/ml_chatbot/train_intent_clf.py" \
+        && ok "ML intent classifier trained and saved" \
+        || warn "ML classifier training failed — AI Copilot will use fallback keyword matching"
+else
+    ok "ML intent classifier already trained (skip)"
+fi
+
 # step 4: start the inference engine and wait for the WebSocket to come up
 hdr "4/5" "AI Inference Engine"
 echo "  → Launching backend/inference.py..."

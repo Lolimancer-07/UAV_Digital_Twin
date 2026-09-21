@@ -13,8 +13,8 @@ import { BackendGate } from "@/components/backend-gate";
 import { PageTransition } from "@/components/page-transition";
 
 export const metadata: Metadata = {
-  title: "UAV-07 | Propulsion GCS",
-  description: "UAV propulsion ground control station",
+  title: "PropulsionX | UAV-07 Propulsion GCS",
+  description: "PropulsionX — AI-powered UAV propulsion ground control with Nexus intelligence engine",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -31,8 +31,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               <BackendGate>
                 <div className="flex h-screen max-h-screen flex-col overflow-hidden">
                   <div className="flex flex-1 min-h-0 w-full overflow-hidden">
-                    {/* Main page independent scroll container */}
-                    <div className="flex-1 min-w-0 h-full overflow-y-auto overflow-x-hidden overscroll-contain scrollbar-thin">
+                    {/* Main page independent scroll container (overflows for standard dashboard pages, locks to hidden for fixed-layout pages like AI Engine) */}
+                    <div className="flex-1 min-w-0 h-full overflow-y-auto overflow-x-hidden overscroll-contain scrollbar-thin has-[[data-fixed-layout]]:overflow-hidden">
                       <PageTransition>{children}</PageTransition>
                     </div>
                     {/* Dedicated Chatbot right sidebar — independent scroll container */}

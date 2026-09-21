@@ -3,8 +3,7 @@
 import * as React from "react"
 import { BotIcon, Maximize2Icon, SendIcon, SparklesIcon, Trash2Icon } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { SHORT_PROMPTS, useAICopilot } from "@/components/ai-copilot-context"
+import { CATEGORY_META, SHORT_PROMPTS, useAICopilot } from "@/components/ai-copilot-context"
 
 export function AICopilotSidebar() {
   const { messages, input, setInput, waiting, setIsOpen, handleSend, clearMessages } = useAICopilot()
@@ -17,19 +16,31 @@ export function AICopilotSidebar() {
     }
   }, [messages, waiting])
 
+  // Last AI message for category badge preview
+  const lastAI = [...messages].reverse().find((m) => m.role === "assistant")
+  const lastCategory = lastAI?.category
+  const catMeta = lastCategory ? CATEGORY_META[lastCategory] : null
+
   return (
     <div className="mx-2 mb-2 flex flex-col rounded-xl border border-border/70 bg-card/60 p-2.5 shadow-sm backdrop-blur-md transition-all hover:border-primary/40">
-      {/* ── Widget Header ────────────────────────────────────────────── */}
+      {/* ── Widget Header ─────────────────────────────────────────────── */}
       <div className="flex items-center justify-between border-b border-border/50 pb-2">
         <div className="flex items-center gap-2">
-          <div className="relative flex size-6 items-center justify-center rounded-md bg-primary/10 border border-primary/25 text-primary">
+          <div className="relative flex size-6 items-center justify-center rounded-lg bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/30 text-primary">
             <BotIcon className="size-3.5" />
-            <span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-emerald-500 ring-2 ring-background animate-pulse" />
+            <span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-emerald-400 ring-2 ring-background animate-pulse" />
           </div>
           <div className="flex flex-col">
-            <span className="text-[11px] font-bold tracking-tight text-foreground">AI COPILOT</span>
-            <span className="text-[9px] font-mono text-emerald-500 font-medium">TWIN REASONING</span>
+            <span className="text-[11px] font-bold tracking-tight text-foreground">NEXUS</span>
+            <span className="text-[9px] font-mono text-emerald-400 font-medium">PROPULSIONX</span>
           </div>
+          {/* Last response category badge */}
+          {catMeta && (
+            <span className={`inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider ${catMeta.color}`}>
+              <span>{catMeta.emoji}</span>
+              <span>{catMeta.label}</span>
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-0.5">
           <Button
@@ -45,7 +56,7 @@ export function AICopilotSidebar() {
             variant="ghost"
             size="icon-xs"
             onClick={() => setIsOpen(true)}
-            title="Expand to Full Sheet"
+            title="Expand to Full Panel"
             className="size-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-sidebar-accent"
           >
             <Maximize2Icon className="size-3" />
@@ -53,7 +64,7 @@ export function AICopilotSidebar() {
         </div>
       </div>
 
-      {/* ── Messages List (Compact Scrollable Area) ───────────────────── */}
+      {/* ── Messages list ─────────────────────────────────────────────── */}
       <div
         ref={scrollRef}
         className="my-2 flex flex-col gap-1.5 max-h-40 min-h-24 overflow-y-auto pr-1 text-[11px] scrollbar-thin"
@@ -61,13 +72,22 @@ export function AICopilotSidebar() {
         {messages.map((m) => (
           <div
             key={m.id}
-            className={`flex flex-col rounded-lg p-2 leading-snug transition-all ${
+            className={`flex flex-col rounded-xl p-2 leading-snug transition-all ${
               m.role === "user"
-                ? "self-end bg-primary text-primary-foreground font-medium max-w-[88%]"
+                ? "self-end bg-gradient-to-br from-primary to-primary/80 text-primary-foreground font-medium max-w-[88%]"
                 : "self-start bg-muted/60 border border-border/50 text-foreground max-w-[94%] shadow-xs"
             }`}
           >
-            <span className="whitespace-pre-wrap">{m.text}</span>
+            {m.role === "assistant" && m.category && CATEGORY_META[m.category] && (
+              <span className={`inline-flex items-center gap-0.5 self-start rounded-full border px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider mb-1 ${CATEGORY_META[m.category].color}`}>
+                <span>{CATEGORY_META[m.category].emoji}</span>
+                <span>{CATEGORY_META[m.category].label}</span>
+              </span>
+            )}
+            <span className="whitespace-pre-wrap">
+              {m.displayText}
+              {m.isStreaming && <span className="ml-0.5 inline-block w-0.5 h-2.5 bg-primary/80 animate-pulse align-middle" />}
+            </span>
             <span
               className={`mt-1 text-[8px] self-end font-mono ${
                 m.role === "user" ? "text-primary-foreground/75" : "text-muted-foreground"
@@ -85,7 +105,7 @@ export function AICopilotSidebar() {
         )}
       </div>
 
-      {/* ── Quick Prompt Chips ───────────────────────────────────────── */}
+      {/* ── Quick prompt chips ────────────────────────────────────────── */}
       <div className="flex flex-wrap gap-1 mb-2">
         {SHORT_PROMPTS.map((p, idx) => (
           <button
@@ -99,25 +119,22 @@ export function AICopilotSidebar() {
         ))}
       </div>
 
-      {/* ── Input Box ─────────────────────────────────────────────────── */}
+      {/* ── Input box ─────────────────────────────────────────────────── */}
       <form
-        onSubmit={(e) => {
-          e.preventDefault()
-          handleSend()
-        }}
+        onSubmit={(e) => { e.preventDefault(); handleSend() }}
         className="flex items-center gap-1"
       >
-        <Input
+        <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Ask AI Engineer…"
-          className="h-7 text-[11px] bg-background/90 border-border/70 px-2 rounded-md focus-visible:ring-1 focus-visible:ring-primary"
+          className="flex-1 h-7 rounded-lg border border-border/70 bg-background/90 px-2 text-[11px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/60"
         />
         <Button
           type="submit"
           size="icon-xs"
           disabled={!input.trim() || waiting}
-          className="size-7 shrink-0 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-all"
+          className="size-7 shrink-0 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-all"
         >
           <SendIcon className="size-3" />
         </Button>

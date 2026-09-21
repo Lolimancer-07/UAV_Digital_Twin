@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useTelemetry } from "@/components/telemetry-provider"
+import { TacticalMissionMap } from "@/components/tactical-mission-map"
 import type {
   MissionCommandRecoverySite,
   MissionCommandState,
@@ -188,104 +189,68 @@ function Metric({ label, value, detail, tone = "default" }: {
   )
 }
 
-function MissionMap({ route }: { route: MissionCommandState["route"] }) {
-  const mapPoints = [...route.waypoints, ...route.recovery_sites, route.position]
-  const latitudes = mapPoints.map((point) => point.latitude)
-  const longitudes = mapPoints.map((point) => point.longitude)
-  const minLat = Math.min(...latitudes)
-  const maxLat = Math.max(...latitudes)
-  const minLon = Math.min(...longitudes)
-  const maxLon = Math.max(...longitudes)
-  const latSpan = Math.max(0.01, maxLat - minLat)
-  const lonSpan = Math.max(0.01, maxLon - minLon)
-  const padding = 38
-  const width = 640
-  const height = 340
-  const x = (longitude: number) => padding + ((longitude - minLon) / lonSpan) * (width - padding * 2)
-  const y = (latitude: number) => height - padding - ((latitude - minLat) / latSpan) * (height - padding * 2)
-  const routeLine = route.waypoints.map((point) => `${x(point.longitude)},${y(point.latitude)}`).join(" ")
-  const currentX = x(route.position.longitude)
-  const currentY = y(route.position.latitude)
-  const safeRadius = clamp(route.safe_radius_nm * 0.65, 34, 106)
 
+function RecoverySiteRows({
+  sites,
+  selectedSiteId,
+  onSelectSite,
+}: {
+  sites: MissionCommandRecoverySite[]
+  selectedSiteId: string
+  onSelectSite: (siteId: string) => void
+}) {
   return (
-    <div className="relative overflow-hidden rounded-xl border border-border/70 bg-slate-950 text-slate-100">
-      <div className="absolute left-3 top-3 z-10 flex items-center gap-2">
-        <Badge className="border-cyan-300/30 bg-cyan-300/10 font-mono text-[10px] text-cyan-100" variant="outline">
-          <RadarIcon className="size-3" /> SIMULATED TRACK
-        </Badge>
-      </div>
-      <div className="absolute bottom-3 left-3 z-10 rounded-md border border-white/10 bg-slate-950/80 px-2 py-1 font-mono text-[10px] text-slate-300">
-        Powerplant-safe radius: {route.safe_radius_nm.toFixed(0)} nm
-      </div>
-      <svg aria-label="Simulated mission corridor and recovery sites" className="h-auto w-full" viewBox={`0 0 ${width} ${height}`} role="img">
-        <defs>
-          <pattern height="24" id="command-grid" patternUnits="userSpaceOnUse" width="24">
-            <path d="M 24 0 L 0 0 0 24" fill="none" stroke="rgba(148, 163, 184, .12)" strokeWidth="1" />
-          </pattern>
-          <radialGradient id="safe-radius" r="1">
-            <stop offset="0%" stopColor="rgb(45 212 191)" stopOpacity="0.18" />
-            <stop offset="100%" stopColor="rgb(45 212 191)" stopOpacity="0" />
-          </radialGradient>
-        </defs>
-        <rect fill="url(#command-grid)" height={height} width={width} />
-        <path d="M30 275 C155 244 235 122 366 105 S510 166 620 73" fill="none" opacity="0.18" stroke="rgb(45 212 191)" strokeWidth="13" />
-        <polyline fill="none" points={routeLine} stroke="rgb(103 232 249)" strokeDasharray="7 6" strokeWidth="2.5" />
-        <circle cx={currentX} cy={currentY} fill="url(#safe-radius)" r={safeRadius} />
-        <circle cx={currentX} cy={currentY} fill="none" r={safeRadius} stroke="rgb(45 212 191)" strokeDasharray="4 5" strokeOpacity="0.75" strokeWidth="1.5" />
-
-        {route.waypoints.map((waypoint, index) => {
-          const waypointX = x(waypoint.longitude)
-          const waypointY = y(waypoint.latitude)
-          return (
-            <g key={`${waypoint.id}-${index}`}>
-              <circle cx={waypointX} cy={waypointY} fill="rgb(186 230 253)" r="4" />
-              <text fill="rgb(203 213 225)" fontFamily="monospace" fontSize="10" x={waypointX + 8} y={waypointY - 7}>
-                {waypoint.name}
-              </text>
-            </g>
-          )
-        })}
-
-        {route.recovery_sites.map((site) => {
-          const siteX = x(site.longitude)
-          const siteY = y(site.latitude)
-          return (
-            <g key={site.id}>
-              <rect fill={site.within_powerplant_safe_radius ? "rgb(52 211 153)" : "rgb(251 146 60)"} height="9" rx="2" width="9" x={siteX - 4.5} y={siteY - 4.5} />
-              <text fill="rgb(241 245 249)" fontFamily="monospace" fontSize="10" x={siteX + 8} y={siteY + 14}>
-                {site.id}
-              </text>
-            </g>
-          )
-        })}
-
-        <g transform={`translate(${currentX} ${currentY}) rotate(${route.position.heading_deg})`}>
-          <circle fill="rgb(34 211 238)" opacity="0.25" r="17" />
-          <path d="M0 -12 L8 10 L0 6 L-8 10 Z" fill="rgb(103 232 249)" stroke="white" strokeWidth="1" />
-        </g>
-      </svg>
-    </div>
-  )
-}
-
-function RecoverySiteRows({ sites }: { sites: MissionCommandRecoverySite[] }) {
-  return (
-    <div className="divide-y divide-border/60 rounded-xl border border-border/70 bg-background/60">
-      {sites.slice(0, 3).map((site, index) => (
-        <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2 px-3 py-2.5" key={site.id}>
-          <span className={`flex size-5 items-center justify-center rounded-full text-[10px] font-bold ${index === 0 ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" : "bg-muted text-muted-foreground"}`}>
-            {index + 1}
-          </span>
-          <div className="min-w-0">
-            <p className="truncate text-xs font-semibold">{site.name}</p>
-            <p className="text-[10px] text-muted-foreground">{site.distance_nm.toFixed(1)} nm · {site.terrain}</p>
-          </div>
-          <Badge className={site.within_powerplant_safe_radius ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300"} variant="outline">
-            {site.suitability_score}%
-          </Badge>
-        </div>
-      ))}
+    <div className="divide-y divide-border/60 rounded-xl border border-border/70 bg-background/60 overflow-hidden">
+      {sites.slice(0, 3).map((site, index) => {
+        const isSelected = site.id === selectedSiteId
+        return (
+          <button
+            type="button"
+            key={site.id}
+            onClick={() => onSelectSite(site.id)}
+            className={`w-full text-left grid grid-cols-[auto_1fr_auto] items-center gap-2.5 px-3 py-2.5 transition-all ${
+              isSelected
+                ? "bg-emerald-500/10 border-l-4 border-l-emerald-500"
+                : "hover:bg-muted/40"
+            }`}
+          >
+            <span
+              className={`flex size-5 items-center justify-center rounded-full text-[10px] font-bold ${
+                isSelected
+                  ? "bg-emerald-500 text-white"
+                  : index === 0
+                  ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                  : "bg-muted text-muted-foreground"
+              }`}
+            >
+              {index + 1}
+            </span>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <p className="truncate text-xs font-semibold">{site.name}</p>
+                {isSelected && (
+                  <Badge variant="outline" className="border-emerald-500/40 text-emerald-600 dark:text-emerald-400 text-[8px] px-1 py-0 font-mono">
+                    TARGET DIVERT
+                  </Badge>
+                )}
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                {site.distance_nm.toFixed(1)} nm · {site.terrain}
+              </p>
+            </div>
+            <Badge
+              className={
+                site.within_powerplant_safe_radius
+                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-mono text-[10px]"
+                  : "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300 font-mono text-[10px]"
+              }
+              variant="outline"
+            >
+              {site.suitability_score}%
+            </Badge>
+          </button>
+        )
+      })}
     </div>
   )
 }
@@ -375,12 +340,15 @@ export function MissionCommandCenter() {
   const [simulationRequested, setSimulationRequested] = React.useState(false)
   const [approvalRequested, setApprovalRequested] = React.useState(false)
   const [commandError, setCommandError] = React.useState<string | null>(null)
+  const [selectedSiteId, setSelectedSiteId] = React.useState<string>("ECHO")
+  const [isSafeReturnEngaged, setIsSafeReturnEngaged] = React.useState<boolean>(false)
 
   const action = command.action
   const plan = action.plan
   const simulation = action.simulation
   const simulationPending = simulationRequested && action.status === "READY"
   const approved = action.status === "APPROVED_AND_LOGGED"
+  const isSafeReturnActive = isSafeReturnEngaged || approved || command.mission.risk_level === "CRITICAL"
   const riskTone = command.mission.risk_level === "CRITICAL" ? "crit" : command.mission.risk_level === "HIGH" || command.mission.risk_level === "MODERATE" ? "warn" : "ok"
 
   const requestSimulation = () => {
@@ -389,6 +357,14 @@ export function MissionCommandCenter() {
       setCommandError("Connect to the updated Digital Twin core to run this simulation.")
       return
     }
+    setSimulationRequested(true)
+  }
+
+  const handleInitiateSafeReturn = () => {
+    setIsSafeReturnEngaged(true)
+    setCommandError(null)
+    sendCommand({ command: "mission_command_simulate" })
+    sendCommand({ command: "set_profile", profile: "ENDURANCE" })
     setSimulationRequested(true)
   }
 
@@ -455,17 +431,29 @@ export function MissionCommandCenter() {
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
-              <MissionMap route={command.route} />
+              <TacticalMissionMap
+                route={command.route}
+                selectedSiteId={selectedSiteId}
+                onSelectSite={setSelectedSiteId}
+                isSafeReturnActive={isSafeReturnActive}
+                healthIndex={latestTelemetry?.health?.health_index ?? 85}
+                currentRpm={plan.parameters.current_rpm}
+                targetRpm={plan.parameters.target_rpm}
+              />
               <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
                 <div>
-                  <p className="text-xs font-semibold">Best recovery options</p>
-                  <p className="text-[11px] text-muted-foreground">Suitability includes distance to the simulated site and the live environmental envelope.</p>
+                  <p className="text-xs font-semibold">Best recovery options (Click site to divert)</p>
+                  <p className="text-[11px] text-muted-foreground">Suitability includes real-time distance, terrain glide slope, and powerplant-safe range.</p>
                 </div>
-                <Badge className="w-fit border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300" variant="outline">
-                  SIMULATION ONLY
+                <Badge className="w-fit border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-mono text-[10px]" variant="outline">
+                  REAL-TIME VECTORING
                 </Badge>
               </div>
-              <RecoverySiteRows sites={command.route.recovery_sites} />
+              <RecoverySiteRows
+                sites={command.route.recovery_sites}
+                selectedSiteId={selectedSiteId}
+                onSelectSite={setSelectedSiteId}
+              />
             </CardContent>
           </Card>
 
@@ -534,10 +522,31 @@ export function MissionCommandCenter() {
                 </div>
               )}
 
+              {isSafeReturnActive && (
+                <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-2.5 text-xs flex items-center justify-between gap-2 text-emerald-700 dark:text-emerald-300 font-mono">
+                  <div className="flex items-center gap-1.5 font-semibold">
+                    <ShieldCheckIcon className="size-4 text-emerald-500 animate-pulse shrink-0" />
+                    <span>SAFE RETURN VECTOR ACTIVE → {selectedSiteId}</span>
+                  </div>
+                  <Badge variant="outline" className="border-emerald-500/40 text-emerald-600 dark:text-emerald-400 font-mono text-[9px]">
+                    1200 RPM DERATE
+                  </Badge>
+                </div>
+              )}
+
               <div className="flex flex-col gap-2">
-                <Button disabled={simulationPending || approved} onClick={requestSimulation} size="sm" className="w-full font-semibold">
-                  <PlayIcon className="size-3.5" />
-                  {simulationPending ? "SIMULATION REQUESTED" : simulation ? "RE-RUN SAFE RETURN" : "SIMULATE SAFE RETURN"}
+                <Button
+                  disabled={simulationPending || approved}
+                  onClick={handleInitiateSafeReturn}
+                  size="sm"
+                  className="w-full font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm gap-2"
+                >
+                  <NavigationIcon className="size-3.5 animate-pulse" />
+                  {simulationPending
+                    ? "SIMULATION REQUESTED..."
+                    : isSafeReturnActive
+                    ? "RE-CALCULATE REAL-TIME SAFE RETURN"
+                    : "INITIATE REAL-TIME SAFE RETURN"}
                 </Button>
                 {simulation && !approved && (
                   <Button disabled={approvalRequested} onClick={approvePlan} size="sm" variant="outline" className="w-full border-primary/40 font-semibold text-primary">

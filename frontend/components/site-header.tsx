@@ -129,9 +129,11 @@ import {
 import { audioAnnunciator } from "@/lib/audio-annunciator"
 
 function AudioToggle() {
+  const [mounted, setMounted] = React.useState(false)
   const [state, setState] = React.useState(() => audioAnnunciator.getState())
 
   React.useEffect(() => {
+    setMounted(true)
     setState(audioAnnunciator.getState())
     const unsubscribe = audioAnnunciator.subscribe(() => {
       setState(audioAnnunciator.getState())
@@ -139,8 +141,8 @@ function AudioToggle() {
     return unsubscribe
   }, [])
 
-  const isSounding = state.isSounding
-  const isMuted = state.isMuted
+  const isSounding = mounted && state.isSounding
+  const isMuted = !mounted || state.isMuted
   const severity = state.severity
 
   return (

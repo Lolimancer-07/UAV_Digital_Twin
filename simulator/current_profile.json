@@ -3,6 +3,6 @@
   "speed": 1.0,
   "paused": false,
   "injected_faults": [],
-  "uav_id": "UAV-04",
-  "engine_id": 4
+  "uav_id": "UAV-01",
+  "engine_id": 1
 }

@@ -34,7 +34,7 @@ FEDERATED_FEATURES = [
     "inj_timing",
 ]
 
-DEFAULT_UAV_IDS = ["UAV-01", "UAV-02", "UAV-03", "UAV-04"]
+DEFAULT_UAV_IDS = ["UAV-01", "UAV-02", "UAV-03", "UAV-04", "UAV-05"]
 
 
 def federated_average(deltas: Dict[str, np.ndarray], sample_weights: Dict[str, int]) -> np.ndarray:

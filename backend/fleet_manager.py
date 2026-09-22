@@ -1,9 +1,9 @@
 """
 backend/fleet_manager.py
 
-Tracks state for all 4 UAVs in the fleet simultaneously.
+Tracks state for all 5 UAVs in the fleet simultaneously.
 
-Each UAV runs a different engine (engine_id 1–4) with a different
+Each UAV runs a different engine (engine_id 1–5) with a different
 lifecycle offset, so you get a realistic spread of health states across
 the fleet panel — one brand new, one mid-life, one approaching overhaul.
 
@@ -16,12 +16,13 @@ from collections import deque
 from typing import Dict, Any
 import copy
 
-# the 4 UAVs in the fleet — each has a different mission and lifecycle offset
+# the 5 UAVs in the fleet — each has a different mission and lifecycle offset
 FLEET_CONFIG = [
     {"uav_id": "UAV-01", "engine_id": 1, "call_sign": "ALPHA-01", "mission": "ISR-LOITER"},
     {"uav_id": "UAV-02", "engine_id": 2, "call_sign": "ALPHA-02", "mission": "ROUTE-SURVEY"},
     {"uav_id": "UAV-03", "engine_id": 3, "call_sign": "BRAVO-01", "mission": "HOT-STANDBY"},
     {"uav_id": "UAV-04", "engine_id": 4, "call_sign": "BRAVO-02", "mission": "MAINTENANCE"},
+    {"uav_id": "UAV-05", "engine_id": 5, "call_sign": "CHARLIE-01", "mission": "DEEP-STRIKE"},
 ]
 
 # RUL offsets create fleet diversity — UAV-04 is almost due for overhaul
@@ -30,6 +31,7 @@ UAV_RUL_OFFSETS = {
     "UAV-02": -30,    # slightly used
     "UAV-03": -90,    # mid-life
     "UAV-04": -160,   # near end-of-life, probably in maintenance for a reason
+    "UAV-05":  20,    # reinforcement unit — fresh overhaul, peak condition
 }
 
 
@@ -41,14 +43,14 @@ class FleetManager:
                 "engine_id": cfg["engine_id"],
                 "call_sign": cfg["call_sign"],
                 "mission": cfg["mission"],
-                "health": 92.0 + UAV_RUL_OFFSETS[cfg["uav_id"]] * 0.15,
+                "health": min(100.0, 92.0 + UAV_RUL_OFFSETS[cfg["uav_id"]] * 0.15),
                 "rul": max(5.0, 142.0 + UAV_RUL_OFFSETS[cfg["uav_id"]]),
                 "condition": "EXCELLENT",
                 "fault_count": 0,
                 "alert": "NOMINAL",
                 "rpm": 1400.0,
                 "cht": 375.0,
-                "mission_probability": 92.0,
+                "mission_probability": min(100.0, 92.0 + UAV_RUL_OFFSETS[cfg["uav_id"]] * 0.08),
                 "last_update": None,
             }
             for cfg in FLEET_CONFIG
@@ -99,6 +101,8 @@ class FleetManager:
                 "status_dot":     status_dot,
                 "is_active":      uav_id == self.active_uav_id,
                 "mission_probability": round(s["mission_probability"], 1),
+                "rpm":            round(s.get("rpm", 0.0), 1),
+                "cht":            round(s.get("cht", 0.0), 1),
             })
         return result
 

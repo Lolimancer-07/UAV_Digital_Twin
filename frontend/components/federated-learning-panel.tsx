@@ -32,6 +32,7 @@ const UAV_METADATA: Record<string, { callSign: string; mission: string; role: st
   "UAV-02": { callSign: "ALPHA-02", mission: "ROUTE-SURVEY", role: "Thermal Bias Node" },
   "UAV-03": { callSign: "BRAVO-01", mission: "HOT-STANDBY", role: "Altitude/Lean Node" },
   "UAV-04": { callSign: "BRAVO-02", mission: "MAINTENANCE", role: "Degradation Node" },
+  "UAV-05": { callSign: "CHARLIE-01", mission: "ESCORT-SURVEILLANCE", role: "High-Altitude Node" },
 }
 
 export function FederatedLearningPanel() {
@@ -42,9 +43,9 @@ export function FederatedLearningPanel() {
   const fedState: FederatedRoundState = latestTelemetry?.federated_round ?? {
     round: 0,
     global_model_version: "v1.0",
-    participating_uavs: ["UAV-01", "UAV-02", "UAV-03", "UAV-04"],
-    sample_counts: { "UAV-01": 24, "UAV-02": 28, "UAV-03": 19, "UAV-04": 31 },
-    delta_norms: { "UAV-01": 0.038, "UAV-02": 0.045, "UAV-03": 0.052, "UAV-04": 0.061 },
+    participating_uavs: ["UAV-01", "UAV-02", "UAV-03", "UAV-04", "UAV-05"],
+    sample_counts: { "UAV-01": 24, "UAV-02": 28, "UAV-03": 19, "UAV-04": 31, "UAV-05": 22 },
+    delta_norms: { "UAV-01": 0.038, "UAV-02": 0.045, "UAV-03": 0.052, "UAV-04": 0.061, "UAV-05": 0.035 },
     aggregate_delta_norm: 0.044,
     fleet_loss: 0.048,
     status: "STANDBY_SYNCED",

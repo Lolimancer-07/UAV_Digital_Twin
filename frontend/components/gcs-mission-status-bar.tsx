@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import { useTelemetry } from "@/components/telemetry-provider"
 import {
   Activity,
@@ -12,7 +13,16 @@ import {
   Satellite,
   Cpu,
   Wind,
+  FastForward,
+  Play,
+  Pause,
+  ChevronRight,
+  ShieldAlert,
+  Sliders,
 } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { audioAnnunciator } from "@/lib/audio-annunciator"
 
 function metHms(secs: number): string {
   const h = Math.floor(secs / 3600)
@@ -38,13 +48,14 @@ function LiveClock() {
 }
 
 export function GcsMissionStatusBar() {
-  const { latestTelemetry: t, connectionStatus, metSeconds } = useTelemetry()
+  const { latestTelemetry: t, connectionStatus, metSeconds, sendCommand } = useTelemetry()
 
   const uavId = t?.uav_id ?? "UAV-01"
   const alertLevel = t?.alert ?? "NOMINAL"
   const healthIndex = Math.round(t?.health?.health_index ?? 94)
   const rpm = Math.round(t?.rpm ?? 0)
-  const missionMode = (t?.mission_mode ?? "NORMAL").replace(/_/g, " ")
+  const currentMode = t?.mission_mode ?? "NORMAL"
+  const missionMode = currentMode.replace(/_/g, " ")
   const isAnomaly = t?.is_anomaly ?? false
 
   const isLive = connectionStatus === "live"
@@ -70,10 +81,48 @@ export function GcsMissionStatusBar() {
     ? "bg-amber-50 border-amber-600 dark:bg-amber-950 dark:border-amber-800"
     : "bg-card border-border"
 
+  // Audio annunciator triggers on state transitions
+  const prevAlertRef = React.useRef(alertLevel)
+  const prevAnomalyRef = React.useRef(isAnomaly)
+
+  React.useEffect(() => {
+    if (isCritical && prevAlertRef.current !== "CRITICAL") {
+      audioAnnunciator.playWarning()
+    } else if (
+      (isWarning || isAnomaly) &&
+      (!prevAnomalyRef.current && prevAlertRef.current === "NOMINAL")
+    ) {
+      audioAnnunciator.playCaution()
+    }
+    prevAlertRef.current = alertLevel
+    prevAnomalyRef.current = isAnomaly
+  }, [isCritical, isWarning, isAnomaly, alertLevel])
+
+  // Mission profile handler
+  const handleSelectProfile = (profile: string) => {
+    sendCommand({ command: "set_profile", profile } as any)
+  }
+
+  // Speed multiplier handler
+  const [currentSpeed, setCurrentSpeed] = React.useState<number>(1.0)
+  const [isPaused, setIsPaused] = React.useState<boolean>(false)
+
+  const handleSetSpeed = (speed: number) => {
+    setCurrentSpeed(speed)
+    sendCommand({ command: "set_speed", speed } as any)
+  }
+
+  const handleTogglePause = () => {
+    const next = !isPaused
+    setIsPaused(next)
+    sendCommand({ command: "set_paused", paused: next } as any)
+  }
+
   return (
     <div
-      className={`mx-4 mb-1 mt-0 rounded-xl border px-5 py-3 lg:mx-6 ${statusBg} shadow-sm transition-colors duration-500`}
+      className={`mx-4 mb-1 mt-0 rounded-xl border px-5 py-3 lg:mx-6 ${statusBg} shadow-sm transition-colors duration-500 flex flex-col gap-3`}
     >
+      {/* ── Main Hero Status Row ── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         {/* Left: UAV ID + status */}
         <div className="flex items-center gap-3">
@@ -138,6 +187,86 @@ export function GcsMissionStatusBar() {
             <Radio className="h-3 w-3" />
             {isLive ? "WS LIVE · 10 Hz" : connectionStatus.toUpperCase()}
           </div>
+        </div>
+      </div>
+
+      {/* ── Tactical Flight Ribbon (Profile Switcher + Speed + Safe Return) ── */}
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border/50 text-xs font-mono">
+        {/* Left: Mission Profile Buttons */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-[10px] uppercase font-bold text-muted-foreground mr-1 flex items-center gap-1">
+            <Sliders className="size-3 text-primary" /> PROFILE:
+          </span>
+          {[
+            { id: "NORMAL", label: "NORMAL ISR" },
+            { id: "HIGH_ALTITUDE", label: "HIGH-ALT" },
+            { id: "HOT_WEATHER", label: "HOT-WX" },
+            { id: "ENDURANCE", label: "MAX-LOITER" },
+            { id: "RAPID_THROTTLE", label: "RAPID-RPM" },
+          ].map((prof) => {
+            const isSelected = currentMode === prof.id
+            return (
+              <button
+                key={prof.id}
+                onClick={() => handleSelectProfile(prof.id)}
+                className={`px-2 py-1 rounded text-[10px] font-bold tracking-tight transition-all ${
+                  isSelected
+                    ? "bg-primary text-primary-foreground shadow-xs ring-1 ring-primary"
+                    : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
+                }`}
+              >
+                {prof.label}
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Right: Simulation Speed + Safe Return */}
+        <div className="flex items-center gap-2">
+          {/* Speed Multipliers */}
+          <div className="flex items-center bg-muted/60 rounded p-0.5 border border-border/50">
+            <button
+              onClick={handleTogglePause}
+              className={`p-1 rounded text-[10px] hover:bg-background ${
+                isPaused ? "text-amber-500 font-bold" : "text-muted-foreground"
+              }`}
+              title={isPaused ? "Resume telemetry" : "Pause telemetry"}
+            >
+              {isPaused ? <Play className="size-3" /> : <Pause className="size-3" />}
+            </button>
+            {[1.0, 2.0, 5.0].map((spd) => (
+              <button
+                key={spd}
+                onClick={() => handleSetSpeed(spd)}
+                className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                  currentSpeed === spd
+                    ? "bg-background text-foreground shadow-2xs"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {spd}x
+              </button>
+            ))}
+          </div>
+
+          {/* Emergency Safe Return Link */}
+          <Link href="/mission-command">
+            <Button
+              size="sm"
+              variant={isCritical ? "destructive" : "outline"}
+              className={`h-7 px-2.5 text-[11px] font-bold font-mono tracking-tight gap-1.5 ${
+                isCritical
+                  ? "animate-pulse ring-2 ring-destructive"
+                  : isWarning
+                  ? "border-amber-500 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
+                  : "hover:border-primary/50 text-foreground"
+              }`}
+            >
+              <ShieldAlert className="size-3.5" />
+              <span>SAFE RETURN</span>
+              <ChevronRight className="size-3" />
+            </Button>
+          </Link>
         </div>
       </div>
     </div>

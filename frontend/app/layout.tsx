@@ -31,8 +31,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               <BackendGate>
                 <div className="flex h-screen max-h-screen flex-col overflow-hidden">
                   <div className="flex flex-1 min-h-0 w-full overflow-hidden">
-                    {/* Main page independent scroll container (overflows for standard dashboard pages, locks to hidden for fixed-layout pages like AI Engine) */}
-                    <div className="flex-1 min-w-0 h-full overflow-y-auto overflow-x-hidden overscroll-contain scrollbar-thin has-[[data-fixed-layout]]:overflow-hidden">
+                    {/* Main page container — scrolling is scoped to SidebarInset so SiteHeader stays fixed */}
+                    <div className="flex-1 min-w-0 h-full overflow-hidden flex flex-col">
                       <PageTransition>{children}</PageTransition>
                     </div>
                     {/* Dedicated Chatbot right sidebar — independent scroll container */}

@@ -13,7 +13,7 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
   return (
     <div
       key={pathname}
-      className="animate-page-fade flex min-w-0 flex-1 flex-col h-full min-h-0"
+      className="animate-page-fade flex min-w-0 flex-1 flex-col h-full min-h-0 overflow-hidden"
     >
       {children}
     </div>

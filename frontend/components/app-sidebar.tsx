@@ -20,6 +20,7 @@ import {
 import { NavMain } from "@/components/nav-main"
 import { NavSecondary } from "@/components/nav-secondary"
 import { useAICopilot } from "@/components/ai-copilot-context"
+import { useTelemetry } from "@/components/telemetry-provider"
 import {
   Sidebar,
   SidebarContent,
@@ -50,6 +51,8 @@ const operations = [
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { isOpen, setIsOpen } = useAICopilot()
+  const { latestTelemetry } = useTelemetry()
+  const activeUavId = latestTelemetry?.uav_id ?? "UAV-01"
   const pathname = usePathname()
   const isAiActive = pathname === "/neural-engine" || pathname === "/nexus"
 
@@ -59,7 +62,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton render={<Link href="/" />} size="lg" className="h-auto rounded-lg px-3 py-2 hover:bg-sidebar-accent">
-              <span className="font-mono text-sm font-semibold tracking-tight text-sidebar-primary">UAV-07</span>
+              <span className="font-mono text-sm font-semibold tracking-tight text-sidebar-primary">{activeUavId}</span>
               <span className="font-heading text-sm font-semibold tracking-wide">PropulsionX GCS</span>
             </SidebarMenuButton>
           </SidebarMenuItem>

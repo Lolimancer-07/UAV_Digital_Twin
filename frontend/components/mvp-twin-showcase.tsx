@@ -239,48 +239,167 @@ export function MvpTwinShowcase() {
           </div>
         </div>
 
-        {/* ── Section 2: Real-time Sensor Array ─────────────────────────── */}
-        <div className="rounded-xl border border-border bg-muted p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              Real-Time Engine Sensor Array (4-Cylinder Rotax 914 F Class)
-            </h3>
-            <span className="font-mono text-[11px] text-primary font-semibold">10 Hz Telemetry Link · Active</span>
-          </div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8 font-mono text-xs">
-            <div className="rounded-lg border bg-card p-2.5">
-              <span className="text-[10px] text-muted-foreground block">RPM</span>
-              <span className="text-lg font-bold text-foreground">{Math.round(t?.rpm ?? 2400)}</span>
-              <span className="text-[10px] text-muted-foreground block">rev/min</span>
+        {/* ── Section 2: Aviation EIS 4-Cylinder Thermal Balance & Telemetry Matrix ── */}
+        <div className="rounded-xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 pb-3">
+            <div className="flex items-center gap-2">
+              <FlameIcon className="size-4 text-primary" />
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-foreground">
+                  ROTAX 914 F · CYLINDER THERMAL BALANCE &amp; EIS
+                </h3>
+                <p className="text-[11px] text-muted-foreground">
+                  Real-time per-cylinder head temperatures, thermal variance &amp; propulsion criticals
+                </p>
+              </div>
             </div>
+            <div className="flex items-center gap-2 font-mono text-xs">
+              <Badge
+                variant="outline"
+                className={`text-[10px] ${
+                  thermalImbalance > 25
+                    ? "border-amber-500 text-amber-500 bg-amber-500/10 font-bold"
+                    : "border-emerald-500 text-emerald-500 bg-emerald-500/10"
+                }`}
+              >
+                ΔT VARIANCE: {thermalImbalance}°F {thermalImbalance > 25 ? "⚠ IMBALANCE" : "✓ BALANCED"}
+              </Badge>
+              <Badge
+                variant={maxCht > 410 ? "destructive" : "outline"}
+                className="text-[10px]"
+              >
+                PEAK: CYL #{hotCylIndex + 1} ({maxCht.toFixed(1)}°F)
+              </Badge>
+              <span className="text-[10px] text-muted-foreground hidden sm:inline">10 Hz Link</span>
+            </div>
+          </div>
+
+          {/* 4-Cylinder Head EIS Gauges */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 font-mono">
             {chtCyls.map((chtVal, idx) => {
-              const CHT_WARN = 410  // °F — alert any cylinder individually over this limit
+              const CHT_WARN = 410
+              const CHT_CRIT = 435
               const isHot = chtVal > CHT_WARN || (isCoolingFaultActive && idx === hotCylIndex)
+              const isCrit = chtVal > CHT_CRIT
+              const posLabel = ["Starboard Aft", "Port Aft", "Starboard Fwd", "Port Fwd"][idx]
+              const meanVal = chtCyls.reduce((a, b) => a + b, 0) / chtCyls.length
+              const diffFromMean = chtVal - meanVal
+              // Percent progress from 250°F to 460°F
+              const pct = Math.min(100, Math.max(0, ((chtVal - 250) / (460 - 250)) * 100))
+
+              const barColor = isCrit
+                ? "bg-red-500 shadow-xs"
+                : isHot
+                ? "bg-amber-500 shadow-xs"
+                : "bg-emerald-500"
+
               return (
-                <div key={idx} className={`rounded-lg border p-2.5 transition-colors ${isHot ? "border-destructive bg-destructive text-destructive-foreground font-bold shadow-xs animate-pulse" : "bg-card"}`}>
-                  <div className="flex justify-between items-center">
-                    <span className={`text-[10px] ${isHot ? "text-destructive-foreground/80" : "text-muted-foreground"}`}>CHT-{idx + 1}</span>
-                    {isHot && <Badge className="bg-white text-destructive text-[8px] px-1 py-0 font-extrabold">HOT ⚠</Badge>}
+                <div
+                  key={idx}
+                  className={`rounded-lg border p-3.5 flex flex-col justify-between gap-2.5 transition-all ${
+                    isCrit
+                      ? "border-destructive bg-destructive/10 text-destructive shadow-sm animate-pulse"
+                      : isHot
+                      ? "border-amber-500/70 bg-amber-500/10"
+                      : "border-border/60 bg-muted/20 hover:bg-muted/30"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex flex-col">
+                      <span className="text-[11px] font-bold tracking-wider text-foreground">
+                        CYLINDER {idx + 1}
+                      </span>
+                      <span className="text-[9px] text-muted-foreground uppercase">
+                        {posLabel}
+                      </span>
+                    </div>
+                    <Badge
+                      variant={isCrit ? "destructive" : isHot ? "outline" : "outline"}
+                      className={`text-[9px] px-1.5 py-0 font-bold ${
+                        isCrit
+                          ? ""
+                          : isHot
+                          ? "border-amber-500 text-amber-500 bg-amber-500/10"
+                          : "border-emerald-500/50 text-emerald-500 bg-emerald-500/10"
+                      }`}
+                    >
+                      {isCrit ? "EXCEEDANCE" : isHot ? "HOT ⚠" : "NOMINAL"}
+                    </Badge>
                   </div>
-                  <span className="text-lg font-bold">{chtVal.toFixed(1)}°F</span>
-                  <span className={`text-[10px] block ${isHot ? "text-destructive-foreground/80" : "text-muted-foreground"}`}>Cyl {idx + 1} Temp</span>
+
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-2xl font-bold tracking-tight text-foreground tabular-nums">
+                      {chtVal.toFixed(1)}
+                      <span className="text-xs font-normal text-muted-foreground ml-1">°F</span>
+                    </span>
+                    <span
+                      className={`text-[10px] font-semibold tabular-nums ${
+                        diffFromMean > 4
+                          ? "text-amber-500"
+                          : diffFromMean < -4
+                          ? "text-sky-500"
+                          : "text-muted-foreground"
+                      }`}
+                    >
+                      {diffFromMean >= 0 ? `+${diffFromMean.toFixed(1)}` : diffFromMean.toFixed(1)}°F
+                    </span>
+                  </div>
+
+                  {/* Aerospace EIS Segmented Bar */}
+                  <div className="flex flex-col gap-1">
+                    <div className="relative h-2 w-full overflow-hidden rounded-full bg-muted/60 dark:bg-muted/40">
+                      <div
+                        className={`h-full rounded-full transition-all duration-300 ${barColor}`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-[8px] text-muted-foreground tracking-tighter">
+                      <span>250°F</span>
+                      <span className="text-amber-500/80">410°</span>
+                      <span className="text-destructive/80">435° LIMIT</span>
+                    </div>
+                  </div>
                 </div>
               )
             })}
-            <div className="rounded-lg border bg-card p-2.5">
-              <span className="text-[10px] text-muted-foreground block">EGT Avg</span>
-              <span className="text-lg font-bold text-foreground">{Math.round(t?.egt ?? 1465)}°F</span>
-              <span className="text-[10px] text-muted-foreground block">Exhaust Gas</span>
+          </div>
+
+          {/* Bottom Row: 4 Propulsion & Gallery Criticals */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono text-xs pt-1 border-t border-border/40">
+            <div className="rounded-lg border border-border/60 bg-muted/20 p-2.5 flex flex-col justify-between">
+              <span className="text-[10px] text-muted-foreground uppercase">Crankshaft Speed</span>
+              <div className="text-lg font-bold text-foreground tabular-nums mt-0.5">
+                {Math.round(t?.rpm ?? 2400)}{" "}
+                <span className="text-[10px] font-normal text-muted-foreground">RPM</span>
+              </div>
+              <span className="text-[9px] text-muted-foreground mt-0.5">Max Continuous: 2650 RPM</span>
             </div>
-            <div className="rounded-lg border bg-card p-2.5">
-              <span className="text-[10px] text-muted-foreground block">Oil Press</span>
-              <span className="text-lg font-bold text-foreground">{(t?.oil_pressure ?? 55).toFixed(1)}</span>
-              <span className="text-[10px] text-muted-foreground block">PSI</span>
+
+            <div className="rounded-lg border border-border/60 bg-muted/20 p-2.5 flex flex-col justify-between">
+              <span className="text-[10px] text-muted-foreground uppercase">Mean Exhaust EGT</span>
+              <div className="text-lg font-bold text-foreground tabular-nums mt-0.5">
+                {Math.round(t?.egt ?? 1465)}{" "}
+                <span className="text-[10px] font-normal text-muted-foreground">°F</span>
+              </div>
+              <span className="text-[9px] text-muted-foreground mt-0.5">Threshold: 1600°F</span>
             </div>
-            <div className="rounded-lg border bg-card p-2.5">
-              <span className="text-[10px] text-muted-foreground block">Oil Temp</span>
-              <span className="text-lg font-bold text-foreground">{Math.round(t?.oil_temp ?? 185)}°F</span>
-              <span className="text-[10px] text-muted-foreground block">Sump Temp</span>
+
+            <div className="rounded-lg border border-border/60 bg-muted/20 p-2.5 flex flex-col justify-between">
+              <span className="text-[10px] text-muted-foreground uppercase">Oil Gallery Pressure</span>
+              <div className="text-lg font-bold text-foreground tabular-nums mt-0.5">
+                {(t?.oil_pressure ?? 52.4).toFixed(1)}{" "}
+                <span className="text-[10px] font-normal text-muted-foreground">PSI</span>
+              </div>
+              <span className="text-[9px] text-muted-foreground mt-0.5">Operating: 40–85 PSI</span>
+            </div>
+
+            <div className="rounded-lg border border-border/60 bg-muted/20 p-2.5 flex flex-col justify-between">
+              <span className="text-[10px] text-muted-foreground uppercase">Oil Sump Temp</span>
+              <div className="text-lg font-bold text-foreground tabular-nums mt-0.5">
+                {Math.round(t?.oil_temp ?? 186)}{" "}
+                <span className="text-[10px] font-normal text-muted-foreground">°F</span>
+              </div>
+              <span className="text-[9px] text-muted-foreground mt-0.5">Operating: 140–230°F</span>
             </div>
           </div>
         </div>

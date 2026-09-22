@@ -109,16 +109,50 @@ function AlertBadge() {
   )
 }
 
+import * as React from "react"
 import { ExportDialog } from "@/components/export-dialog"
 import { JargonGuideDialog } from "@/components/jargon-guide-dialog"
 import { SecurityPostureDialog } from "@/components/security-posture-dialog"
+import { Volume2, VolumeX } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { audioAnnunciator } from "@/lib/audio-annunciator"
+
+function AudioToggle() {
+  const [isMuted, setIsMuted] = React.useState<boolean>(true)
+
+  React.useEffect(() => {
+    setIsMuted(audioAnnunciator.getMuted())
+  }, [])
+
+  const handleToggle = () => {
+    const next = audioAnnunciator.toggleMute()
+    setIsMuted(next)
+  }
+
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      onClick={handleToggle}
+      className="size-8 text-muted-foreground hover:text-foreground"
+      title={isMuted ? "Avionics Audio Muted (Click to Unmute)" : "Avionics Audio Active (Click to Mute)"}
+      aria-label={isMuted ? "Unmute avionics audio" : "Mute avionics audio"}
+    >
+      {isMuted ? (
+        <VolumeX className="size-4 text-muted-foreground/60" />
+      ) : (
+        <Volume2 className="size-4 text-emerald-500 animate-pulse" />
+      )}
+    </Button>
+  )
+}
 
 export function SiteHeader() {
   const { latestTelemetry } = useTelemetry()
   const activeUavId = latestTelemetry?.uav_id ?? "UAV-01"
 
   return (
-    <header className="sticky top-0 z-20 flex h-(--header-height) shrink-0 items-center gap-2 border-b border-border bg-background/95 backdrop-blur-md supports-backdrop-filter:backdrop-blur-md transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height) shadow-xs">
+    <header className="sticky top-0 z-30 flex h-[var(--header-height,3.25rem)] shrink-0 items-center gap-2 border-b border-border bg-background/95 backdrop-blur-md supports-backdrop-filter:backdrop-blur-md transition-[width,height] ease-linear shadow-xs">
       <div className="flex w-full items-center gap-1 px-4 lg:gap-2 lg:px-6">
         <SidebarTrigger className="-ml-1" />
         <Separator
@@ -136,6 +170,7 @@ export function SiteHeader() {
             <ConnectionBadge />
             <SecurityPostureDialog />
             <AlertBadge />
+            <AudioToggle />
             <JargonGuideDialog />
             <ExportDialog />
             <ThemeToggle />

@@ -340,14 +340,14 @@ def _process_telemetry_packet(data):
         alert_status = "NOMINAL"
 
     # map engine ID to UAV callsign for the fleet panel
-    active_uav = f"UAV-0{cur_engine}" if cur_engine in (1, 2, 3, 4) else "UAV-01"
+    active_uav = data.get("uav_id", fleet_manager.active_uav_id)
 
     # build the full payload — everything the dashboard needs in one shot
     payload = {
         # raw telemetry channels
         "cycle":                  data.get("cycle", 0),
-        "engine_id":              data.get("engine_id", 1),
-        "uav_id":                 data.get("uav_id", "UAV-01"),
+        "engine_id":              data.get("engine_id", fleet_manager.get_active_engine_id()),
+        "uav_id":                 active_uav,
         "rpm":                    round(data.get("rpm", 0), 1),
         "cht":                    round(data.get("cht", 0), 1),
         "cht_cyl":                data.get("cht_cyl", [0, 0, 0, 0]),
@@ -487,7 +487,7 @@ def process_gcs_command(cmd: Dict[str, Any]):
     """Handles commands sent from the GCS dashboard over WebSocket."""
     global latest_state, latest_payload
 
-    action = cmd.get("command")
+    action = cmd.get("command") or cmd.get("action")
 
     # start with sane defaults in case the file doesn't exist yet
     current_cfg = {"mode": "NORMAL", "speed": 1.0, "paused": False, "injected_faults": [], "engine_id": 1, "uav_id": "UAV-01"}
@@ -720,6 +720,10 @@ def process_gcs_command(cmd: Dict[str, Any]):
         fleet_manager.select_uav(uav_id)
         current_cfg["uav_id"] = uav_id
         current_cfg["engine_id"] = fleet_manager.get_active_engine_id()
+        if latest_state:
+            latest_state["uav_id"] = uav_id
+            latest_state["engine_id"] = current_cfg["engine_id"]
+            latest_state["fleet_status"] = fleet_manager.get_fleet_status()
         print(f"[GCS CMD] Active UAV switched → {uav_id} (Engine #{current_cfg['engine_id']})")
 
     elif action == "demo_start":

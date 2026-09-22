@@ -237,12 +237,21 @@ export function MissionTimeline() {
   const metFmt = `${Math.floor(metSeconds / 60)}:${String(metSeconds % 60).padStart(2, "0")}`
 
   const riskComponents = t?.mission_risk?.components
+  // Backend provides components in [0, 100] percentage scale (e.g. 96.0 for 96%).
+  // Normalize safely to [0, 1] fractions for SVG arcs, clamping between 0 and 1.
+  const normFraction = (val: number | undefined, defaultFraction: number) => {
+    if (val === undefined || val === null || isNaN(val)) return defaultFraction
+    // Backend components are always 0..100 percentage values (e.g. 1.0 = 1%, 96.0 = 96%)
+    const frac = val / 100
+    return Math.max(0, Math.min(1, frac))
+  }
+
   const rings = [
-    { label: "Engine", v: riskComponents?.engine_reliability ?? 0.92, color: "#8b5cf6" },
-    { label: "Thermal", v: riskComponents?.thermal_margin ?? 0.88, color: "#f59e0b" },
-    { label: "RUL", v: riskComponents?.rul_time_margin ?? 0.91, color: "#06b6d4" },
-    { label: "Environ.", v: riskComponents?.environmental ?? 0.95, color: "#22c55e" },
-    { label: "Faults", v: 1 - (riskComponents?.fault_penalty ?? 0.05), color: "#ef4444" },
+    { label: "Engine", v: normFraction(riskComponents?.engine_reliability, 0.92), color: "#8b5cf6" },
+    { label: "Thermal", v: normFraction(riskComponents?.thermal_margin, 0.88), color: "#f59e0b" },
+    { label: "RUL", v: normFraction(riskComponents?.rul_time_margin, 0.91), color: "#06b6d4" },
+    { label: "Environ.", v: normFraction(riskComponents?.environmental, 0.95), color: "#22c55e" },
+    { label: "Faults", v: normFraction(riskComponents?.fault_penalty, 0.95), color: "#ef4444" },
   ]
 
   return (
@@ -387,8 +396,8 @@ export function MissionTimeline() {
                         strokeDasharray={`${dash} ${circ}`}
                         style={{ filter: `drop-shadow(0 0 4px ${r.color}88)`, transition: "stroke-dasharray 0.8s cubic-bezier(0.4,0,0.2,1)" }} />
                     </svg>
-                    <span className="absolute inset-0 flex items-center justify-center text-[10px] font-mono font-bold tabular-nums" style={{ color: r.color }}>
-                      {(r.v * 100).toFixed(0)}
+                    <span className="absolute inset-0 flex items-center justify-center text-[9px] font-mono font-bold tabular-nums" style={{ color: r.color }}>
+                      {(r.v * 100).toFixed(0)}%
                     </span>
                   </div>
                   <p className="text-[8.5px] font-mono text-center text-muted-foreground leading-tight">{r.label}</p>

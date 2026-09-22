@@ -92,7 +92,7 @@ function DataWire({
   )
 }
 
-// ─── 3D Subsystem Node: Orb + Orbital Ring + Expandable Card ──────────────────
+// ─── 3D Subsystem Node: Orb + Orbital Ring + Interactive Card ──────────────────
 
 interface SubsystemNodeProps {
   id: string
@@ -134,13 +134,12 @@ function SubsystemNode({
   const color = getHealthColor(health, isDark)
 
   useFrame(({ clock }, dt) => {
-    const t = clock.elapsedTime
     if (ringRef.current) {
-      ringRef.current.rotation.z += dt * (selected ? 2.4 : 0.95)
+      ringRef.current.rotation.z += dt * (selected ? 2.2 : 0.95)
       ringRef.current.rotation.x += dt * 0.45
     }
     if (sphereRef.current) {
-      const scale = selected ? 1.35 : hovered ? 1.18 : 1.0
+      const scale = selected ? 1.35 : hovered ? 1.2 : 1.0
       sphereRef.current.scale.lerp(new THREE.Vector3(scale, scale, scale), dt * 12)
     }
   })
@@ -167,7 +166,7 @@ function SubsystemNode({
         <meshStandardMaterial
           color={color}
           emissive={color}
-          emissiveIntensity={selected ? 1.6 : isDark ? 1.0 : 0.5}
+          emissiveIntensity={selected ? 1.8 : isDark ? 1.1 : 0.65}
           roughness={0.15}
           metalness={0.9}
         />
@@ -175,65 +174,63 @@ function SubsystemNode({
 
       {/* Orbiting Tech Ring */}
       <mesh ref={ringRef}>
-        <torusGeometry args={[0.092, 0.008, 12, 36]} />
+        <torusGeometry args={[0.095, 0.008, 12, 36]} />
         <meshBasicMaterial
           color={color}
           transparent
-          opacity={selected ? 0.95 : hovered ? 0.85 : isDark ? 0.6 : 0.4}
+          opacity={selected ? 0.95 : hovered ? 0.85 : isDark ? 0.75 : 0.55}
         />
       </mesh>
 
-      {/* 3D Expandable Card: Clicking directly selects and expands details */}
-      <Html center={false} position={[0.13, 0.08, 0]} zIndexRange={[100, 0]}>
+      {/* 3D Overlay Card: Compact or Detailed Expanded (matching reference design) */}
+      <Html center={false} position={[0.12, 0.06, 0]} zIndexRange={[100, 0]}>
         <div
           onPointerDown={(e) => {
-            // Stops pointer event from starting an OrbitControls rotation drag
             e.stopPropagation()
           }}
           onClick={(e) => {
             e.stopPropagation()
             onClick()
           }}
-          className="select-none cursor-pointer transition-all duration-200"
+          className="select-none cursor-pointer"
           style={{
-            transform: selected ? "scale(1.04)" : hovered ? "scale(1.02)" : "scale(1)",
+            transition: "transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s ease",
+            transform: selected ? "scale(1.02)" : hovered ? "scale(1.04) translateY(-2px)" : "scale(1)",
           }}
         >
           {selected ? (
-            /* ── EXPANDED CARD VIEW ── */
+            /* ── DETAILED EXPANDED CARD (matching screenshot) ── */
             <div
               style={{
-                minWidth: 172,
-                background: isDark
-                  ? `linear-gradient(135deg, ${color}30 0%, rgba(6,16,36,0.97) 100%)`
-                  : `linear-gradient(135deg, ${color}18 0%, rgba(255,255,255,0.98) 100%)`,
+                width: 242,
+                background: isDark ? "rgba(15, 23, 42, 0.96)" : "rgba(255, 255, 255, 0.98)",
                 border: `1.5px solid ${color}`,
-                borderRadius: 12,
-                padding: "8px 11px",
-                backdropFilter: "blur(16px)",
-                boxShadow: selected
-                  ? `0 0 24px ${color}55, 0 8px 24px rgba(0,0,0,0.4)`
-                  : "0 4px 16px rgba(0,0,0,0.1)",
+                borderRadius: 18,
+                padding: "12px 14px 11px",
+                backdropFilter: "blur(24px)",
+                boxShadow: isDark
+                  ? `0 0 32px ${color}66, 0 16px 40px -8px rgba(0, 0, 0, 0.8)`
+                  : `0 0 28px ${color}45, 0 14px 34px -6px rgba(0, 0, 0, 0.12)`,
+                fontFamily: "var(--font-geist-sans), system-ui, sans-serif",
               }}
             >
-              {/* Header: Code + Title + Close Button */}
+              {/* Header: Icon + Code · Title, and Close Button */}
               <div
                 style={{
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
-                  marginBottom: 6,
+                  marginBottom: 8,
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                  <span style={{ color, display: "flex" }}>{icon}</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ color, display: "flex", alignItems: "center" }}>{icon}</span>
                   <span
                     style={{
-                      fontSize: 10,
-                      fontFamily: "monospace",
+                      fontSize: 12,
+                      fontFamily: "var(--font-geist-mono), monospace",
                       fontWeight: 700,
-                      letterSpacing: "0.05em",
-                      color: isDark ? "#ffffff" : "#0f172a",
+                      color: isDark ? "#f8fafc" : "#0f172a",
                     }}
                   >
                     {code} · {title}
@@ -244,153 +241,153 @@ function SubsystemNode({
                     e.stopPropagation()
                     onClose()
                   }}
+                  title="Close details"
                   style={{
-                    background: isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.06)",
-                    border: "none",
-                    borderRadius: 99,
-                    width: 18,
-                    height: 18,
+                    width: 20,
+                    height: 20,
+                    borderRadius: 9999,
+                    border: isDark ? "1px solid rgba(71, 85, 105, 0.6)" : "1px solid rgba(203, 213, 225, 0.8)",
+                    background: isDark ? "rgba(30, 41, 59, 0.8)" : "rgba(241, 245, 249, 0.9)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
                     cursor: "pointer",
-                    color: isDark ? "#e2e8f0" : "#475569",
+                    color: isDark ? "#94a3b8" : "#64748b",
+                    transition: "all 0.15s ease",
                   }}
                 >
                   <X style={{ width: 11, height: 11 }} />
                 </button>
               </div>
 
-              {/* Value + Status Badge */}
+              {/* Metric Row: Big colored Value + Status Badge */}
               <div
                 style={{
                   display: "flex",
-                  alignItems: "baseline",
+                  alignItems: "center",
                   justifyContent: "space-between",
-                  marginBottom: 4,
+                  marginBottom: 8,
                 }}
               >
                 <div style={{ display: "flex", alignItems: "baseline", gap: 3 }}>
                   <span
                     style={{
-                      fontSize: 18,
-                      fontFamily: "monospace",
-                      fontWeight: 700,
-                      lineHeight: 1.1,
-                      letterSpacing: "-0.02em",
-                      color,
+                      fontSize: 26,
+                      fontFamily: "var(--font-geist-mono), monospace",
+                      fontWeight: 800,
+                      letterSpacing: "-0.03em",
+                      lineHeight: 1,
+                      color: color,
                     }}
                   >
                     {value}
                   </span>
                   <span
                     style={{
-                      fontSize: 9,
-                      fontFamily: "monospace",
-                      color: isDark ? "#94a3b8" : "#64748b",
+                      fontSize: 11,
+                      fontFamily: "var(--font-geist-mono), monospace",
+                      fontWeight: 600,
+                      color: isDark ? "#64748b" : "#94a3b8",
                     }}
                   >
                     {unit}
                   </span>
                 </div>
+
+                {/* Status Badge */}
                 <span
                   style={{
-                    fontSize: 8.5,
-                    fontFamily: "monospace",
+                    fontSize: 9.5,
+                    fontFamily: "var(--font-geist-mono), monospace",
                     fontWeight: 700,
-                    color,
-                    background: `${color}22`,
-                    padding: "1.5px 5px",
-                    borderRadius: 4,
+                    color: color,
+                    background: `${color}18`,
+                    border: `1px solid ${color}35`,
+                    padding: "2.5px 8px",
+                    borderRadius: 9999,
+                    letterSpacing: "0.04em",
                   }}
                 >
                   {health.toFixed(0)}% · {getHealthStatus(health)}
                 </span>
               </div>
 
-              {/* Range & Tolerance Limits */}
+              {/* Operational Limit Pill */}
               <div
                 style={{
-                  fontSize: 8.5,
-                  fontFamily: "monospace",
+                  background: isDark ? "rgba(30, 41, 59, 0.6)" : "rgba(241, 245, 249, 0.85)",
+                  border: isDark ? "1px solid rgba(51, 65, 85, 0.5)" : "1px solid rgba(226, 232, 240, 0.9)",
+                  borderRadius: 8,
+                  padding: "5px 9px",
+                  marginBottom: 6,
+                  fontSize: 10,
+                  fontFamily: "var(--font-geist-mono), monospace",
                   color: isDark ? "#94a3b8" : "#64748b",
-                  background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)",
-                  padding: "4px 7px",
-                  borderRadius: 6,
-                  marginBottom: 5,
+                  fontWeight: 500,
                 }}
               >
                 {range}
               </div>
 
-              {/* Status Note */}
+              {/* Status / Diagnosis Description */}
               <div
                 style={{
-                  fontSize: 8,
-                  fontFamily: "monospace",
-                  color: isDark ? "#cbd5e1" : "#475569",
-                  marginBottom: 6,
+                  fontSize: 10.5,
+                  fontFamily: "var(--font-geist-mono), monospace",
+                  fontWeight: 600,
+                  color: isDark ? "#cbd5e1" : "#334155",
+                  marginBottom: 8,
                 }}
               >
                 {statusText}
               </div>
 
-              {/* Full Health Bar */}
+              {/* Bottom Accent Bar */}
               <div
                 style={{
-                  height: 3,
-                  background: isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.08)",
-                  borderRadius: 99,
-                  overflow: "hidden",
+                  height: 3.5,
+                  width: 52,
+                  borderRadius: 9999,
+                  background: color,
+                  boxShadow: `0 0 8px ${color}aa`,
                 }}
-              >
-                <div
-                  style={{
-                    height: "100%",
-                    width: `${Math.max(0, Math.min(100, health))}%`,
-                    background: color,
-                    borderRadius: 99,
-                    transition: "width 0.6s ease",
-                  }}
-                />
-              </div>
+              />
             </div>
           ) : (
-            /* ── COMPACT CARD VIEW ── */
+            /* ── COMPACT CARD (matching screenshot) ── */
             <div
               style={{
-                minWidth: 86,
-                background: isDark
-                  ? "rgba(6,16,36,0.92)"
-                  : "rgba(255,255,255,0.93)",
-                border: `1px solid ${isDark ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.12)"}`,
-                borderRadius: 10,
-                padding: "6px 10px",
-                backdropFilter: "blur(14px)",
+                minWidth: 108,
+                background: isDark ? "rgba(15, 23, 42, 0.94)" : "rgba(255, 255, 255, 0.98)",
+                border: isDark ? "1px solid rgba(51, 65, 85, 0.8)" : "1px solid rgba(226, 232, 240, 0.95)",
+                borderRadius: 14,
+                padding: "8px 12px 7px",
+                backdropFilter: "blur(20px)",
                 boxShadow: isDark
-                  ? "0 4px 18px rgba(0,0,0,0.65)"
-                  : "0 4px 16px rgba(0,0,0,0.08)",
+                  ? "0 8px 24px -4px rgba(0, 0, 0, 0.65), 0 2px 6px rgba(0, 0, 0, 0.4)"
+                  : "0 8px 24px -4px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.04)",
+                transition: "transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.18s ease",
               }}
             >
-              {/* Header: Icon + Code + Health Pill */}
+              {/* Top Row: Icon + Code on Left, Health % Badge on Right */}
               <div
                 style={{
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
-                  gap: 6,
-                  marginBottom: 2,
+                  gap: 8,
+                  marginBottom: 3,
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                  <span style={{ color, display: "flex" }}>{icon}</span>
+                  <span style={{ color, display: "flex", alignItems: "center" }}>{icon}</span>
                   <span
                     style={{
-                      fontSize: 9.5,
-                      fontFamily: "monospace",
+                      fontSize: 11,
+                      fontFamily: "var(--font-geist-mono), monospace",
                       fontWeight: 700,
-                      letterSpacing: "0.08em",
-                      color: isDark ? "#f1f5f9" : "#1e293b",
+                      letterSpacing: "0.04em",
+                      color: isDark ? "#f8fafc" : "#0f172a",
                     }}
                   >
                     {code}
@@ -398,64 +395,56 @@ function SubsystemNode({
                 </div>
                 <span
                   style={{
-                    fontSize: 8,
-                    fontFamily: "monospace",
+                    fontSize: 9.5,
+                    fontFamily: "var(--font-geist-mono), monospace",
                     fontWeight: 700,
-                    color,
-                    background: `${color}20`,
-                    padding: "1px 4.5px",
-                    borderRadius: 4,
+                    color: color,
+                    background: `${color}18`,
+                    padding: "1px 6px",
+                    borderRadius: 6,
+                    border: `1px solid ${color}30`,
                   }}
                 >
                   {health.toFixed(0)}%
                 </span>
               </div>
 
-              {/* Value & Unit */}
-              <div style={{ display: "flex", alignItems: "baseline", gap: 3 }}>
+              {/* Value + Unit Row */}
+              <div style={{ display: "flex", alignItems: "baseline", gap: 2, marginBottom: 4 }}>
                 <span
                   style={{
-                    color: isDark ? "#ffffff" : "#0f172a",
-                    fontSize: 15,
-                    fontFamily: "monospace",
-                    fontWeight: 700,
-                    lineHeight: 1.1,
-                    letterSpacing: "-0.02em",
+                    fontSize: 18,
+                    fontFamily: "var(--font-geist-mono), monospace",
+                    fontWeight: 800,
+                    letterSpacing: "-0.03em",
+                    lineHeight: 1,
+                    color: isDark ? "#f8fafc" : "#0f172a",
                   }}
                 >
                   {value}
                 </span>
                 <span
                   style={{
-                    color: isDark ? "#94a3b8" : "#64748b",
-                    fontSize: 8.5,
-                    fontFamily: "monospace",
+                    fontSize: 9.5,
+                    fontFamily: "var(--font-geist-mono), monospace",
+                    fontWeight: 600,
+                    color: isDark ? "#64748b" : "#94a3b8",
                   }}
                 >
                   {unit}
                 </span>
               </div>
 
-              {/* Mini Health Meter */}
+              {/* Accent Bar at Bottom */}
               <div
                 style={{
-                  height: 2,
-                  background: isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.08)",
-                  borderRadius: 99,
-                  marginTop: 4,
-                  overflow: "hidden",
+                  height: 3,
+                  width: 36,
+                  borderRadius: 9999,
+                  background: color,
+                  boxShadow: `0 0 6px ${color}88`,
                 }}
-              >
-                <div
-                  style={{
-                    height: "100%",
-                    width: `${Math.max(0, Math.min(100, health))}%`,
-                    background: color,
-                    borderRadius: 99,
-                    transition: "width 0.8s ease",
-                  }}
-                />
-              </div>
+              />
             </div>
           )}
         </div>
@@ -499,44 +488,46 @@ function UavWithEngineBox({
     }
   })
 
-  // Polished Airframe Material: High-contrast Titanium Gunmetal in dark mode
+  // Airframe Material: Stealth aerospace composite / titanium in dark mode
   const airframeMat = React.useMemo(() => {
     return new THREE.MeshStandardMaterial({
-      color: isDark ? "#38475c" : "#e2e8f0",
-      roughness: isDark ? 0.22 : 0.36,
-      metalness: isDark ? 0.72 : 0.52,
+      color: isDark ? "#1e2638" : "#e2e8f0",
+      emissive: isDark ? "#060e1a" : "#000000",
+      emissiveIntensity: isDark ? 0.05 : 0,
+      roughness: isDark ? 0.38 : 0.30,
+      metalness: isDark ? 0.65 : 0.45,
       wireframe,
     })
   }, [isDark, wireframe])
 
-  // Polished Machined Engine Box Material
+  // Precision Engine Box Material — anodized alloy with vivid thermal state
   const engineBoxMat = React.useMemo(() => {
     const isHot = cht > 405
     return new THREE.MeshStandardMaterial({
-      color: isDark ? (isHot ? "#f97316" : "#0284c7") : isHot ? "#ea580c" : "#2563eb",
-      emissive: isDark ? (isHot ? "#ea580c" : "#0369a1") : isHot ? "#ea580c" : "#3b82f6",
-      emissiveIntensity: isDark ? 0.55 : 0.2,
-      roughness: 0.2,
-      metalness: 0.85,
+      color: isDark ? (isHot ? "#f97316" : "#24344d") : isHot ? "#ea580c" : "#2563eb",
+      emissive: isDark ? (isHot ? "#c2410c" : "#0c1b30") : isHot ? "#ea580c" : "#3b82f6",
+      emissiveIntensity: isHot ? 0.85 : isDark ? 0.25 : 0.15,
+      roughness: 0.20,
+      metalness: 0.88,
       wireframe,
     })
   }, [isDark, cht, wireframe])
 
-  // Cooling Fin Material
+  // Cooling Fin / Cylinder Head Material — machined billet aluminum
   const finMat = React.useMemo(() => {
     return new THREE.MeshStandardMaterial({
       color: isDark ? "#64748b" : "#94a3b8",
       metalness: 0.95,
-      roughness: 0.15,
+      roughness: 0.18,
     })
   }, [isDark])
 
-  // Luminous Edge Accent Material (Defines the 3D silhouette in dark mode!)
+  // Luminous Edge Accent — crisp cyan contour lines
   const edgeTrimMat = React.useMemo(() => {
     return new THREE.MeshBasicMaterial({
-      color: isDark ? "#00f0ff" : "#0284c7",
+      color: isDark ? "#38bdf8" : "#0284c7",
       transparent: true,
-      opacity: isDark ? 0.9 : 0.45,
+      opacity: isDark ? 0.85 : 0.45,
     })
   }, [isDark])
 
@@ -801,62 +792,6 @@ function Scene({
   // 5 Subsystem Nodes (ELEC, MECH, THR, LUB, CMB) with Hardpoints on the UAV
   const nodes = [
     {
-      id: "thermal",
-      code: "THR",
-      title: "Thermal & CHT",
-      label: "Thermal",
-      value: cht.toFixed(0),
-      unit: "°F",
-      health: thrHealth,
-      range: "Nominal: 360–395°F · Max 435°F",
-      statusText: cht > 410 ? "Warning - Thermal Spike" : "Nominal Engine Temperature",
-      position: [0.85, 0.68, 0.65] as [number, number, number],
-      wireOrigin: [0.72, 0.18, 0.15] as [number, number, number], // Top of Engine Box
-      icon: <Flame style={{ width: 10, height: 10 }} />,
-    },
-    {
-      id: "lubrication",
-      code: "LUB",
-      title: "Lubrication & Sump",
-      label: "Lubrication",
-      value: oilP.toFixed(1),
-      unit: "PSI",
-      health: lubHealth,
-      range: "Nominal: 55–75 PSI · Min 35 PSI",
-      statusText: oilP < 40 ? "Alert - Low Oil Pressure" : "Nominal Fluid Pressure",
-      position: [0.85, 0.68, -0.65] as [number, number, number],
-      wireOrigin: [0.72, -0.12, -0.15] as [number, number, number], // Sump of Engine Box
-      icon: <Activity style={{ width: 10, height: 10 }} />,
-    },
-    {
-      id: "combustion",
-      code: "CMB",
-      title: "Propulsion & Shaft",
-      label: "Combustion",
-      value: rpm.toFixed(0),
-      unit: "RPM",
-      health: cmbHealth,
-      range: "Operating: 4600–5200 RPM · Max 6000",
-      statusText: "Combustion Cycles Synchronized",
-      position: [1.25, -0.36, 0] as [number, number, number],
-      wireOrigin: [1.02, 0.02, 0] as [number, number, number], // Front prop shaft
-      icon: <Cpu style={{ width: 10, height: 10 }} />,
-    },
-    {
-      id: "electrical",
-      code: "ELEC",
-      title: "Avionics & Battery",
-      label: "Electrical",
-      value: battV.toFixed(1),
-      unit: "V",
-      health: eleHealth,
-      range: `Bus: 28.0V · ${(t?.bus_current_a ?? 4.2).toFixed(1)}A Current`,
-      statusText: battV < 24 ? "Alert - Low Bus Voltage" : "Nominal Power Distribution",
-      position: [-0.15, 0.68, 0.95] as [number, number, number],
-      wireOrigin: [0.35, 0.14, 0] as [number, number, number], // Avionics bay
-      icon: <Zap style={{ width: 10, height: 10 }} />,
-    },
-    {
       id: "mechanical",
       code: "MECH",
       title: "Airframe Dynamics",
@@ -866,9 +801,65 @@ function Scene({
       health: mecHealth,
       range: "Vibration Limit: < 1.20 g",
       statusText: vib > 1.8 ? "Elevated Airframe Flutter" : "Aero Dynamics Smooth",
-      position: [-0.15, 0.68, -0.95] as [number, number, number],
-      wireOrigin: [0.02, 0.02, -0.5] as [number, number, number], // Wing spar
-      icon: <Shield style={{ width: 10, height: 10 }} />,
+      position: [0.45, 0.72, -0.65] as [number, number, number],
+      wireOrigin: [0.10, 0.05, -0.35] as [number, number, number], // Wing spar
+      icon: <Shield style={{ width: 11, height: 11 }} />,
+    },
+    {
+      id: "thermal",
+      code: "THR",
+      title: "Engine Thermal & CHT",
+      label: "Thermal",
+      value: cht.toFixed(0),
+      unit: "°F",
+      health: thrHealth,
+      range: "Thermal Limit: < 435 °F",
+      statusText: cht > 410 ? "Warning - Thermal Spike" : "Nominal Engine Temperature",
+      position: [0.65, 0.38, 0.40] as [number, number, number],
+      wireOrigin: [0.72, 0.18, 0.15] as [number, number, number], // Top of Engine Box
+      icon: <Flame style={{ width: 11, height: 11 }} />,
+    },
+    {
+      id: "electrical",
+      code: "ELEC",
+      title: "Avionics & Battery",
+      label: "Electrical",
+      value: battV.toFixed(1),
+      unit: "V",
+      health: eleHealth,
+      range: `Bus Voltage Limit: > 24.0 V`,
+      statusText: battV < 24 ? "Alert - Low Bus Voltage" : "Nominal Power Distribution",
+      position: [-0.35, 0.62, 0.55] as [number, number, number],
+      wireOrigin: [0.20, 0.12, 0.0] as [number, number, number], // Avionics bay
+      icon: <Zap style={{ width: 11, height: 11 }} />,
+    },
+    {
+      id: "combustion",
+      code: "CMB",
+      title: "Propulsion & Shaft",
+      label: "Combustion",
+      value: rpm.toFixed(0),
+      unit: "RPM",
+      health: cmbHealth,
+      range: "Operating Limit: < 6000 RPM",
+      statusText: "Combustion Cycles Synchronized",
+      position: [1.15, -0.38, 0.45] as [number, number, number],
+      wireOrigin: [1.02, 0.02, 0.0] as [number, number, number], // Front prop shaft
+      icon: <Cpu style={{ width: 11, height: 11 }} />,
+    },
+    {
+      id: "lubrication",
+      code: "LUB",
+      title: "Lubrication & Sump",
+      label: "Lubrication",
+      value: oilP.toFixed(1),
+      unit: "PSI",
+      health: lubHealth,
+      range: "Pressure Limit: > 35 PSI",
+      statusText: oilP < 40 ? "Alert - Low Oil Pressure" : "Nominal Fluid Pressure",
+      position: [0.35, -0.55, -0.75] as [number, number, number],
+      wireOrigin: [0.72, -0.12, -0.15] as [number, number, number], // Sump of Engine Box
+      icon: <Activity style={{ width: 11, height: 11 }} />,
     },
   ]
 
@@ -876,43 +867,50 @@ function Scene({
     <>
       <CameraHandler resetKey={resetKey} />
 
-      {/* ── Studio Lighting: High contrast, vivid specular & dual rim lights in Dark Mode ── */}
-      <ambientLight intensity={isDark ? 0.78 : 0.85} color={isDark ? "#dbeafe" : "#ffffff"} />
-      {/* Key Top Sun Light */}
+      {/* ── Studio Lighting Rig: Balanced & High Contrast without Specular Blowout ── */}
+      {/* Base Ambient — keeps shadowed surfaces readable */}
+      <ambientLight intensity={isDark ? 0.45 : 0.60} color={isDark ? "#94a3b8" : "#ffffff"} />
+
+      {/* Key Light — primary top-front sun that defines form */}
       <directionalLight
-        position={[5, 9, 6]}
-        intensity={isDark ? 2.4 : 1.5}
-        color={isDark ? "#f0f9ff" : "#ffffff"}
+        position={[5, 8, 5]}
+        intensity={isDark ? 2.0 : 1.6}
+        color="#ffffff"
       />
-      {/* Cyan Rim Light (Highlights stealth silhouette from behind) */}
+
+      {/* Fill Light — softens front-left harsh shadows */}
       <directionalLight
-        position={[-6, 3, -6]}
-        intensity={isDark ? 2.5 : 0.45}
-        color={isDark ? "#00f0ff" : "#cbd5e1"}
+        position={[-5, 4, 4]}
+        intensity={isDark ? 0.8 : 0.5}
+        color={isDark ? "#94a3b8" : "#e2e8f0"}
       />
-      {/* Ice Rim Light (Edge highlights opposite side) */}
+
+      {/* Stealth Rim Light — crisp cyan backlight tracing the stealth silhouette */}
       <directionalLight
-        position={[6, 2, -6]}
-        intensity={isDark ? 1.9 : 0.4}
-        color={isDark ? "#93c5fd" : "#cbd5e1"}
+        position={[-6, 5, -6]}
+        intensity={isDark ? 1.8 : 0.45}
+        color={isDark ? "#38bdf8" : "#cbd5e1"}
       />
-      {/* Warm Engine Radiant Light */}
+
+      {/* Underbelly Fill — prevents belly from going completely dark */}
+      <pointLight
+        position={[0, -2, 0]}
+        intensity={isDark ? 0.35 : 0.25}
+        color={isDark ? "#0f172a" : "#94a3b8"}
+        distance={4.5}
+      />
+
+      {/* Engine Radiant Glow — thermal emission from engine box */}
       <pointLight
         position={[0.72, 0.25, 0]}
-        intensity={isDark ? 1.4 : 0.4}
-        color={isDark ? "#f97316" : "#fbbf24"}
-        distance={2.5}
-      />
-      {/* Underbody Soft Fill so belly surfaces remain visible */}
-      <pointLight
-        position={[0, -1.8, 0]}
-        intensity={isDark ? 0.85 : 0.3}
-        color={isDark ? "#1d4ed8" : "#94a3b8"}
+        intensity={cht > 400 ? 2.5 : isDark ? 0.9 : 0.4}
+        color={cht > 400 ? "#ff5500" : "#fbbf24"}
+        distance={2.8}
       />
 
       {/* Floating Cyber Atmosphere Particles in Dark Mode */}
       {isDark && (
-        <Sparkles count={45} scale={10} size={1.6} speed={0.35} color="#38bdf8" opacity={0.38} />
+        <Sparkles count={40} scale={10} size={1.5} speed={0.3} color="#38bdf8" opacity={0.35} />
       )}
 
       {/* Ground Floor */}
@@ -954,7 +952,7 @@ function Scene({
         )
       })}
 
-      {/* Silky Smooth OrbitControls with automatic interaction decoupling */}
+      {/* OrbitControls — autoRotate smoothly pauses when a card is expanded */}
       <OrbitControls
         makeDefault
         enableDamping
@@ -963,7 +961,7 @@ function Scene({
         zoomSpeed={0.75}       // Smooth exponential zoom
         minDistance={1.4}
         maxDistance={8.5}
-        autoRotate={autoRotate}
+        autoRotate={autoRotate && !selectedSubsystem}
         autoRotateSpeed={0.65}
         maxPolarAngle={Math.PI * 0.78}
         minPolarAngle={0.06}
@@ -985,7 +983,7 @@ export function Twin3DViewer() {
   // States
   const [wireframe, setWireframe] = React.useState(false)
   const [autoRotate, setAutoRotate] = React.useState(true)
-  const [selectedSubsystem, setSelectedSubsystem] = React.useState<string | null>(null)
+  const [selectedSubsystem, setSelectedSubsystem] = React.useState<string | null>("mechanical")
   const [isFullscreen, setIsFullscreen] = React.useState(false)
   const [resetKey, setResetKey] = React.useState(0)
 
@@ -998,65 +996,16 @@ export function Twin3DViewer() {
   const battV = t?.battery_v ?? 28.5
   const vib = t?.vibration ?? 0.65
 
-  // Subsystem descriptions for selected drawer
-  const subsystemInfo: Record<
-    string,
-    { title: string; code: string; val: string; status: string; metric: string; icon: React.ReactNode }
-  > = {
-    thermal: {
-      title: "Engine Thermal & CHT",
-      code: "THR",
-      val: `${cht.toFixed(0)}°F`,
-      metric: `Nominal band: 360–395°F · Max limit: 435°F`,
-      status: cht > 410 ? "Warning - High Heat" : "Nominal Thermal Envelope",
-      icon: <Flame className="size-4 text-amber-500" />,
-    },
-    lubrication: {
-      title: "Lubrication & Sump",
-      code: "LUB",
-      val: `${oilP.toFixed(1)} PSI`,
-      metric: `Nominal band: 55–75 PSI · Min limit: 35 PSI`,
-      status: oilP < 40 ? "Alert - Low Oil Pressure" : "Nominal Fluid Pressure",
-      icon: <Activity className="size-4 text-emerald-500" />,
-    },
-    combustion: {
-      title: "Engine Propulsion & Shaft",
-      code: "CMB",
-      val: `${rpm.toFixed(0)} RPM`,
-      metric: `Operating range: 4600–5200 RPM · Redline: 6000`,
-      status: "Combustion Synchronized",
-      icon: <Cpu className="size-4 text-cyan-500" />,
-    },
-    electrical: {
-      title: "Avionics Bus & Battery",
-      code: "ELEC",
-      val: `${battV.toFixed(1)} V`,
-      metric: `Current: ${(t?.bus_current_a ?? 4.2).toFixed(1)} A · Bus Nominal: 28.0V`,
-      status: battV < 24 ? "Alert - Low Bus Voltage" : "Nominal Power Distribution",
-      icon: <Zap className="size-4 text-emerald-500" />,
-    },
-    mechanical: {
-      title: "Airframe & Wing Flutter",
-      code: "MECH",
-      val: `${vib.toFixed(2)} g`,
-      metric: `Vibration tolerance: < 1.20 g · Strain gauge nominal`,
-      status: vib > 1.8 ? "Elevated Vibration" : "Aero Dynamics Smooth",
-      icon: <Shield className="size-4 text-blue-500" />,
-    },
-  }
-
-  const selectedData = selectedSubsystem ? subsystemInfo[selectedSubsystem] : null
-
   return (
     <div
       className={`relative flex flex-col w-full h-full min-h-0 overflow-hidden rounded-2xl border transition-all select-none ${
-        isDark ? "border-cyan-500/20 bg-[#020712]" : "border-slate-200 bg-slate-50"
+        isDark ? "border-slate-800 bg-[#02050c]" : "border-slate-200 bg-slate-50"
       } ${isFullscreen ? "fixed inset-0 z-50 rounded-none border-none" : ""}`}
       style={{
         touchAction: "none",
         background: isDark
-          ? "radial-gradient(ellipse at 50% 38%, #102447 0%, #071224 52%, #020712 100%)"
-          : "radial-gradient(ellipse at 50% 40%, #ffffff 0%, #f8fafc 55%, #e2e8f0 100%)",
+          ? "radial-gradient(ellipse at 50% 35%, #0d1527 0%, #060c18 55%, #02050c 100%)"
+          : "radial-gradient(ellipse at 50% 38%, #ffffff 0%, #f1f5f9 60%, #e2e8f0 100%)",
       }}
     >
       {/* ── Minimal Floating Top Bar ────────────────────────────────────────── */}
@@ -1167,7 +1116,7 @@ export function Twin3DViewer() {
             antialias: true,
             powerPreference: "high-performance",
             toneMapping: THREE.ACESFilmicToneMapping,
-            toneMappingExposure: isDark ? 1.2 : 1.05,
+            toneMappingExposure: isDark ? 1.05 : 1.0,
           }}
           dpr={[1, 2]}
           style={{ touchAction: "none" }}
@@ -1296,52 +1245,6 @@ export function Twin3DViewer() {
           <span className="font-bold">{(t?.predicted_rul ?? 142).toFixed(0)} cyc</span>
         </div>
       </div>
-
-      {/* ── Corner Inspector Drawer (syncs with selected card) ─────────────── */}
-      {selectedData && (
-        <div
-          className={`absolute top-14 right-3 z-20 w-64 rounded-xl border p-3 shadow-xl backdrop-blur-md animate-in fade-in zoom-in-95 duration-150 ${
-            isDark
-              ? "border-white/10 bg-slate-900/90 text-white"
-              : "border-slate-200 bg-white/95 text-slate-800"
-          }`}
-        >
-          <div
-            className={`flex items-center justify-between pb-1.5 mb-1.5 border-b ${
-              isDark ? "border-white/10" : "border-slate-100"
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              {selectedData.icon}
-              <h4 className="text-xs font-semibold">{selectedData.title}</h4>
-            </div>
-            <button
-              onClick={() => setSelectedSubsystem(null)}
-              className={`rounded-full p-1 transition-all ${
-                isDark
-                  ? "text-slate-400 hover:text-white hover:bg-white/10"
-                  : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"
-              }`}
-            >
-              <X className="size-3.5" />
-            </button>
-          </div>
-
-          <div className="flex items-baseline justify-between py-1">
-            <span className="text-lg font-mono font-bold">{selectedData.val}</span>
-            <span
-              className="text-[10px] font-mono font-semibold"
-              style={{ color: getHealthColor(90, isDark) }}
-            >
-              {selectedData.status}
-            </span>
-          </div>
-
-          <p className={`text-[10px] font-mono mt-0.5 ${isDark ? "text-slate-400" : "text-slate-500"}`}>
-            {selectedData.metric}
-          </p>
-        </div>
-      )}
     </div>
   )
 }

@@ -19,7 +19,7 @@ SIMULATED_ROUTE = [
     {"id": "ALPHA", "name": "Alpha Ridge", "latitude": 26.755, "longitude": 78.118},
     {"id": "BRAVO", "name": "Bravo Survey", "latitude": 26.812, "longitude": 78.208},
     {"id": "CHARLIE", "name": "Charlie Loiter", "latitude": 26.858, "longitude": 78.120},
-    {"id": "HOME", "name": "Home Base", "latitude": 26.706, "longitude": 78.026},
+    {"id": "HOME_RTL", "name": "Home Base (RTL)", "latitude": 26.706, "longitude": 78.026},
 ]
 
 SIMULATED_RECOVERY_SITES = [

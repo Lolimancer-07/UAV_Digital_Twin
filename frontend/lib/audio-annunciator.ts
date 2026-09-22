@@ -133,11 +133,19 @@ class AudioAnnunciator {
   }
 
   private notify(): void {
-    this.listeners.forEach((cb) => {
-      try {
-        cb()
-      } catch {}
-    })
+    const notifyListeners = () => {
+      this.listeners.forEach((cb) => {
+        try {
+          cb()
+        } catch {}
+      })
+    }
+
+    if (typeof queueMicrotask === "function") {
+      queueMicrotask(notifyListeners)
+    } else {
+      setTimeout(notifyListeners, 0)
+    }
   }
 
   public getState(): ActiveAlarmState {

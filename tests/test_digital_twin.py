@@ -239,8 +239,9 @@ class TestPrescriptiveAndAIEngineer(unittest.TestCase):
             'mission_risk': {'risk_level': 'MODERATE', 'mission_completion_probability': 68.0, 'safe_operating_time_h': 2.8}
         }
         answer = ai_engineer_answer("Why is the engine unhealthy?", state)
-        self.assertIn('45', answer)
-        self.assertIn('cooling', answer.lower())
+        ans_text = answer if isinstance(answer, str) else answer.get("answer", "")
+        self.assertIn('45', ans_text)
+        self.assertIn('cooling', ans_text.lower())
 
 
 class TestTelemetrySecurity(unittest.TestCase):

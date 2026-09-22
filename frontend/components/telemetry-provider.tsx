@@ -62,6 +62,7 @@ export function TelemetryProvider({ children }: { children: React.ReactNode }) {
   const missionStartRef = React.useRef<number | null>(null)
   const [metSeconds, setMetSeconds] = React.useState(0)
   const [isPaused, setIsPausedState] = React.useState<boolean>(false)
+  const isPausedRef = React.useRef<boolean>(false)
 
   React.useEffect(() => {
     if (!latestTelemetry) return
@@ -83,22 +84,23 @@ export function TelemetryProvider({ children }: { children: React.ReactNode }) {
   React.useEffect(() => {
     if (latestTelemetry?.paused !== undefined) {
       const p = Boolean(latestTelemetry.paused)
+      isPausedRef.current = p
       setIsPausedState(p)
       audioAnnunciator.setPaused(p)
     }
   }, [latestTelemetry?.paused])
 
   const togglePause = React.useCallback(() => {
-    setIsPausedState((current) => {
-      const next = !current
-      sendCommand({ command: "set_paused", paused: next } as any)
-      audioAnnunciator.setPaused(next)
-      return next
-    })
+    const next = !isPausedRef.current
+    isPausedRef.current = next
+    setIsPausedState(next)
+    sendCommand({ command: "set_paused", paused: next } as any)
+    audioAnnunciator.setPaused(next)
   }, [sendCommand])
 
   const setPaused = React.useCallback(
     (paused: boolean) => {
+      isPausedRef.current = paused
       setIsPausedState(paused)
       sendCommand({ command: "set_paused", paused } as any)
       audioAnnunciator.setPaused(paused)

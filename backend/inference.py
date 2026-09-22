@@ -81,6 +81,8 @@ MODEL_PATH   = os.path.join(ROOT, 'backend', 'uav_rul_model.h5')
 SCALER_PATH  = os.path.join(ROOT, 'backend', 'scaler.pkl')
 ANOMALY_PATH = os.path.join(ROOT, 'backend', 'anomaly_model.pkl')
 
+is_simulation_paused = False
+
 print("=" * 60)
 print("  UAV DIGITAL TWIN — DEFENSE GRADE PROPULSION CORE v2.0")
 print("=" * 60)
@@ -387,6 +389,7 @@ def _process_telemetry_packet(data):
         "active_faults":          data.get("active_faults", []),
         "injected_faults":        data.get("active_faults", []),
         "alert":                  alert_status,
+        "paused":                 is_simulation_paused,
         "failure_probability":    round(failure_probability, 3),
 
         # core module outputs
@@ -485,7 +488,7 @@ def _refresh_mission_command_state():
 
 def process_gcs_command(cmd: Dict[str, Any]):
     """Handles commands sent from the GCS dashboard over WebSocket."""
-    global latest_state, latest_payload
+    global latest_state, latest_payload, is_simulation_paused
 
     action = cmd.get("command") or cmd.get("action")
 
@@ -495,6 +498,7 @@ def process_gcs_command(cmd: Dict[str, Any]):
         try:
             with open(CONTROL_FILE, 'r') as f:
                 current_cfg = json.load(f)
+                is_simulation_paused = bool(current_cfg.get("paused", False))
         except Exception:
             pass
 
@@ -507,7 +511,10 @@ def process_gcs_command(cmd: Dict[str, Any]):
         print(f"[GCS CMD] Playback speed set → {current_cfg['speed']}x")
 
     elif action == "set_paused":
-        current_cfg["paused"] = bool(cmd.get("paused", False))
+        is_simulation_paused = bool(cmd.get("paused", False))
+        current_cfg["paused"] = is_simulation_paused
+        if latest_state:
+            latest_state["paused"] = is_simulation_paused
         print(f"[GCS CMD] Playback paused → {current_cfg['paused']}")
 
     elif action == "inject_fault":

@@ -2,9 +2,7 @@
   "mode": "NORMAL",
   "speed": 1.0,
   "paused": false,
-  "injected_faults": [
-    "misfire"
-  ],
+  "injected_faults": [],
   "uav_id": "UAV-01",
   "engine_id": 1
 }

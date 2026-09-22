@@ -76,6 +76,18 @@ pkill -9 -f "simulator/ecu_sim" 2>/dev/null || true
 fuser -k 8765/tcp 2>/dev/null || true
 fuser -k 8080/tcp 2>/dev/null || true
 
+# Reset simulator control state so a stale 'paused: true' or leftover faults from a previous session don't freeze the simulation
+cat << 'EOF' > "$ROOT/simulator/current_profile.json"
+{
+  "mode": "NORMAL",
+  "speed": 1.0,
+  "paused": false,
+  "injected_faults": [],
+  "uav_id": "UAV-01",
+  "engine_id": 1
+}
+EOF
+
 # preflight: ensure required python dependencies are available
 if ! "$PYTHON" -c "import paho.mqtt.client, websockets" >/dev/null 2>&1; then
     warn "Missing required Python libraries in $PYTHON"
@@ -231,7 +243,15 @@ cleanup() {
 }
 trap cleanup INT TERM
 
-# keep script alive until user hits Ctrl+C
+# monitor background processes and keep script alive until user hits Ctrl+C
 while true; do
+    if [ -n "$INFERENCE_PID" ] && ! kill -0 "$INFERENCE_PID" 2>/dev/null; then
+        echo -e "\n${RED}✗ AI Inference Engine stopped unexpectedly (PID $INFERENCE_PID).${NC}"
+        cleanup
+    fi
+    if [ -n "$SIM_PID" ] && ! kill -0 "$SIM_PID" 2>/dev/null; then
+        echo -e "\n${RED}✗ Mission Simulator stopped unexpectedly (PID $SIM_PID).${NC}"
+        cleanup
+    fi
     sleep 2
 done

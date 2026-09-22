@@ -50,7 +50,7 @@ function LiveClock() {
 }
 
 export function GcsMissionStatusBar() {
-  const { latestTelemetry: t, connectionStatus, metSeconds, sendCommand } = useTelemetry()
+  const { latestTelemetry: t, connectionStatus, metSeconds, sendCommand, isPaused, togglePause } = useTelemetry()
 
   const uavId = t?.uav_id ?? "UAV-01"
   const alertLevel = t?.alert ?? "NOMINAL"
@@ -63,10 +63,11 @@ export function GcsMissionStatusBar() {
   const isLive = connectionStatus === "live"
   const isCritical = alertLevel === "CRITICAL" || healthIndex < 40
   const isWarning = alertLevel === "WARNING" || isAnomaly
+  const isNominal = !isCritical && !isWarning
 
   // Status color
   const statusColor = isCritical
-    ? "bg-red-600"
+    ? "bg-red-500"
     : isWarning
     ? "bg-amber-500"
     : "bg-emerald-500"
@@ -100,7 +101,6 @@ export function GcsMissionStatusBar() {
 
   // Speed multiplier handler
   const [currentSpeed, setCurrentSpeed] = React.useState<number>(1.0)
-  const [isPaused, setIsPaused] = React.useState<boolean>(false)
 
   const handleSetSpeed = (speed: number) => {
     setCurrentSpeed(speed)
@@ -108,9 +108,7 @@ export function GcsMissionStatusBar() {
   }
 
   const handleTogglePause = () => {
-    const next = !isPaused
-    setIsPaused(next)
-    sendCommand({ command: "set_paused", paused: next } as any)
+    togglePause()
   }
 
   return (

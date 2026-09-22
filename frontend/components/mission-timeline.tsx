@@ -126,7 +126,7 @@ function WaypointStrip({ waypoints, progress }: { waypoints: { id: string; name:
           const passed = progress >= pct
           const current = progress >= pct && (i === segs || progress < (segs > 0 ? ((i + 1) / segs) * 100 : 101))
           return (
-            <div key={wp.id} className="flex flex-col items-center gap-1.5">
+            <div key={`${wp.id}-${i}`} className="flex flex-col items-center gap-1.5">
               <div className="relative">
                 {current && (
                   <div className="absolute inset-0 rounded-full animate-ping"

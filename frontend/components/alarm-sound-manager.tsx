@@ -19,6 +19,10 @@ export function AlarmSoundManager() {
       return
     }
 
+    if (latestTelemetry.paused !== undefined) {
+      audioAnnunciator.setPaused(Boolean(latestTelemetry.paused))
+    }
+
     const faultEvents = latestTelemetry.fault_events ?? []
     const alertLevel = latestTelemetry.alert ?? "NOMINAL"
     const isAnomaly = Boolean(latestTelemetry.is_anomaly)

@@ -1425,7 +1425,18 @@ function doInjectFault(){
 }
 function doInjectFaultQuick(){const f=el('sel-fault')?.value;if(f){sendCmd({command:'inject_fault',fault:f});addAlert(`Fault: ${f.replace(/_/g,' ').toUpperCase()}`,'warn','INJECTED');}}
 function doClearFaults(){sendCmd({command:'clear_faults'});addAlert('All injected faults cleared.','ok','CLEARED');}
-function doTogglePause(){paused=!paused;sendCmd({command:'set_paused',paused});const btn=el('pause-btn');if(btn){btn.textContent=paused?'RESUME':'PAUSE';btn.className=paused?'dock-btn active':'dock-btn';}}
+function doTogglePause(){
+  paused=!paused;
+  sendCmd({command:'set_paused',paused});
+  const btn=el('pause-btn');
+  if(btn){btn.textContent=paused?'RESUME':'PAUSE';btn.className=paused?'dock-btn active':'dock-btn';}
+  if(paused){
+    if(alarmTimer){clearInterval(alarmTimer);alarmTimer=null;}
+    if(typeof window!=='undefined'&&'speechSynthesis' in window)window.speechSynthesis.cancel();
+  }else{
+    if(activeAlarmType)updateContinuousAlarm(activeAlarmType);
+  }
+}
 el('fault-type-sel')?.addEventListener('change',e=>{$('fault-desc-box',FDESC[e.target.value]||'');});
 
 /* ─── WHAT-IF ────────────────────────────────────────────────────────── */

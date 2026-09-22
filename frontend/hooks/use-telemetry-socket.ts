@@ -19,15 +19,20 @@ export function useTelemetrySocket(endpoint = DEFAULT_WS_ENDPOINT) {
     React.useState<TelemetryPayload>()
   const [connectionStatus, setConnectionStatus] =
     React.useState<ConnectionStatus>("connecting")
+  const connectionStatusRef = React.useRef<ConnectionStatus>("connecting")
+
+  const updateConnectionStatus = React.useCallback((status: ConnectionStatus) => {
+    if (connectionStatusRef.current !== status) {
+      connectionStatusRef.current = status
+      setConnectionStatus(status)
+    }
+  }, [])
+
   const history = useTelemetryHistory()
 
   // ── CRITICAL FIX ─────────────────────────────────────────────────────────
   // Keep ingestTelemetry in a stable ref so it never appears in the connect()
-  // useCallback dependency array. Previously, `history` was listed as a dep,
-  // which caused React to recreate `connect` on every incoming packet (because
-  // ingestTelemetry dispatches to the reducer, which creates a new `history`
-  // object reference). That triggered the useEffect cleanup, which closed the
-  // WebSocket after the very first received message.
+  // useCallback dependency array.
   const ingestRef = React.useRef(history.ingestTelemetry)
   React.useLayoutEffect(() => {
     ingestRef.current = history.ingestTelemetry
@@ -65,8 +70,8 @@ export function useTelemetrySocket(endpoint = DEFAULT_WS_ENDPOINT) {
   const connect = React.useCallback(() => {
     clearReconnect()
     manualCloseRef.current = false
-    setConnectionStatus((current) =>
-      current === "disconnected" ? "reconnecting" : "connecting"
+    updateConnectionStatus(
+      connectionStatusRef.current === "disconnected" ? "reconnecting" : "connecting"
     )
 
     if (socketRef.current) {
@@ -85,7 +90,7 @@ export function useTelemetrySocket(endpoint = DEFAULT_WS_ENDPOINT) {
 
       socket.onopen = () => {
         attemptRef.current = 0
-        setConnectionStatus("live")
+        updateConnectionStatus("live")
       }
 
       socket.onmessage = (event) => {
@@ -98,17 +103,17 @@ export function useTelemetrySocket(endpoint = DEFAULT_WS_ENDPOINT) {
           try {
             const raw = JSON.parse(event.data)
             if (raw && (raw.status === "INITIALIZING" || raw.cycle != null)) {
-              setConnectionStatus("live")
+              updateConnectionStatus("live")
             }
           } catch {}
           return
         }
 
-        setConnectionStatus("live")
-        // Always ingest into rolling history and logs
-        ingestRef.current(payload)
+        if (connectionStatusRef.current !== "live") {
+          updateConnectionStatus("live")
+        }
 
-        // Calm, readable UI update rate (at most once every 400ms),
+        // Calm, readable UI update rate (at most once every 250ms = 4 Hz),
         // but immediately push updates on urgent state transitions or tool responses!
         const now = Date.now()
         const faultCount = (payload.fault_events?.length ?? 0) + (payload.active_faults?.length ?? 0)
@@ -129,8 +134,9 @@ export function useTelemetrySocket(endpoint = DEFAULT_WS_ENDPOINT) {
           payload.optimize_result != null ||
           payload.ai_engineer_response != null
 
-        if (now - lastUiUpdateRef.current >= 400 || isUrgent) {
+        if (now - lastUiUpdateRef.current >= 250 || isUrgent) {
           lastUiUpdateRef.current = now
+          ingestRef.current(payload)
           setLatestTelemetry(payload)
         }
       }
@@ -138,33 +144,37 @@ export function useTelemetrySocket(endpoint = DEFAULT_WS_ENDPOINT) {
       socket.onclose = () => {
         socketRef.current = null
         if (manualCloseRef.current) {
-          setConnectionStatus("disconnected")
+          updateConnectionStatus("disconnected")
           return
         }
         attemptRef.current += 1
-        setConnectionStatus("reconnecting")
-        reconnectRef.current = window.setTimeout(connect, 1500)
+        updateConnectionStatus("reconnecting")
+        reconnectRef.current = window.setTimeout(() => connectRef.current(), 1500)
       }
 
       socket.onerror = () => {
         attemptRef.current += 1
-        setConnectionStatus("reconnecting")
+        updateConnectionStatus("reconnecting")
       }
     } catch {
       attemptRef.current += 1
-      setConnectionStatus("reconnecting")
-      reconnectRef.current = window.setTimeout(connect, 1500)
+      updateConnectionStatus("reconnecting")
+      reconnectRef.current = window.setTimeout(() => connectRef.current(), 1500)
     }
-    // NOTE: `history` is intentionally excluded from deps — we use ingestRef
-  }, [clearReconnect, resolveTargetEndpoint])
+  }, [clearReconnect, resolveTargetEndpoint, updateConnectionStatus])
+
+  const connectRef = React.useRef(connect)
+  React.useEffect(() => {
+    connectRef.current = connect
+  }, [connect])
 
   React.useEffect(() => {
-    connect()
+    connectRef.current()
 
     const watchdog = window.setInterval(() => {
       const socket = socketRef.current
       if (!socket || socket.readyState === WebSocket.CLOSED) {
-        connect()
+        connectRef.current()
       }
     }, 3000)
 
@@ -175,7 +185,7 @@ export function useTelemetrySocket(endpoint = DEFAULT_WS_ENDPOINT) {
       socketRef.current?.close()
       socketRef.current = null
     }
-  }, [clearReconnect, connect])
+  }, [endpoint, clearReconnect])
 
   const reconnect = React.useCallback(() => {
     connect()

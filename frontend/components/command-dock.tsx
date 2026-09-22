@@ -50,17 +50,21 @@ export function CommandDock() {
   const [isDemoActive, setIsDemoActive] = React.useState<boolean>(false)
 
   // Sync profile from live telemetry if changed externally
+  const missionMode = latestTelemetry?.mission_mode
+  const demoActive = latestTelemetry?.demo_state?.active
+  const demoStepVal = latestTelemetry?.demo_state?.step
+
   React.useEffect(() => {
-    if (latestTelemetry?.mission_mode) {
-      setSelectedProfile(latestTelemetry.mission_mode)
+    if (missionMode) {
+      setSelectedProfile(missionMode)
     }
-    if (latestTelemetry?.demo_state) {
-      setIsDemoActive(Boolean(latestTelemetry.demo_state.active))
-      if (latestTelemetry.demo_state.step) {
-        setDemoStep(latestTelemetry.demo_state.step)
-      }
+    if (demoActive != null) {
+      setIsDemoActive(Boolean(demoActive))
     }
-  }, [latestTelemetry?.mission_mode, latestTelemetry?.demo_state])
+    if (demoStepVal != null) {
+      setDemoStep(demoStepVal)
+    }
+  }, [missionMode, demoActive, demoStepVal])
 
   const handleProfileChange = (val: string) => {
     setSelectedProfile(val)

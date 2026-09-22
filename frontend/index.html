@@ -900,11 +900,64 @@ let fleetHealthChart=null,fleetRulChart=null,rulChart=null,rulOvChart=null,pvCha
 function $(id,v){const e=document.getElementById(id);if(e)e.textContent=v;}
 function el(id){return document.getElementById(id);}
 
+let audioCtx=null,alarmTimer=null,activeAlarmType=null;
+function getAudioCtx(){
+  if(!audioCtx){
+    const AC=window.AudioContext||window.webkitAudioContext;
+    if(AC)audioCtx=new AC();
+  }
+  if(audioCtx&&audioCtx.state==='suspended')audioCtx.resume();
+  return audioCtx;
+}
+function playTonePulse(freq,duration,gainVal,type='sawtooth'){
+  const ctx=getAudioCtx();if(!ctx||!audioOn)return;
+  try{
+    const osc=ctx.createOscillator(),g=ctx.createGain();
+    osc.type=type;osc.frequency.setValueAtTime(freq,ctx.currentTime);
+    g.gain.setValueAtTime(gainVal,ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.005,ctx.currentTime+duration);
+    osc.connect(g);g.connect(ctx.destination);
+    osc.start(ctx.currentTime);osc.stop(ctx.currentTime+duration);
+  }catch(e){}
+}
+function playMasterWarningPulse(){
+  [0,0.16,0.32].forEach(offset=>{
+    setTimeout(()=>{
+      playTonePulse(920,0.13,0.55,'sawtooth');
+      playTonePulse(1840,0.13,0.30,'sine');
+    },offset*1000);
+  });
+}
+function playMasterCautionChime(){
+  playTonePulse(587.33,0.25,0.50,'sine');
+  setTimeout(()=>playTonePulse(440.0,0.45,0.50,'sine'),220);
+}
+function updateContinuousAlarm(level){
+  if(!audioOn||(level!=='CRITICAL'&&level!=='WARNING')){
+    if(alarmTimer){clearInterval(alarmTimer);alarmTimer=null;}
+    activeAlarmType=null;return;
+  }
+  if(activeAlarmType===level&&alarmTimer)return;
+  if(alarmTimer){clearInterval(alarmTimer);alarmTimer=null;}
+  activeAlarmType=level;
+  if(level==='CRITICAL'){
+    playMasterWarningPulse();
+    alarmTimer=setInterval(()=>{if(audioOn)playMasterWarningPulse();},650);
+  }else if(level==='WARNING'){
+    playMasterCautionChime();
+    alarmTimer=setInterval(()=>{if(audioOn)playMasterCautionChime();},1500);
+  }
+}
 function speak(txt){
   if(!audioOn)return;
-  try{const u=new SpeechSynthesisUtterance(txt);u.rate=1.1;window.speechSynthesis.speak(u);}catch(e){}
+  try{const u=new SpeechSynthesisUtterance(txt);u.rate=1.15;u.volume=0.9;window.speechSynthesis.speak(u);}catch(e){}
 }
-function toggleAudio(){audioOn=!audioOn;$('audio-btn',audioOn?'🔊 AUDIO':'🔇 MUTED');}
+function toggleAudio(){
+  audioOn=!audioOn;
+  $('audio-btn',audioOn?'🔊 AUDIO':'🔇 MUTED');
+  if(!audioOn&&alarmTimer){clearInterval(alarmTimer);alarmTimer=null;}
+  else if(audioOn&&activeAlarmType){updateContinuousAlarm(activeAlarmType);}
+}
 
 /* ─── ALERT LOG ──────────────────────────────────────────────────────── */
 function addAlert(msg,level='ok',badge=''){
@@ -1060,6 +1113,7 @@ function render(d){
       else if(lastAlertLevel!=='NOMINAL')addAlert('System returned to nominal state.','ok');
       lastAlertLevel=al;
     }
+    updateContinuousAlarm(al);
   }
 
   // Health KPI

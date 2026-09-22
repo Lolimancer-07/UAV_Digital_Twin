@@ -19,6 +19,8 @@ import {
   ChevronRight,
   ShieldAlert,
   Sliders,
+  Volume2,
+  VolumeX,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -81,22 +83,15 @@ export function GcsMissionStatusBar() {
     ? "bg-amber-50 border-amber-600 dark:bg-amber-950 dark:border-amber-800"
     : "bg-card border-border"
 
-  // Audio annunciator triggers on state transitions
-  const prevAlertRef = React.useRef(alertLevel)
-  const prevAnomalyRef = React.useRef(isAnomaly)
-
+  // Audio annunciator live state subscription
+  const [audioState, setAudioState] = React.useState(() => audioAnnunciator.getState())
   React.useEffect(() => {
-    if (isCritical && prevAlertRef.current !== "CRITICAL") {
-      audioAnnunciator.playWarning()
-    } else if (
-      (isWarning || isAnomaly) &&
-      (!prevAnomalyRef.current && prevAlertRef.current === "NOMINAL")
-    ) {
-      audioAnnunciator.playCaution()
-    }
-    prevAlertRef.current = alertLevel
-    prevAnomalyRef.current = isAnomaly
-  }, [isCritical, isWarning, isAnomaly, alertLevel])
+    setAudioState(audioAnnunciator.getState())
+    const unsubscribe = audioAnnunciator.subscribe(() => {
+      setAudioState(audioAnnunciator.getState())
+    })
+    return unsubscribe
+  }, [])
 
   // Mission profile handler
   const handleSelectProfile = (profile: string) => {
@@ -158,6 +153,28 @@ export function GcsMissionStatusBar() {
               {statusText}
             </span>
           </div>
+
+          {/* Live Continuous Alarm Annunciator Pill */}
+          {audioState.isSounding && (
+            <button
+              onClick={() => audioAnnunciator.silenceAlarm()}
+              className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider bg-destructive text-destructive-foreground animate-pulse hover:opacity-90 transition-all cursor-pointer shadow-sm"
+              title="Continuous Alarm Sounding — Click to Silence Audio"
+            >
+              <Volume2 className="h-3 w-3 animate-bounce" />
+              <span>ALARM SOUNDING · SILENCE</span>
+            </button>
+          )}
+          {audioState.isSilenced && (isCritical || isWarning) && (
+            <button
+              onClick={() => audioAnnunciator.unsilenceAlarm()}
+              className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-medium uppercase tracking-wider bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 hover:bg-amber-500/30 transition-all cursor-pointer"
+              title="Alarm Audio Silenced — Click to Resume Audio"
+            >
+              <VolumeX className="h-3 w-3" />
+              <span>ALARM SILENCED · RESUME</span>
+            </button>
+          )}
         </div>
 
         {/* Center: mission telemetry stats */}

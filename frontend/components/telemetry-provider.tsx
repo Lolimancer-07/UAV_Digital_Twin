@@ -11,6 +11,7 @@ import type {
   TelemetryPayload,
 } from "@/lib/telemetry/types"
 import { useTelemetrySocket } from "@/hooks/use-telemetry-socket"
+import { audioAnnunciator } from "@/lib/audio-annunciator"
 
 // ─── Context shape ────────────────────────────────────────────────────────────
 
@@ -33,6 +34,12 @@ interface TelemetryContextValue {
   reconnect: () => void
   /** Mission elapsed time in seconds (starts on first live packet). */
   metSeconds: number
+  /** Whether simulation telemetry playback is currently paused. */
+  isPaused: boolean
+  /** Toggle pause/resume state across all UI controls and pause/resume audio. */
+  togglePause: () => void
+  /** Explicitly set paused state. */
+  setPaused: (paused: boolean) => void
 }
 
 const TelemetryContext = React.createContext<TelemetryContextValue | null>(null)
@@ -54,6 +61,7 @@ export function TelemetryProvider({ children }: { children: React.ReactNode }) {
   // Mission Elapsed Time — starts ticking on the first live telemetry packet
   const missionStartRef = React.useRef<number | null>(null)
   const [metSeconds, setMetSeconds] = React.useState(0)
+  const [isPaused, setIsPausedState] = React.useState<boolean>(false)
 
   React.useEffect(() => {
     if (!latestTelemetry) return
@@ -71,6 +79,33 @@ export function TelemetryProvider({ children }: { children: React.ReactNode }) {
     return () => window.clearInterval(timer)
   }, [])
 
+  // Synchronize incoming telemetry paused flag
+  React.useEffect(() => {
+    if (latestTelemetry?.paused !== undefined) {
+      const p = Boolean(latestTelemetry.paused)
+      setIsPausedState(p)
+      audioAnnunciator.setPaused(p)
+    }
+  }, [latestTelemetry?.paused])
+
+  const togglePause = React.useCallback(() => {
+    setIsPausedState((current) => {
+      const next = !current
+      sendCommand({ command: "set_paused", paused: next } as any)
+      audioAnnunciator.setPaused(next)
+      return next
+    })
+  }, [sendCommand])
+
+  const setPaused = React.useCallback(
+    (paused: boolean) => {
+      setIsPausedState(paused)
+      sendCommand({ command: "set_paused", paused } as any)
+      audioAnnunciator.setPaused(paused)
+    },
+    [sendCommand]
+  )
+
   const value = React.useMemo<TelemetryContextValue>(
     () => ({
       latestTelemetry,
@@ -82,6 +117,9 @@ export function TelemetryProvider({ children }: { children: React.ReactNode }) {
       sendCommand,
       reconnect,
       metSeconds,
+      isPaused,
+      togglePause,
+      setPaused,
     }),
     [
       latestTelemetry,
@@ -93,6 +131,9 @@ export function TelemetryProvider({ children }: { children: React.ReactNode }) {
       sendCommand,
       reconnect,
       metSeconds,
+      isPaused,
+      togglePause,
+      setPaused,
     ]
   )
 

@@ -11,6 +11,7 @@ import { CommandDock } from "@/components/command-dock";
 import { BackendGate } from "@/components/backend-gate";
 
 import { PageTransition } from "@/components/page-transition";
+import { AlarmSoundManager } from "@/components/alarm-sound-manager";
 
 export const metadata: Metadata = {
   title: "PropulsionX | UAV-07 Propulsion GCS",
@@ -27,6 +28,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="h-screen w-screen overflow-hidden overscroll-none flex flex-col antialiased">
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
           <TelemetryProvider>
+            <AlarmSoundManager />
             <AICopilotProvider>
               <BackendGate>
                 <div className="flex h-screen max-h-screen flex-col overflow-hidden">

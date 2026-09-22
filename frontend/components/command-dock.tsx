@@ -40,13 +40,12 @@ const FAULT_OPTIONS = [
 ]
 
 export function CommandDock() {
-  const { latestTelemetry, sendCommand, connectionStatus, reconnect } = useTelemetry()
+  const { latestTelemetry, sendCommand, connectionStatus, reconnect, isPaused, togglePause } = useTelemetry()
   const isLive = connectionStatus === "live"
 
   const [selectedProfile, setSelectedProfile] = React.useState<string>("NORMAL")
   const [selectedFault, setSelectedFault] = React.useState<string>("misfire")
   const [speed, setSpeed] = React.useState<string>("2.0")
-  const [isPaused, setIsPaused] = React.useState<boolean>(false)
   const [demoStep, setDemoStep] = React.useState<number>(1)
   const [isDemoActive, setIsDemoActive] = React.useState<boolean>(false)
 
@@ -80,12 +79,7 @@ export function CommandDock() {
   }
 
   const handleTogglePause = () => {
-    const next = !isPaused
-    setIsPaused(next)
-    sendCommand({
-      command: "set_paused",
-      paused: next,
-    })
+    togglePause()
   }
 
   const [justCleared, setJustCleared] = React.useState<boolean>(false)

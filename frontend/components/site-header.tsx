@@ -117,37 +117,281 @@ import * as React from "react"
 import { ExportDialog } from "@/components/export-dialog"
 import { JargonGuideDialog } from "@/components/jargon-guide-dialog"
 import { SecurityPostureDialog } from "@/components/security-posture-dialog"
-import { Volume2, VolumeX } from "lucide-react"
+import { Volume2, VolumeX, BellRing, BellOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { audioAnnunciator } from "@/lib/audio-annunciator"
 
 function AudioToggle() {
-  const [isMuted, setIsMuted] = React.useState<boolean>(true)
+  const [state, setState] = React.useState(() => audioAnnunciator.getState())
 
   React.useEffect(() => {
-    setIsMuted(audioAnnunciator.getMuted())
+    setState(audioAnnunciator.getState())
+    const unsubscribe = audioAnnunciator.subscribe(() => {
+      setState(audioAnnunciator.getState())
+    })
+    return unsubscribe
   }, [])
 
-  const handleToggle = () => {
-    const next = audioAnnunciator.toggleMute()
-    setIsMuted(next)
-  }
+  const isSounding = state.isSounding
+  const isMuted = state.isMuted
+  const severity = state.severity
 
   return (
-    <Button
-      variant="ghost"
-      size="icon"
-      onClick={handleToggle}
-      className="size-8 text-muted-foreground hover:text-foreground"
-      title={isMuted ? "Avionics Audio Muted (Click to Unmute)" : "Avionics Audio Active (Click to Mute)"}
-      aria-label={isMuted ? "Unmute avionics audio" : "Mute avionics audio"}
-    >
-      {isMuted ? (
-        <VolumeX className="size-4 text-muted-foreground/60" />
-      ) : (
-        <Volume2 className="size-4 text-emerald-500 animate-pulse" />
-      )}
-    </Button>
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        className={`relative flex size-8 items-center justify-center rounded-md border text-xs transition-all cursor-pointer ${
+          isSounding
+            ? severity === "CRITICAL"
+              ? "border-red-500 bg-red-500/20 text-red-600 dark:text-red-400 animate-pulse ring-2 ring-red-500/50"
+              : "border-amber-500 bg-amber-500/20 text-amber-600 dark:text-amber-400 animate-pulse ring-2 ring-amber-500/50"
+            : isMuted
+            ? "border-border/60 text-muted-foreground/60 hover:text-foreground hover:bg-muted"
+            : "border-border text-emerald-600 dark:text-emerald-400 hover:bg-muted"
+        }`}
+        title={
+          isSounding
+            ? `${severity} ALARM SOUNDING CONTINUOUSLY — Click for Audio Controls`
+            : isMuted
+            ? "Avionics Audio Muted"
+            : "Avionics Audio Armed & Active"
+        }
+        aria-label="Avionics Audio Settings"
+      >
+        {isSounding ? (
+          <>
+            <BellRing className="size-4 animate-bounce" />
+            <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+              <span
+                className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 ${
+                  severity === "CRITICAL" ? "bg-red-500" : "bg-amber-500"
+                }`}
+              />
+              <span
+                className={`relative inline-flex h-2.5 w-2.5 rounded-full ${
+                  severity === "CRITICAL" ? "bg-red-600" : "bg-amber-600"
+                }`}
+              />
+            </span>
+          </>
+        ) : isMuted ? (
+          <VolumeX className="size-4" />
+        ) : (
+          <Volume2 className="size-4" />
+        )}
+      </DropdownMenuTrigger>
+
+      <DropdownMenuContent align="end" className="w-72 p-3 font-sans shadow-2xl">
+        <DropdownMenuLabel className="px-0 py-1 font-mono text-[10px] tracking-wider text-muted-foreground uppercase flex items-center justify-between">
+          <span>Avionics Annunciator</span>
+          <span className="font-bold text-foreground">10 Hz Telemetry Sync</span>
+        </DropdownMenuLabel>
+
+        {/* Live Alarm Status Banner */}
+        <div className="my-2 rounded-md p-2.5 border border-border bg-card/50 text-xs">
+          {isSounding ? (
+            <div
+              className={`flex flex-col gap-1.5 ${
+                severity === "CRITICAL"
+                  ? "text-red-600 dark:text-red-400"
+                  : "text-amber-600 dark:text-amber-400"
+              }`}
+            >
+              <div className="flex items-center gap-1.5 font-bold">
+                <BellRing className="size-3.5 animate-pulse" />
+                <span>
+                  {severity === "CRITICAL"
+                    ? "MASTER WARNING SOUNDING"
+                    : "MASTER CAUTION SOUNDING"}
+                </span>
+              </div>
+              <p className="text-[11px] text-muted-foreground leading-tight">
+                Continuous alarm loop running at high intensity.
+                {state.faults.length > 0 &&
+                  ` Active: ${state.faults
+                    .map((f) => f.name || "FAULT")
+                    .join(", ")
+                    .replace(/_/g, " ")}`}
+              </p>
+              <div className="flex gap-1.5 mt-1">
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  className="h-7 text-xs flex-1 font-bold cursor-pointer"
+                  onClick={() => audioAnnunciator.silenceAlarm()}
+                >
+                  <BellOff className="size-3.5 mr-1" />
+                  SILENCE ALARM
+                </Button>
+              </div>
+            </div>
+          ) : state.isSilenced && state.severity ? (
+            <div className="flex flex-col gap-1 text-amber-600 dark:text-amber-400">
+              <div className="flex items-center gap-1.5 font-semibold text-xs">
+                <BellOff className="size-3.5" />
+                <span>Alarm Temporarily Silenced</span>
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                Will re-arm on next fault or un-silence
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-6 text-[10px] mt-1 cursor-pointer"
+                onClick={() => audioAnnunciator.unsilenceAlarm()}
+              >
+                Resume Audio Alarm
+              </Button>
+            </div>
+          ) : isMuted ? (
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span className="flex items-center gap-1.5 font-medium">
+                <VolumeX className="size-3.5" />
+                Audio Master Muted
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-6 text-[10px] cursor-pointer"
+                onClick={() => audioAnnunciator.setMuted(false)}
+              >
+                UNMUTE
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between text-xs text-emerald-600 dark:text-emerald-400">
+              <span className="flex items-center gap-1.5 font-semibold">
+                <Volume2 className="size-3.5 text-emerald-500" />
+                NOMINAL · ARMED
+              </span>
+              <span className="font-mono text-[10px] text-muted-foreground">READY</span>
+            </div>
+          )}
+        </div>
+
+        <DropdownMenuSeparator />
+
+        {/* Master Sound Intensity (Requested: "and increase the sound intensity") */}
+        <div className="py-1.5">
+          <div className="flex items-center justify-between text-xs mb-1">
+            <span className="font-medium text-foreground">Sound Intensity</span>
+            <span className="font-mono text-[11px] font-bold text-primary">
+              {state.intensity >= 1.6
+                ? "MAX COMBAT (170%)"
+                : state.intensity >= 1.3
+                ? "HIGH (135%)"
+                : "STANDARD (100%)"}
+            </span>
+          </div>
+          <div className="grid grid-cols-3 gap-1">
+            <Button
+              size="sm"
+              variant={state.intensity < 1.2 ? "default" : "outline"}
+              className="h-6 text-[10px] px-1 cursor-pointer"
+              onClick={() => audioAnnunciator.setIntensity(1.0)}
+            >
+              1.0× Norm
+            </Button>
+            <Button
+              size="sm"
+              variant={state.intensity >= 1.2 && state.intensity < 1.5 ? "default" : "outline"}
+              className="h-6 text-[10px] px-1 font-bold cursor-pointer"
+              onClick={() => audioAnnunciator.setIntensity(1.35)}
+            >
+              1.35× High
+            </Button>
+            <Button
+              size="sm"
+              variant={state.intensity >= 1.5 ? "default" : "outline"}
+              className="h-6 text-[10px] px-1 font-bold cursor-pointer"
+              onClick={() => audioAnnunciator.setIntensity(1.7)}
+            >
+              1.7× Max
+            </Button>
+          </div>
+        </div>
+
+        {/* Master Volume */}
+        <div className="py-1.5">
+          <div className="flex items-center justify-between text-xs mb-1">
+            <span className="font-medium text-foreground">Master Volume</span>
+            <span className="font-mono text-[11px] text-muted-foreground">
+              {Math.round(state.volume * 100)}%
+            </span>
+          </div>
+          <div className="grid grid-cols-4 gap-1">
+            {[0.25, 0.5, 0.75, 1.0].map((v) => (
+              <Button
+                key={v}
+                size="sm"
+                variant={Math.abs(state.volume - v) < 0.1 ? "default" : "outline"}
+                className="h-6 text-[10px] px-1 cursor-pointer"
+                onClick={() => audioAnnunciator.setVolume(v)}
+              >
+                {Math.round(v * 100)}%
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        <DropdownMenuSeparator />
+
+        {/* Test Continuous Alarms */}
+        <div className="py-1">
+          <span className="text-[10px] font-mono tracking-wider text-muted-foreground uppercase block mb-1">
+            Test Continuous Alarms
+          </span>
+          <div className="grid grid-cols-2 gap-1.5">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-[11px] font-semibold text-red-600 dark:text-red-400 border-red-500/30 hover:bg-red-500/10 cursor-pointer"
+              onClick={() => audioAnnunciator.testAlarm("CRITICAL", 4)}
+            >
+              🚨 Test Klaxon
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-[11px] font-semibold text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/10 cursor-pointer"
+              onClick={() => audioAnnunciator.testAlarm("WARNING", 4)}
+            >
+              ⚠️ Test Chime
+            </Button>
+          </div>
+        </div>
+
+        <DropdownMenuSeparator />
+
+        {/* Mute Toggle Action */}
+        <div className="pt-1 flex items-center justify-between">
+          <Button
+            size="sm"
+            variant={isMuted ? "default" : "outline"}
+            className="h-7 w-full text-xs font-semibold gap-1.5 cursor-pointer"
+            onClick={() => audioAnnunciator.toggleMute()}
+          >
+            {isMuted ? (
+              <>
+                <Volume2 className="size-3.5" />
+                <span>UNMUTE AVIONICS AUDIO</span>
+              </>
+            ) : (
+              <>
+                <VolumeX className="size-3.5" />
+                <span>MUTE ALL AUDIO</span>
+              </>
+            )}
+          </Button>
+        </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 

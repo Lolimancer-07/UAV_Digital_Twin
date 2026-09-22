@@ -319,6 +319,7 @@ export interface TelemetryPayload {
   engine_id?: number
   uav_id?: string
   mission_mode?: string
+  paused?: boolean
   alert?: "NOMINAL" | "WARNING" | "CRITICAL" | string
   health?: HealthState
   predicted_rul?: number

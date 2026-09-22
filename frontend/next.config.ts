@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
     "localhost",
     "10.17.116.58",
   ],
+  transpilePackages: ["three", "@react-three/fiber", "@react-three/drei"],
   async headers() {
     return [
       {

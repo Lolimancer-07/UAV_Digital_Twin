@@ -844,6 +844,23 @@ export function MissionCommandCenter() {
 
           <Timeline events={command.timeline} />
 
+          {/* ── Quick link: Mission Timeline ─────────────────────────────── */}
+          <Link
+            href="/mission-timeline"
+            className="group flex items-center justify-between rounded-xl border border-violet-500/30 bg-gradient-to-r from-violet-500/10 to-cyan-500/5 px-4 py-3 transition-all hover:border-violet-500/60 hover:from-violet-500/15"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex size-8 items-center justify-center rounded-lg bg-violet-500/15">
+                <ArrowRightIcon className="size-4 text-violet-400" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-violet-300">View Predictive Mission Timeline</p>
+                <p className="text-[10px] font-mono text-muted-foreground">RUL burn-down · Go/No-Go zones · Scenario comparison</p>
+              </div>
+            </div>
+            <ArrowRightIcon className="size-4 text-violet-400 opacity-0 transition-opacity group-hover:opacity-100" />
+          </Link>
+
           <div className="flex items-start gap-2 rounded-lg border border-border/70 bg-muted/40 p-3 text-[11px] leading-relaxed text-muted-foreground">
             <ActivityIcon className="mt-0.5 size-3.5 shrink-0 text-primary" />
             <span><strong className="text-foreground">PropulsionX Defense Suite:</strong> Multi-layer mission decision support system with real-time vectoring, dynamic FLIR HUD vision, threat-avoidance routing, and automated fleet relief.</span>

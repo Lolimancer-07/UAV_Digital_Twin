@@ -7,14 +7,17 @@ import {
   Activity,
   BarChart3,
   BrainIcon,
+  Box,
   Database,
   FileChartColumn,
   FileCheck2,
   Gauge,
   LayoutDashboard,
+  Map,
   Plane,
   Radar,
   Settings2,
+  TimerReset,
   Wrench,
 } from "lucide-react"
 import { NavMain } from "@/components/nav-main"
@@ -34,6 +37,8 @@ import {
 
 const navMain = [
   { title: "GCS Overview", url: "/", icon: <LayoutDashboard /> },
+  { title: "3D Digital Twin", url: "/twin-3d", icon: <Box /> },
+  { title: "Mission Timeline", url: "/mission-timeline", icon: <Map /> },
   { title: "Telemetry Matrix", url: "/telemetry", icon: <Activity /> },
   { title: "Prognostics & Attribution", url: "/prognostics", icon: <Gauge /> },
   { title: "Thermodynamics & P-V", url: "/thermodynamics", icon: <BarChart3 /> },
@@ -45,6 +50,7 @@ const navMain = [
 
 const operations = [
   { name: "Airworthiness", url: "/airworthiness", icon: <FileCheck2 /> },
+  { name: "Mission Debrief", url: "/replay", icon: <TimerReset /> },
   { name: "Flight Data Recorder", url: "/flight-data", icon: <Database /> },
   { name: "Dossier Export", url: "/dossier", icon: <FileChartColumn /> },
 ]

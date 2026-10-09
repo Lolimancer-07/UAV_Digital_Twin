@@ -1,5 +1,6 @@
 # Node & Frontend
 node_modules/
+**/node_modules/
 dist/
 .env*
 .vercel/
@@ -32,3 +33,10 @@ Anaconda*.sh
 *.iso
 *.tar.gz
 FETCH_HEAD
+
+# Runtime databases & PID files
+data/*.db
+*.db
+*.db-wal
+*.db-shm
+.*.pid

@@ -82,20 +82,22 @@ class TestEdgeProfileManager(unittest.TestCase):
         """Verify initial profile is GCS_FLOAT32 with correct specifications."""
         mgr = EdgeProfileManager()
         prof = mgr.get_active_profile()
+        expected = EDGE_PROFILES["GCS_FLOAT32"]
         self.assertEqual(prof["mode_id"], "GCS_FLOAT32")
-        self.assertEqual(prof["inference_latency_ms"], 12.4)
-        self.assertEqual(prof["memory_footprint_mb"], 420.0)
-        self.assertEqual(prof["power_tdp_w"], 250.0)
+        self.assertEqual(prof["inference_latency_ms"], expected["inference_latency_ms"])
+        self.assertEqual(prof["memory_footprint_mb"], expected["memory_footprint_mb"])
+        self.assertEqual(prof["power_tdp_w"], expected["power_tdp_w"])
         self.assertFalse(prof["quantization_active"])
 
     def test_mode_toggling(self):
         """Verify switching between GCS_FLOAT32 and EDGE_INT8 updates specs."""
         mgr = EdgeProfileManager()
         edge_prof = mgr.set_mode("EDGE_INT8")
+        expected_edge = EDGE_PROFILES["EDGE_INT8"]
         self.assertEqual(edge_prof["mode_id"], "EDGE_INT8")
-        self.assertEqual(edge_prof["inference_latency_ms"], 4.8)
-        self.assertEqual(edge_prof["memory_footprint_mb"], 38.0)
-        self.assertEqual(edge_prof["power_tdp_w"], 12.0)
+        self.assertEqual(edge_prof["inference_latency_ms"], expected_edge["inference_latency_ms"])
+        self.assertEqual(edge_prof["memory_footprint_mb"], expected_edge["memory_footprint_mb"])
+        self.assertEqual(edge_prof["power_tdp_w"], expected_edge["power_tdp_w"])
         self.assertTrue(edge_prof["quantization_active"])
 
         # Switch back

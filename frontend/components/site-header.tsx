@@ -397,6 +397,105 @@ function AudioToggle() {
   )
 }
 
+import { Users } from "lucide-react"
+import { getActiveSession, fetchSessionToken, UserRole, subscribeToSessionChanges } from "@/lib/telemetry/auth"
+
+function TenantRoleSwitcher() {
+  const [session, setSession] = React.useState(() => getActiveSession())
+  const [switching, setSwitching] = React.useState(false)
+
+  React.useEffect(() => {
+    return subscribeToSessionChanges((newSession) => {
+      setSession(newSession)
+    })
+  }, [])
+
+  const handleSwitchTenant = async (tenantId: string) => {
+    setSwitching(true)
+    try {
+      await fetchSessionToken({ tenant_id: tenantId, role: session.role })
+    } finally {
+      setSwitching(false)
+    }
+  }
+
+  const handleSwitchRole = async (role: UserRole) => {
+    setSwitching(true)
+    try {
+      await fetchSessionToken({ tenant_id: session.tenant_id, role })
+    } finally {
+      setSwitching(false)
+    }
+  }
+
+  const tenantLabel = session.tenant_id === "tenant_bravo" ? "Bravo Fleet" : "Alpha Fleet"
+  const roleColors: Record<string, string> = {
+    admin: "border-purple-500 text-purple-600 dark:text-purple-400 bg-purple-500/10",
+    maintainer: "border-amber-500 text-amber-600 dark:text-amber-400 bg-amber-500/10",
+    dispatcher: "border-blue-500 text-blue-600 dark:text-blue-400 bg-blue-500/10",
+    viewer: "border-zinc-500 text-zinc-600 dark:text-zinc-400 bg-zinc-500/10",
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        className={`hidden sm:inline-flex items-center gap-1.5 px-2 py-1 rounded-md border text-[11px] font-mono font-medium transition-colors cursor-pointer ${
+          roleColors[session.role] || "border-border text-foreground"
+        }`}
+        title="Tenant & RBAC Role Switcher"
+      >
+        <Users className="size-3" />
+        <span>{tenantLabel}</span>
+        <span className="text-[10px] opacity-70">[{session.role.toUpperCase()}]</span>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56 p-2 font-mono text-xs">
+        <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
+          Tenant Isolation Scope
+        </DropdownMenuLabel>
+        <div className="grid grid-cols-2 gap-1 my-1">
+          <Button
+            size="sm"
+            variant={session.tenant_id === "tenant_alpha" ? "default" : "outline"}
+            className="h-7 text-[10px] cursor-pointer"
+            disabled={switching}
+            onClick={() => handleSwitchTenant("tenant_alpha")}
+          >
+            Alpha (UAV-01..03)
+          </Button>
+          <Button
+            size="sm"
+            variant={session.tenant_id === "tenant_bravo" ? "default" : "outline"}
+            className="h-7 text-[10px] cursor-pointer"
+            disabled={switching}
+            onClick={() => handleSwitchTenant("tenant_bravo")}
+          >
+            Bravo (UAV-04..05)
+          </Button>
+        </div>
+
+        <DropdownMenuSeparator className="my-1.5" />
+        <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
+          RBAC Role Level
+        </DropdownMenuLabel>
+        <div className="grid grid-cols-2 gap-1 my-1">
+          {(["viewer", "dispatcher", "maintainer", "admin"] as UserRole[]).map((r) => (
+            <Button
+              key={r}
+              size="sm"
+              variant={session.role === r ? "default" : "outline"}
+              className="h-6 text-[10px] uppercase cursor-pointer"
+              disabled={switching}
+              onClick={() => handleSwitchRole(r)}
+            >
+              {r}
+            </Button>
+          ))}
+        </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
 export function SiteHeader() {
   const { latestTelemetry } = useTelemetry()
   const activeUavId = latestTelemetry?.uav_id ?? "UAV-01"
@@ -418,6 +517,7 @@ export function SiteHeader() {
           </div>
           <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
             <ConnectionBadge />
+            <TenantRoleSwitcher />
             <SecurityPostureDialog />
             <AlertBadge />
             <AudioToggle />

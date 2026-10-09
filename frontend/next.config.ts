@@ -1,27 +1,42 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Allow 127.0.0.1 and localhost as dev origins so HMR and WS connections
-  // are not blocked when the browser opens the app on 127.0.0.1:3000
+  // Locked dev origins for local defense console security
   allowedDevOrigins: [
     "127.0.0.1",
     "localhost",
-    "10.17.116.58",
   ],
   transpilePackages: ["three", "@react-three/fiber", "@react-three/drei"],
   async headers() {
     return [
       {
-        source: "/(.*)",
+        source: "/api/:path*",
         headers: [
           {
             key: "Access-Control-Allow-Origin",
-            value: "*",
+            value: "http://localhost:3000",
+          },
+          {
+            key: "Access-Control-Allow-Methods",
+            value: "GET, POST, OPTIONS",
+          },
+          {
+            key: "Access-Control-Allow-Headers",
+            value: "Content-Type, Authorization",
           },
         ],
       },
     ]
   },
+  async rewrites() {
+    return [
+      {
+        source: "/api/twin/:path*",
+        destination: "http://127.0.0.1:8766/api/:path*",
+      },
+    ];
+  },
 };
+
 
 export default nextConfig;

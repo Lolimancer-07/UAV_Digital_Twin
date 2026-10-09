@@ -31,6 +31,8 @@ import sys
 import json
 import asyncio
 import pickle
+import tempfile
+from datetime import datetime, timezone
 from threading import Thread
 from collections import deque
 from typing import Dict, Any
@@ -73,6 +75,44 @@ from mission_command     import (
     build_recovery_plan,
     build_simulation_summary,
 )
+from event_store         import get_event_store
+from api_server           import start_api_server_thread
+from twin_core.report_generator import generate_flight_report
+import urllib.parse
+
+try:
+    from backend.auth import (
+        verify_access_token,
+        authorize_command,
+        authorize_aircraft_access,
+        filter_payload_for_subscriber,
+        RateLimiter,
+        ReplayGuard,
+        ROLE_ADMIN,
+        ROLE_VIEWER,
+        ROLE_DISPATCHER,
+        ROLE_MAINTAINER,
+        TENANT_FLEET_MAPPING,
+    )
+except ImportError:
+    from auth import (
+        verify_access_token,
+        authorize_command,
+        authorize_aircraft_access,
+        filter_payload_for_subscriber,
+        RateLimiter,
+        ReplayGuard,
+        ROLE_ADMIN,
+        ROLE_VIEWER,
+        ROLE_DISPATCHER,
+        ROLE_MAINTAINER,
+        TENANT_FLEET_MAPPING,
+    )
+
+ws_rate_limiter = RateLimiter(max_requests_per_sec=30)
+ws_replay_guard = ReplayGuard(max_drift_seconds=60.0)
+REQUIRE_AUTH = os.environ.get("UAV_TWIN_REQUIRE_AUTH", "").lower() in ("1", "true", "yes")
+
 
 # figure out where we are in the filesystem
 ROOT         = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -83,9 +123,85 @@ ANOMALY_PATH = os.path.join(ROOT, 'backend', 'anomaly_model.pkl')
 
 is_simulation_paused = False
 
+# ── Structured JSON logging ───────────────────────────────────────────────────
+# Emits machine-parseable log lines so log aggregators (grep, jq, ELK) can
+# filter by aircraft, flight, or cycle without ad-hoc string parsing.
+# Human-readable console output is still printed alongside.
+def _log(level: str, event: str, msg: str, **extra):
+    """Emit one JSON log line to stdout with mandatory correlation IDs."""
+    record = {
+        "ts":       datetime.now(timezone.utc).isoformat(),
+        "level":    level,
+        "event":    event,
+        "msg":      msg,
+    }
+    record.update(extra)
+    print(json.dumps(record), flush=True)
+
 print("=" * 60)
 print("  UAV DIGITAL TWIN — DEFENSE GRADE PROPULSION CORE v2.0")
 print("=" * 60)
+
+
+# ── Model hash verification (Phase 1) ────────────────────────────────────────
+# Reads the manifest at packages/contracts/model_manifest.json and verifies
+# every artifact's SHA-256 before it is loaded. Mismatches log a warning but
+# do not abort — hard refusal moves to Phase 1 model registry integration.
+def _sha256_file(path: str) -> str:
+    import hashlib
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _verify_model_hashes() -> None:
+    """Verify SHA-256 hashes of all model artifacts against the manifest."""
+    manifest_path = os.path.join(ROOT, "packages", "contracts", "model_manifest.json")
+    if not os.path.exists(manifest_path):
+        _log("WARN", "manifest_missing",
+             "Model manifest not found — skipping hash verification",
+             path=manifest_path)
+        return
+    try:
+        with open(manifest_path, "r") as f:
+            manifest = json.load(f)
+    except Exception as e:
+        _log("WARN", "manifest_parse_error",
+             f"Could not parse model manifest: {e}",
+             path=manifest_path)
+        return
+
+    for entry in manifest.get("models", []):
+        mid = entry.get("model_id", "?")
+        rel_file = entry.get("file", "")
+        declared_hash = entry.get("hash", "")
+        if not declared_hash:
+            continue  # hash not yet recorded — Phase 1 transition
+
+        # strip 'sha256:' prefix if present
+        declared_digest = declared_hash.replace("sha256:", "")
+        abs_path = os.path.join(ROOT, rel_file)
+        if not os.path.exists(abs_path):
+            _log("WARN", "model_file_missing",
+                 f"Model file not found — skipping hash check",
+                 model_id=mid, path=abs_path)
+            continue
+        actual = _sha256_file(abs_path)
+        if actual == declared_digest:
+            _log("INFO", "model_hash_ok",
+                 f"Hash verified", model_id=mid)
+            print(f"      [hash OK] {mid}")
+        else:
+            _log("ERROR", "model_hash_mismatch",
+                 "SHA-256 MISMATCH — artifact may be corrupted or replaced without manifest update",
+                 model_id=mid, declared=declared_digest, actual=actual)
+            print(f"      [HASH MISMATCH] {mid}: declared={declared_digest[:16]}... actual={actual[:16]}...")
+            # Phase 1: warn only. Phase 2+: raise ModelHashMismatch to abort.
+
+
+_verify_model_hashes()
 
 # load the LSTM — this takes a few seconds on first run
 print("[1/3] Loading Deep LSTM RUL Prognostics Model...")
@@ -94,6 +210,8 @@ try:
     with open(SCALER_PATH, 'rb') as f:
         scaler = pickle.load(f)
     print("      LSTM Prognostics Model Loaded OK.")
+    _log("INFO", "model_loaded", "LSTM + scaler loaded",
+         model_path=MODEL_PATH, scaler_path=SCALER_PATH)
 except Exception as e:
     print(f"      ERROR loading LSTM model: {e}")
     sys.exit(1)
@@ -141,6 +259,19 @@ def _warmup_lstm():
 _warmup_lstm()
 
 
+_edge_int8_runtime = None
+
+def get_edge_int8_runtime():
+    global _edge_int8_runtime
+    if _edge_int8_runtime is None:
+        try:
+            from edge_runtime import EdgePrognosticsRuntime
+            _edge_int8_runtime = EdgePrognosticsRuntime(precision="EDGE_INT8")
+        except Exception as e:
+            print(f"[EDGE RUNTIME] Could not init EdgePrognosticsRuntime: {e}")
+    return _edge_int8_runtime
+
+
 def predict_rul_with_uncertainty(lstm_input: np.ndarray) -> tuple:
     """
     Monte Carlo Dropout — runs the model N times with dropout active
@@ -149,10 +280,16 @@ def predict_rul_with_uncertainty(lstm_input: np.ndarray) -> tuple:
 
     All MC samples are batched into a single @tf.function call for ~386x
     faster inference vs the previous sequential eager loop on CPU.
+    When in EDGE_INT8 mode, routes directly through the pure ONNX edge runtime.
 
     Returns (mean_rul, std_rul, ci_lower, ci_upper)
     — the CI is a 90% interval (±1.645 sigma)
     """
+    if edge_profile_manager.active_mode == "EDGE_INT8":
+        edge_rt = get_edge_int8_runtime()
+        if edge_rt is not None:
+            return edge_rt.predict_normalized(lstm_input, num_mc_samples=MC_DROPOUT_SAMPLES)
+
     # Tile the single window into MC_DROPOUT_SAMPLES replicas for one batched call
     batched = np.repeat(lstm_input, MC_DROPOUT_SAMPLES, axis=0).astype(np.float32)
     preds   = _lstm_mc_predict_compiled(batched).numpy().flatten()
@@ -344,8 +481,26 @@ def _process_telemetry_packet(data):
     # map engine ID to UAV callsign for the fleet panel
     active_uav = data.get("uav_id", fleet_manager.active_uav_id)
 
+    # Emit one structured log line per telemetry cycle with key correlation IDs.
+    # This is the authoritative machine-parseable log entry for each decision cycle.
+    _log(
+        level="INFO",
+        event="decision_cycle",
+        msg="Telemetry packet processed",
+        aircraft_id=active_uav,
+        engine_id=int(data.get("engine_id", 1)),
+        cycle=int(data.get("cycle", 0)),
+        alert=alert_status,
+        predicted_rul=round(predicted_rul, 1),
+        anomaly_score=round(anomaly_score, 4),
+        health_index=round(health_index, 1),
+    )
+
     # build the full payload — everything the dashboard needs in one shot
     payload = {
+        # ── Contract version — bump minor for additive fields, major for removals ──
+        "envelope_version":       "1.0",
+        "emitted_at":             datetime.now(timezone.utc).isoformat(),
         # raw telemetry channels
         "cycle":                  data.get("cycle", 0),
         "engine_id":              data.get("engine_id", fleet_manager.get_active_engine_id()),
@@ -425,6 +580,10 @@ def _process_telemetry_packet(data):
             "replay_guard":       "ACTIVE_SEQ_COUNTER",
             "can_checksum":       "CRC-16_J1939",
         },
+        "provenance": {
+            "core_version":       "1.0.0",
+            "runtime":            "gcs_float32",
+        },
     }
 
     # update the fleet state for the active UAV
@@ -447,6 +606,19 @@ def _process_telemetry_packet(data):
         twin_consistency=twin_consistency,
         fault_events=fault_events,
     )
+
+    # Append-only persistence: record raw inputs + Decision Envelope v1
+    try:
+        flight_id = f"flight-{datetime.now(timezone.utc).strftime('%Y%m%d')}-{active_uav}"
+        get_event_store().append_decision(
+            aircraft_id=active_uav,
+            flight_id=flight_id,
+            cycle=int(data.get("cycle", 0)),
+            envelope=payload,
+            raw_inputs=data,
+        )
+    except Exception as _es_err:
+        _log("WARN", "event_store_error", f"Could not persist decision envelope: {_es_err}")
 
     latest_state.update(payload)
     _refresh_mission_command_state()
@@ -491,6 +663,37 @@ def process_gcs_command(cmd: Dict[str, Any]):
     global latest_state, latest_payload, is_simulation_paused
 
     action = cmd.get("command") or cmd.get("action")
+    if not action:
+        return
+
+    # Phase 2: Command Envelope v1 normalization & Idempotency check
+    intent_id = str(cmd.get("intent_id") or f"cmd-{int(datetime.now(timezone.utc).timestamp()*1000)}-{os.urandom(4).hex()}")
+    cmd_version = str(cmd.get("command_version", "1.0"))
+    target_uav = str(cmd.get("aircraft_id") or cmd.get("uav_id") or (latest_state.get("uav_id") if latest_state else "UAV-01"))
+    issued_by = str(cmd.get("issued_by") or "GCS_OPERATOR")
+    issued_at = str(cmd.get("issued_at") or datetime.now(timezone.utc).isoformat())
+    params = cmd.get("params") or {
+        k: v for k, v in cmd.items()
+        if k not in ("command", "action", "intent_id", "command_version", "aircraft_id", "uav_id", "issued_by", "issued_at", "token", "auth_token", "signature")
+    }
+
+    cmd_env = {
+        "command_version": cmd_version,
+        "command": action,
+        "aircraft_id": target_uav,
+        "intent_id": intent_id,
+        "issued_by": issued_by,
+        "issued_at": issued_at,
+        "params": params,
+        "signature": cmd.get("signature", ""),
+    }
+
+    store = get_event_store()
+    existing_cmd = store.get_command(intent_id)
+    if existing_cmd:
+        _log("WARN", "cmd_duplicate_rejected", f"Idempotent duplicate command rejected: {intent_id}", intent_id=intent_id)
+        print(f"[GCS CMD] Duplicate intent_id '{intent_id}' ignored (idempotent)")
+        return
 
     # start with sane defaults in case the file doesn't exist yet
     current_cfg = {"mode": "NORMAL", "speed": 1.0, "paused": False, "injected_faults": [], "engine_id": 1, "uav_id": "UAV-01"}
@@ -570,9 +773,8 @@ def process_gcs_command(cmd: Dict[str, Any]):
                 mission_risk=m_risk,
             )
             latest_payload = json.dumps(latest_state)
-        os.makedirs(os.path.dirname(CONTROL_FILE), exist_ok=True)
-        with open(CONTROL_FILE, 'w') as f:
-            json.dump(current_cfg, f, indent=2)
+        _write_control_file(current_cfg)
+        _log("INFO", "cmd_clear_faults", "All injected faults cleared")
         print("[GCS CMD] ALL INJECTED FAULTS CLEARED.")
 
     elif action == "whatif":
@@ -781,10 +983,43 @@ def process_gcs_command(cmd: Dict[str, Any]):
             latest_state["edge_profile"] = new_prof
         print(f"[GCS CMD] Edge/SWaP deployment mode switched → {new_prof['mode_id']} ({new_prof['name']})")
 
+    elif action == "annotate_replay":
+        flight_id = cmd.get("flight_id") or f"flight-{datetime.now(timezone.utc).strftime('%Y%m%d')}-{target_uav}"
+        cycle = int(cmd.get("cycle", latest_state.get("cycle", 0) if latest_state else 0))
+        note = cmd.get("note", "")
+        category = cmd.get("category", "OBSERVATION")
+        author = cmd.get("author", issued_by)
+        ann_id = store.add_annotation(
+            flight_id=flight_id,
+            aircraft_id=target_uav,
+            cycle=cycle,
+            author=author,
+            note=note,
+            category=category,
+        )
+        print(f"[GCS CMD] Replay annotation #{ann_id} recorded for {flight_id} cycle {cycle}")
+
+    elif action == "generate_report":
+        flight_id = cmd.get("flight_id") or f"flight-{datetime.now(timezone.utc).strftime('%Y%m%d')}-{target_uav}"
+        try:
+            report = generate_flight_report(store, flight_id)
+            if latest_state:
+                latest_state["post_flight_report"] = report
+            print(f"[GCS CMD] Post-flight report generated: {report.get('report_id')}")
+        except Exception as e:
+            print(f"[GCS CMD] Report generation error: {e}")
+
+    # Record command execution in the immutable audit log
+    effect = {
+        "status": "SUCCESS",
+        "action": action,
+        "cycle": latest_state.get("cycle", 0) if latest_state else 0,
+    }
+    store.record_command(cmd_env, status="EXECUTED", effect=effect)
+
     # write back to the shared control file so the simulator picks it up
-    os.makedirs(os.path.dirname(CONTROL_FILE), exist_ok=True)
-    with open(CONTROL_FILE, 'w') as f:
-        json.dump(current_cfg, f, indent=2)
+    _write_control_file(current_cfg)
+    _log("INFO", "cmd_dispatch", f"GCS command processed", action=action, intent_id=intent_id)
 
     # immediately push updated state to connected clients
     if latest_state:
@@ -792,45 +1027,295 @@ def process_gcs_command(cmd: Dict[str, Any]):
         latest_payload = json.dumps(latest_state)
 
 
+# ── Atomic control-file writer ───────────────────────────────────────────────
+# Uses write-to-temp + os.replace (POSIX atomic rename) to prevent the
+# simulator from reading a half-written JSON file if the process is killed
+# or interrupted mid-write (addresses Phase 0 control-plane reliability).
+def _write_control_file(cfg: dict) -> None:
+    """Write cfg to CONTROL_FILE atomically (temp file → os.replace)."""
+    dir_path = os.path.dirname(CONTROL_FILE)
+    os.makedirs(dir_path, exist_ok=True)
+    # Write to a sibling temp file in the same directory so os.replace is
+    # guaranteed to be on the same filesystem (no cross-device rename).
+    fd, tmp_path = tempfile.mkstemp(dir=dir_path, suffix=".tmp", prefix="profile_")
+    try:
+        with os.fdopen(fd, 'w') as f:
+            json.dump(cfg, f, indent=2)
+        os.replace(tmp_path, CONTROL_FILE)   # POSIX-atomic rename
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
+
+
 WS_HOST = os.environ.get("UAV_TWIN_WS_HOST", "127.0.0.1")
 WS_PORT = int(os.environ.get("UAV_TWIN_WS_PORT", "8765"))
+API_PORT = int(os.environ.get("UAV_TWIN_API_PORT", "8766"))
 WS_AUTH_TOKEN = os.environ.get("UAV_TWIN_AUTH_TOKEN", "").strip()
 
 
 async def ws_handler(websocket):
-    """WebSocket handler — streams state to the GCS at 10 Hz, receives commands."""
+    """WebSocket handler — streams state to the GCS with per-tenant filtering, receives and authorizes commands."""
+    global latest_state, latest_payload
+
+    # 1. Initial Handshake Authentication (URL query params or Authorization header)
+    handshake_token = None
+    if hasattr(websocket, "request") and websocket.request:
+        req_path = getattr(websocket.request, "path", "") or ""
+        if "?" in req_path:
+            qs = urllib.parse.parse_qs(req_path.split("?", 1)[1])
+            tokens = qs.get("token") or qs.get("auth_token")
+            if tokens:
+                handshake_token = tokens[0]
+        if not handshake_token and hasattr(websocket.request, "headers") and websocket.request.headers:
+            auth_hdr = websocket.request.headers.get("Authorization", "")
+            if auth_hdr.startswith("Bearer "):
+                handshake_token = auth_hdr[7:].strip()
+
+    active_ws_auth = globals().get("WS_AUTH_TOKEN", WS_AUTH_TOKEN)
+    session_caller = None
+    if handshake_token:
+        if active_ws_auth and handshake_token == active_ws_auth:
+            session_caller = {
+                "sub": "admin",
+                "tenant_id": "default",
+                "role": ROLE_ADMIN,
+                "aircraft_ids": ["*"],
+            }
+        else:
+            ok, payload, _ = verify_access_token(handshake_token)
+            if ok:
+                session_caller = payload
+    elif not active_ws_auth and not REQUIRE_AUTH:
+        session_caller = {
+            "sub": "anonymous",
+            "tenant_id": "default",
+            "role": ROLE_ADMIN,
+            "aircraft_ids": ["*"],
+        }
+
+    # Subscription state for this socket connection
+    session_subscriber = {
+        "tenant_id": session_caller.get("tenant_id", "default") if session_caller else "default",
+        "aircraft_ids": session_caller.get("aircraft_ids", ["*"]) if session_caller else ["*"],
+        "field_groups": None,
+        "min_interval_ms": 100,
+    }
+
     async def sender():
         while True:
             try:
-                await websocket.send(latest_payload)
+                state_snapshot = dict(latest_state) if (latest_state and isinstance(latest_state, dict)) else None
+                if state_snapshot:
+                    filtered = filter_payload_for_subscriber(
+                        payload=state_snapshot,
+                        subscriber_tenant_id=session_subscriber["tenant_id"],
+                        subscriber_aircraft_ids=session_subscriber["aircraft_ids"],
+                        field_groups=session_subscriber.get("field_groups"),
+                    )
+                    if filtered is not None:
+                        await websocket.send(json.dumps(filtered))
+                elif latest_payload:
+                    await websocket.send(latest_payload)
             except websockets.exceptions.ConnectionClosed:
                 break
-            await asyncio.sleep(0.1)
+            except Exception:
+                pass
+
+            interval = max(0.05, session_subscriber.get("min_interval_ms", 100) / 1000.0)
+            await asyncio.sleep(interval)
 
     async def receiver():
+        nonlocal session_caller
         try:
             async for raw in websocket:
+                # 1. Payload size bounding (max 64 KB)
+                if len(raw) > 65536:
+                    try:
+                        await websocket.send(json.dumps({
+                            "status": "PAYLOAD_TOO_LARGE",
+                            "code": 413,
+                            "error": "Command payload exceeds 64 KB limit",
+                        }))
+                    except Exception:
+                        pass
+                    continue
+
+                # 2. Rate limiting (max 30 req/sec)
+                caller_sub = session_caller.get("sub") if session_caller else "client"
+                if not ws_rate_limiter.is_allowed(caller_sub):
+                    try:
+                        await websocket.send(json.dumps({
+                            "status": "RATE_LIMITED",
+                            "code": 429,
+                            "error": "Command rate limit exceeded (max 30 requests/sec)",
+                        }))
+                    except Exception:
+                        pass
+                    continue
+
+                # 3. JSON decoding
                 try:
                     cmd = json.loads(raw)
-                    # Auth check if UAV_TWIN_AUTH_TOKEN is configured
-                    if WS_AUTH_TOKEN:
-                        provided_token = cmd.get("token") or cmd.get("auth_token")
-                        if provided_token != WS_AUTH_TOKEN:
-                            print("[WS SECURITY] Unauthorized command attempt — rejecting and closing connection.")
-                            try:
-                                await websocket.send(json.dumps({
-                                    "status": "UNAUTHORIZED",
-                                    "error": "Authentication token missing or invalid",
-                                }))
-                                await websocket.close(1008, "Unauthorized")
-                            except Exception:
-                                pass
-                            break
-                    process_gcs_command(cmd)
                 except Exception as e:
-                    print(f"[WS CMD ERROR] {e}")
+                    try:
+                        await websocket.send(json.dumps({
+                            "status": "BAD_REQUEST",
+                            "code": 400,
+                            "error": f"Invalid JSON payload: {e}",
+                        }))
+                    except Exception:
+                        pass
+                    continue
+
+                if not isinstance(cmd, dict):
+                    continue
+
+                action = cmd.get("command") or cmd.get("action") or ""
+
+                # 4. Command timestamp replay check
+                if "issued_at" in cmd:
+                    valid_time, time_err = ws_replay_guard.validate_timestamp(cmd.get("issued_at"))
+                    if not valid_time:
+                        try:
+                            await websocket.send(json.dumps({
+                                "status": "FORBIDDEN",
+                                "code": 403,
+                                "error": time_err,
+                            }))
+                        except Exception:
+                            pass
+                        continue
+
+                # 5. Token resolution on message
+                current_ws_auth = globals().get("WS_AUTH_TOKEN", WS_AUTH_TOKEN)
+                provided_token = cmd.get("token") or cmd.get("auth_token")
+                effective_caller = session_caller
+
+                if provided_token:
+                    if current_ws_auth and provided_token == current_ws_auth:
+                        effective_caller = {
+                            "sub": "admin",
+                            "tenant_id": "default",
+                            "role": ROLE_ADMIN,
+                            "aircraft_ids": ["*"],
+                        }
+                        session_caller = effective_caller
+                    else:
+                        ok, payload, _ = verify_access_token(provided_token)
+                        if ok:
+                            effective_caller = payload
+                            session_caller = payload
+                            session_subscriber["tenant_id"] = payload.get("tenant_id", "default")
+                            session_subscriber["aircraft_ids"] = payload.get("aircraft_ids", ["*"])
+                        else:
+                            effective_caller = None
+
+                # 6. Legacy auth compatibility check
+                if current_ws_auth:
+                    token_matches = provided_token == current_ws_auth or (effective_caller and effective_caller.get("role") == ROLE_ADMIN)
+                    if not token_matches:
+                        print("[WS SECURITY] Unauthorized command attempt — rejecting and closing connection.")
+                        try:
+                            await websocket.send(json.dumps({
+                                "status": "UNAUTHORIZED",
+                                "code": 401,
+                                "error": "Authentication token missing or invalid",
+                            }))
+                            await websocket.close(1008, "Unauthorized")
+                        except Exception:
+                            pass
+                        break
+
+                # 7. Unauthenticated command check if auth is required
+                if REQUIRE_AUTH and not effective_caller:
+                    try:
+                        await websocket.send(json.dumps({
+                            "status": "UNAUTHORIZED",
+                            "code": 401,
+                            "error": "Authentication required (missing or invalid token)",
+                        }))
+                    except Exception:
+                        pass
+                    continue
+
+                # 8. Subscription command handler
+                if action == "subscribe":
+                    sub_tenant = cmd.get("tenant_id") or (effective_caller.get("tenant_id") if effective_caller else "default")
+                    sub_aircraft = cmd.get("aircraft_ids") or (effective_caller.get("aircraft_ids") if effective_caller else ["*"])
+                    sub_fields = cmd.get("field_groups")
+                    min_int = int(cmd.get("min_interval_ms", 100))
+
+                    caller_tenant = effective_caller.get("tenant_id", "default") if effective_caller else "default"
+                    caller_role = effective_caller.get("role", ROLE_ADMIN) if effective_caller else ROLE_ADMIN
+
+                    if caller_role != ROLE_ADMIN and caller_tenant != "default" and sub_tenant != caller_tenant:
+                        try:
+                            await websocket.send(json.dumps({
+                                "status": "FORBIDDEN",
+                                "code": 403,
+                                "error": f"Cannot subscribe to tenant '{sub_tenant}' from tenant '{caller_tenant}'",
+                            }))
+                        except Exception:
+                            pass
+                        continue
+
+                    session_subscriber["tenant_id"] = sub_tenant
+                    session_subscriber["aircraft_ids"] = sub_aircraft
+                    session_subscriber["field_groups"] = sub_fields
+                    session_subscriber["min_interval_ms"] = min_int
+
+                    try:
+                        await websocket.send(json.dumps({
+                            "status": "SUBSCRIBED",
+                            "subscription_version": "1.0",
+                            "tenant_id": sub_tenant,
+                            "aircraft_ids": sub_aircraft,
+                            "field_groups": sub_fields,
+                            "min_interval_ms": min_int,
+                        }))
+                    except Exception:
+                        pass
+                    continue
+
+                # 9. RBAC & Aircraft-Scoped Command Authorization
+                target_aircraft = str(cmd.get("aircraft_id") or cmd.get("uav_id") or (latest_state.get("uav_id") if latest_state else "UAV-01"))
+                auth_ok, status_code, reason = authorize_command(effective_caller, action, target_aircraft)
+                if not auth_ok:
+                    status_str = "UNAUTHORIZED" if status_code == 401 else "FORBIDDEN"
+                    try:
+                        await websocket.send(json.dumps({
+                            "status": status_str,
+                            "code": status_code,
+                            "error": reason,
+                            "command": action,
+                            "aircraft_id": target_aircraft,
+                        }))
+                    except Exception:
+                        pass
+
+                    # Record rejected command attempt in the audit log
+                    store = get_event_store()
+                    store.record_command({
+                        "command_version": "1.0",
+                        "command": action,
+                        "aircraft_id": target_aircraft,
+                        "intent_id": cmd.get("intent_id", f"rej-{int(datetime.now(timezone.utc).timestamp()*1000)}"),
+                        "issued_by": effective_caller.get("sub", "UNAUTHORIZED") if effective_caller else "ANONYMOUS",
+                        "issued_at": cmd.get("issued_at", datetime.now(timezone.utc).isoformat()),
+                        "params": cmd,
+                    }, status="REJECTED", effect={"error": reason, "code": status_code})
+                    continue
+
+                # 10. Execute authorized command
+                process_gcs_command(cmd)
+
         except websockets.exceptions.ConnectionClosed:
             pass
+        except Exception as e:
+            print(f"[WS CMD ERROR] {e}")
 
     await asyncio.gather(sender(), receiver())
 
@@ -847,6 +1332,9 @@ def start_ws_thread():
 
 
 def start_service():
+    # kick off the Replay & Audit REST API server in the background
+    api_thread = start_api_server_thread(host=WS_HOST, port=API_PORT)
+
     # kick off the WebSocket server in the background so MQTT can run in the foreground
     ws_thread = Thread(target=start_ws_thread, daemon=True)
     ws_thread.start()

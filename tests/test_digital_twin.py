@@ -265,7 +265,7 @@ class TestFleetManager(unittest.TestCase):
 
     def test_fleet_registration_and_selection(self):
         fleet = fleet_manager.get_fleet_status()
-        self.assertEqual(len(fleet), 4)
+        self.assertEqual(len(fleet), 5)
         uav_ids = [u['uav_id'] for u in fleet]
         self.assertIn('UAV-01', uav_ids)
         self.assertIn('UAV-04', uav_ids)
@@ -514,9 +514,9 @@ class TestMvpJudgeFlow(unittest.TestCase):
         self.assertTrue("power" in cooling_rec["action"] or "RPM" in cooling_rec["operational"])
 
     def test_fleet_manager_multi_uav_switching(self):
-        """Verify FleetManager tracks 4 UAVs and updates selected active UAV."""
+        """Verify FleetManager tracks all UAVs in fleet and updates selected active UAV."""
         status = fleet_manager.get_fleet_status()
-        self.assertEqual(len(status), 4)
+        self.assertEqual(len(status), 5)
 
         # Switch to UAV-02
         self.assertTrue(fleet_manager.select_uav("UAV-02"))

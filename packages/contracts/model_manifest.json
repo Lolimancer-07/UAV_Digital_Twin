@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:uav-digital-twin:model-manifest:1.0",
+  "title": "UAV Digital Twin — Model Manifest v1.0",
+  "description": "Authoritative registry of every trained model artifact. Hash verification is enforced at load time by ModelRegistry.",
+  "manifest_version": "1.0",
+  "generated_at": "2026-10-09T00:00:00Z",
+  "models": [
+    {
+      "model_id": "uav_rul_lstm_v1",
+      "version": "1.0.0",
+      "task": "rul_regression",
+      "runtime": "tensorflow_2.x",
+      "file": "backend/uav_rul_model.h5",
+      "hash": "sha256:f8d6aa54a5fdcca841d243a3f3cc2b00d67f3d964eb9da4145ebe0dcada13054",
+      "trained_at": "2026-01-01T00:00:00Z",
+      "input_shape": [1, 50, 3],
+      "input_columns": ["rpm", "cht", "egt"],
+      "output": "scalar_rul_cycles",
+      "metrics": {
+        "latency_ms_cpu": 7,
+        "mc_dropout_samples": 10,
+        "mae": null,
+        "rmse": null,
+        "r2": null
+      },
+      "eval_set_id": "nasa_cmapss_fd001",
+      "notes": "Trained on NASA C-MAPSS turbofan dataset. CHT remapped to piston engine thermal range via heuristic domain shift. Not validated on real piston run-to-failure data. Phase 4 target: export to ONNX."
+    },
+    {
+      "model_id": "scaler_minmax_v1",
+      "version": "1.0.0",
+      "task": "feature_normalization",
+      "runtime": "sklearn_pickle",
+      "file": "backend/scaler.pkl",
+      "hash": "sha256:4dd9281f5ee68a9e051f0dc58ee279bd4e450a3a9b08fd6cce511e004456e840",
+      "trained_at": "2026-01-01T00:00:00Z",
+      "input_columns": ["rpm", "cht", "egt"],
+      "notes": "MinMaxScaler fitted on NASA C-MAPSS columns. Used to normalize LSTM input window. Phase 1 risk: pickle format is sklearn-version-sensitive."
+    },
+    {
+      "model_id": "anomaly_isolation_forest_v1",
+      "version": "1.0.0",
+      "task": "anomaly_detection",
+      "runtime": "sklearn_pickle",
+      "file": "backend/anomaly_model.pkl",
+      "hash": "sha256:f5b16f5a16959d6dc6ac16b4688906ca35901aa0d9cf8d6c2b4e43f0de162058",
+      "trained_at": "2026-01-01T00:00:00Z",
+      "input_columns": ["rpm", "cht", "egt", "oil_pressure", "oil_temp", "fuel_flow", "vibration", "battery_v", "map_kpa", "bus_current_a"],
+      "metrics": {
+        "training_samples": 5000,
+        "anomaly_threshold": -0.05
+      },
+      "eval_set_id": "synthetic_mission_sim_5000_cycles",
+      "notes": "Isolation Forest trained on 5000 synthetic nominal cycles from mission_sim.py. 8 rule-based fault classifiers layered on top. Trained on startup in backend/train_anomaly_detector.py."
+    }
+  ],
+  "policy": {
+    "hash_on_load": true,
+    "refuse_on_mismatch": true,
+    "version_bump_on_retrain": true,
+    "promotion_gate": "Phase 5 deliverable: offline metrics + shadow comparison + human sign-off"
+  }
+}

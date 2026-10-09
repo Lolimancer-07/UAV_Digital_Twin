@@ -315,6 +315,10 @@ export interface WhatIfResult {
 }
 
 export interface TelemetryPayload {
+  /** Decision Envelope contract version — "1.0". Consumers must reject unknown major versions. */
+  envelope_version?: string
+  /** ISO-8601 UTC timestamp of when this envelope was emitted by the inference engine. */
+  emitted_at?: string
   cycle?: number
   engine_id?: number
   uav_id?: string
@@ -432,6 +436,11 @@ export interface TelemetryPayload {
   federated_round?: FederatedRoundState
   edge_profile?: EdgeProfileState
   security_status?: SecurityStatusState
+  /** Provenance metadata — which core version and runtime produced this envelope. */
+  provenance?: {
+    core_version?: string
+    runtime?: "gcs_float32" | "edge_int8" | string
+  }
 }
 
 export interface SensorHistoryPoint {
@@ -579,6 +588,20 @@ export interface SetEdgeModeCommand {
   mode: "GCS_FLOAT32" | "EDGE_INT8"
 }
 
+export interface AnnotateReplayCommand {
+  command: "annotate_replay"
+  flight_id: string
+  cycle: number
+  note: string
+  category?: "OBSERVATION" | "FAULT_CONFIRMATION" | "FALSE_ALARM" | "MAINTENANCE_NOTE"
+  author?: string
+}
+
+export interface GenerateReportCommand {
+  command: "generate_report"
+  flight_id: string
+}
+
 export type TelemetryCommand =
   | SetProfileCommand
   | SetSpeedCommand
@@ -596,3 +619,152 @@ export type TelemetryCommand =
   | MissionCommandApproveCommand
   | TriggerFederatedRoundCommand
   | SetEdgeModeCommand
+  | AnnotateReplayCommand
+  | GenerateReportCommand
+
+// ─── Phase 2: Command Envelope v1 & Audit Contract ──────────────────────────
+
+export interface CommandEnvelopeV1 {
+  command_version: "1.0" | string
+  command: string
+  aircraft_id: string
+  intent_id: string
+  issued_by: string
+  issued_at: string
+  params?: Record<string, any>
+  signature?: string
+  tenant_id?: string
+}
+
+export interface CommandAuditRecord {
+  intent_id: string
+  tenant_id: string
+  command_version: string
+  command: string
+  aircraft_id: string
+  issued_by: string
+  issued_at: string
+  params: Record<string, any>
+  status: "ACCEPTED" | "EXECUTED" | "REJECTED" | "DUPLICATE" | string
+  effect: Record<string, any> | null
+  signature?: string
+  recorded_at: string
+}
+
+export interface FlightRecord {
+  flight_id: string
+  tenant_id: string
+  aircraft_id: string
+  start_time: string
+  end_time: string
+  start_cycle: number
+  end_cycle: number
+  total_cycles: number
+  critical_count: number
+  warning_count: number
+  status: "ACTIVE" | "COMPLETED" | "ABORTED" | string
+}
+
+export interface ReplayAnnotation {
+  id?: number
+  tenant_id?: string
+  aircraft_id: string
+  flight_id: string
+  cycle: number
+  author: string
+  category: "OBSERVATION" | "FAULT_CONFIRMATION" | "FALSE_ALARM" | "MAINTENANCE_NOTE" | string
+  note: string
+  created_at: string
+}
+
+export interface FlightComparisonMetric {
+  metric: string
+  unit: string
+  run_a: number
+  run_b: number
+  delta: number
+  percent_change: number
+}
+
+export interface FlightComparison {
+  flight_a: FlightRecord
+  flight_b: FlightRecord
+  metrics: FlightComparisonMetric[]
+  rul_delta_cycles: number
+  health_delta_pct: number
+  burn_rate_ratio: number
+  summary: string
+}
+
+export interface PostFlightReport {
+  report_id: string
+  generated_at: string
+  tenant_id: string
+  aircraft_id: string
+  flight_id: string
+  flight_summary: {
+    start_time: string
+    end_time: string
+    duration_s: number
+    start_cycle: number
+    end_cycle: number
+    total_cycles: number
+    data_points: number
+    packet_loss_pct: number
+  }
+  operational_envelope: {
+    rpm_peak: number
+    rpm_mean: number
+    cht_peak_f: number
+    cht_mean_f: number
+    egt_peak_f: number
+    egt_mean_f: number
+    oil_pressure_min_psi: number
+    oil_pressure_mean_psi: number
+    vibration_peak_g: number
+    vibration_mean_g: number
+  }
+  anomaly_summary: {
+    total_anomalies: number
+    alert_breakdown: {
+      nominal_cycles: number
+      warning_cycles: number
+      critical_cycles: number
+    }
+    twin_consistency_cases: {
+      case_a_nominal: number
+      case_b_real_fault: number
+      case_c_sensor_fault: number
+      case_d_false_positive: number
+    }
+    fault_events_detected: Array<{
+      cycle: number
+      name: string
+      severity: string
+      description: string
+    }>
+  }
+  prognostics_trajectory: {
+    initial_rul: number
+    final_rul: number
+    rul_burn_cycles: number
+    burn_rate_per_cycle: number
+    initial_health: number
+    final_health: number
+  }
+  audit_trail: CommandAuditRecord[]
+  prescriptive_work_orders: Array<{
+    ata_chapter: string
+    subsystem: string
+    action: string
+    urgency: "ROUTINE" | "URGENT" | "CRITICAL" | string
+    justification: string
+    sign_off_status: "PENDING" | "APPROVED" | string
+  }>
+  provenance: {
+    core_version: string
+    models_verified: boolean
+    reproducible_from_events: boolean
+  }
+}
+

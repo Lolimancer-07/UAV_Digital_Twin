@@ -69,10 +69,29 @@ echo -e "${BOLD}║     UAV DIGITAL TWIN — SYSTEM LAUNCHER       ║${NC}"
 echo -e "${BOLD}╚══════════════════════════════════════════════╝${NC}"
 echo ""
 
-# kill any leftover processes from a previous run so we get a clean start
-pkill -9 -f "backend/inference.py" 2>/dev/null || true
-pkill -9 -f "simulator/mission_sim.py" 2>/dev/null || true
-pkill -9 -f "simulator/ecu_sim" 2>/dev/null || true
+# Gracefully stop processes from a previous run so we get a clean start.
+# Strategy: SIGTERM first (give processes a chance to flush/close), then
+# SIGKILL only if they are still alive after a 3-second grace period.
+# This satisfies the Phase 0 requirement: "no -9 kills in the launcher".
+graceful_stop() {
+    local pattern="$1"
+    # 1. SIGTERM to all matching processes
+    pkill -TERM -f "$pattern" 2>/dev/null || true
+    # 2. Wait up to 3 s for them to exit
+    local waited=0
+    while pkill -0 -f "$pattern" 2>/dev/null && [ $waited -lt 3 ]; do
+        sleep 0.5
+        waited=$((waited + 1))
+    done
+    # 3. SIGKILL only for stragglers (last resort)
+    pkill -KILL -f "$pattern" 2>/dev/null || true
+}
+
+graceful_stop "backend/inference.py"
+graceful_stop "simulator/mission_sim.py"
+graceful_stop "simulator/ecu_sim"
+# Release TCP ports — fuser -k sends SIGKILL to the port owner;
+# we accept this only for ports, not for named processes.
 fuser -k 8765/tcp 2>/dev/null || true
 fuser -k 8080/tcp 2>/dev/null || true
 
@@ -148,6 +167,7 @@ echo "  → Launching backend/inference.py..."
 cd "$ROOT"
 $PYTHON -u "$ROOT/backend/inference.py" &
 INFERENCE_PID=$!
+echo $INFERENCE_PID > "$ROOT/.inference.pid"
 
 # give the model up to 15 seconds to load and open port 8765
 echo "  → Waiting for model load..."
@@ -172,6 +192,7 @@ hdr "5/5" "Mission Simulator (Python)"
 echo "  → Launching mission_sim.py (hot-reloadable profiles)..."
 $PYTHON -u "$ROOT/simulator/mission_sim.py" &
 SIM_PID=$!
+echo $SIM_PID > "$ROOT/.mission_sim.pid"
 sleep 1
 if kill -0 $SIM_PID 2>/dev/null; then
     ok "Mission simulator live (PID $SIM_PID)"
@@ -207,6 +228,7 @@ pkill -f "http.server.*8080" 2>/dev/null || true
 sleep 0.5
 $PYTHON -m http.server 8080 --bind 127.0.0.1 --directory "$ROOT/frontend" > /tmp/uav_frontend.log 2>&1 &
 FRONTEND_PID=$!
+echo $FRONTEND_PID > "$ROOT/.frontend.pid"
 sleep 0.5
 ok "Fallback Minimal Dashboard live → http://127.0.0.1:8080 (offline zero-npm fallback)"
 
@@ -218,6 +240,7 @@ echo -e "${BOLD}${GREEN}╠═════════════════�
 echo -e "${BOLD}${GREEN}║  ★ Primary GCS (Next.js)    →  http://localhost:3000         ║${NC}"
 echo -e "${BOLD}${GREEN}║  - Fallback GCS (Offline)   →  http://localhost:8080         ║${NC}"
 echo -e "${BOLD}${GREEN}║  - WebSocket Telemetry      →  ws://127.0.0.1:8765           ║${NC}"
+echo -e "${BOLD}${GREEN}║  - Replay & Audit REST API  →  http://127.0.0.1:8766         ║${NC}"
 echo -e "${BOLD}${GREEN}║  - MQTT Broker              →  localhost:1883                ║${NC}"
 echo -e "${BOLD}${GREEN}╚══════════════════════════════════════════════════════════════╝${NC}"
 echo ""
@@ -230,14 +253,19 @@ echo ""
 cleanup() {
     echo ""
     echo -e "${YELLOW}Shutting down all UAV Twin services...${NC}"
-    [ "$NEXT_PID" -ne 0 ] && kill $NEXT_PID 2>/dev/null || true
-    kill $INFERENCE_PID 2>/dev/null || true
-    kill $SIM_PID 2>/dev/null || true
-    [ "$FRONTEND_PID" -ne 0 ] && kill $FRONTEND_PID 2>/dev/null || true
-    pkill -9 -f "backend/inference.py" 2>/dev/null || true
-    pkill -9 -f "simulator/mission_sim.py" 2>/dev/null || true
-    pkill -9 -f "http.server.*8080" 2>/dev/null || true
-    pkill -9 -f "simulator/ecu_sim" 2>/dev/null || true
+    # SIGTERM first — give processes a chance to flush logs and close sockets
+    [ "$NEXT_PID" -ne 0 ]     && kill -TERM $NEXT_PID     2>/dev/null || true
+    kill -TERM $INFERENCE_PID  2>/dev/null || true
+    kill -TERM $SIM_PID        2>/dev/null || true
+    [ "$FRONTEND_PID" -ne 0 ] && kill -TERM $FRONTEND_PID 2>/dev/null || true
+    # Brief grace period, then force-stop any stragglers
+    sleep 2
+    kill -KILL $INFERENCE_PID  2>/dev/null || true
+    kill -KILL $SIM_PID        2>/dev/null || true
+    pkill -KILL -f "http.server.*8080" 2>/dev/null || true
+    pkill -KILL -f "simulator/ecu_sim" 2>/dev/null || true
+    # Clean up PID files
+    rm -f "$ROOT/.inference.pid" "$ROOT/.mission_sim.pid" "$ROOT/.frontend.pid"
     echo -e "${GREEN}All services stopped cleanly. Goodbye.${NC}"
     exit 0
 }

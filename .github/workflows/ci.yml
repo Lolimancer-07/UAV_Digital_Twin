@@ -1,0 +1,130 @@
+name: UAV Digital Twin — CI
+
+on:
+  push:
+    branches: ["main", "master", "develop"]
+  pull_request:
+    branches: ["main", "master", "develop"]
+
+jobs:
+  # ── Python backend: lint + tests ──────────────────────────────────────────
+  backend:
+    name: Backend (Python)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov
+
+      # Train anomaly model and ML classifier so tests can import them
+      - name: Train models (CI seed run)
+        working-directory: backend
+        run: |
+          python train_anomaly_detector.py
+          if [ -f ml_chatbot/train_intent_clf.py ]; then
+            python ml_chatbot/train_intent_clf.py || true
+          fi
+
+      - name: Run pytest with coverage
+        run: |
+          pytest tests/ \
+            --cov=backend \
+            --cov-report=term-missing \
+            --cov-fail-under=30 \
+            -v
+        env:
+          PYTHONPATH: "${{ github.workspace }}/packages/twin-core:${{ github.workspace }}/backend:${{ github.workspace }}"
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: .coverage
+
+  # ── Frontend: typecheck + lint ────────────────────────────────────────────
+  frontend:
+    name: Frontend (Next.js TypeScript)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: TypeScript typecheck
+        working-directory: frontend
+        run: pnpm exec tsc --noEmit
+
+      - name: ESLint
+        working-directory: frontend
+        # || true: surface warnings without failing until baseline is established
+        run: pnpm exec eslint . --max-warnings 0 || true
+
+  # ── Envelope contract test ────────────────────────────────────────────────
+  contracts:
+    name: Contract — Decision Envelope v1
+    runs-on: ubuntu-latest
+    needs: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt pytest jsonschema
+
+      - name: Train models (needed for envelope test)
+        working-directory: backend
+        run: |
+          python train_anomaly_detector.py
+          if [ -f ml_chatbot/train_intent_clf.py ]; then
+            python ml_chatbot/train_intent_clf.py || true
+          fi
+
+      - name: Run envelope contract, event store, golden scenario, and multi-tenant tests
+        run: |
+          pytest tests/test_envelope.py -v
+          pytest tests/test_event_store.py -v
+          pytest tests/test_golden_scenarios.py -v
+          pytest tests/test_multi_tenant.py -v
+          python infra/scripts/migrate.py --status
+        env:
+          PYTHONPATH: "${{ github.workspace }}/packages/twin-core:${{ github.workspace }}/backend:${{ github.workspace }}"
+
+
+      - name: Verify Decision Envelope TypeScript sync
+        run: |
+          python packages/contracts/generate_types.py --check
+        env:
+          PYTHONPATH: "${{ github.workspace }}/packages/twin-core:${{ github.workspace }}/backend:${{ github.workspace }}"

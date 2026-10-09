@@ -10,6 +10,11 @@ import type {
 } from "@/lib/telemetry/types"
 import { parseTelemetryMessage } from "@/lib/telemetry/utils"
 import { useTelemetryHistory } from "./use-telemetry-history"
+import {
+  getActiveSession,
+  fetchSessionToken,
+  subscribeToSessionChanges,
+} from "@/lib/telemetry/auth"
 
 export function useTelemetrySocket(endpoint = DEFAULT_WS_ENDPOINT) {
   const socketRef = React.useRef<WebSocket | null>(null)
@@ -52,19 +57,26 @@ export function useTelemetrySocket(endpoint = DEFAULT_WS_ENDPOINT) {
   const attemptRef = React.useRef(0)
 
   const resolveTargetEndpoint = React.useCallback(() => {
+    let base = endpoint
     if (process.env.NEXT_PUBLIC_TELEMETRY_WS_URL) {
-      return process.env.NEXT_PUBLIC_TELEMETRY_WS_URL
-    }
-    if (typeof window !== "undefined") {
+      base = process.env.NEXT_PUBLIC_TELEMETRY_WS_URL
+    } else if (typeof window !== "undefined") {
       const browserHost = window.location.hostname || "127.0.0.1"
       // If alternate retry attempts occur, flip between hostname and 127.0.0.1/localhost
       if (attemptRef.current % 2 === 1) {
         const altHost = browserHost === "localhost" ? "127.0.0.1" : "localhost"
-        return `ws://${altHost}:8765`
+        base = `ws://${altHost}:8765`
+      } else {
+        base = `ws://${browserHost}:8765`
       }
-      return `ws://${browserHost}:8765`
     }
-    return endpoint
+
+    const session = getActiveSession()
+    if (session.token) {
+      const separator = base.includes("?") ? "&" : "?"
+      return `${base}${separator}token=${encodeURIComponent(session.token)}`
+    }
+    return base
   }, [endpoint])
 
   const connect = React.useCallback(() => {
@@ -91,6 +103,31 @@ export function useTelemetrySocket(endpoint = DEFAULT_WS_ENDPOINT) {
       socket.onopen = () => {
         attemptRef.current = 0
         updateConnectionStatus("live")
+
+        // Subscribe using Subscription Contract v1.0
+        const session = getActiveSession()
+        const subMsg = {
+          command: "subscribe",
+          subscription_version: "1.0",
+          tenant_id: session.tenant_id,
+          aircraft_ids: session.aircraft_ids.length > 0 ? session.aircraft_ids : ["*"],
+          field_groups: [
+            "telemetry",
+            "physics",
+            "prognostics",
+            "anomaly",
+            "health",
+            "xai",
+            "risk",
+            "prescriptive",
+            "fleet",
+            "mission_command",
+          ],
+          min_interval_ms: 100,
+        }
+        try {
+          socket.send(JSON.stringify(subMsg))
+        } catch {}
       }
 
       socket.onmessage = (event) => {
@@ -102,7 +139,7 @@ export function useTelemetrySocket(endpoint = DEFAULT_WS_ENDPOINT) {
         if (!payload) {
           try {
             const raw = JSON.parse(event.data)
-            if (raw && (raw.status === "INITIALIZING" || raw.cycle != null)) {
+            if (raw && (raw.status === "INITIALIZING" || raw.cycle != null || raw.status === "SUBSCRIBED" || raw.status === "ACK")) {
               updateConnectionStatus("live")
             }
           } catch {}
@@ -178,10 +215,16 @@ export function useTelemetrySocket(endpoint = DEFAULT_WS_ENDPOINT) {
       }
     }, 3000)
 
+    // Listen for tenant or role switching
+    const unsubscribeAuth = subscribeToSessionChanges(() => {
+      connectRef.current()
+    })
+
     return () => {
       manualCloseRef.current = true
       window.clearInterval(watchdog)
       clearReconnect()
+      unsubscribeAuth()
       socketRef.current?.close()
       socketRef.current = null
     }
@@ -198,8 +241,13 @@ export function useTelemetrySocket(endpoint = DEFAULT_WS_ENDPOINT) {
       return false
     }
 
-    const token = process.env.NEXT_PUBLIC_UAV_TWIN_AUTH_TOKEN
-    const message = token ? { ...command, token } : command
+    const session = getActiveSession()
+    const message = {
+      ...command,
+      issued_at: new Date().toISOString(),
+      tenant_id: session.tenant_id,
+      token: session.token || undefined,
+    }
     socket.send(JSON.stringify(message))
     return true
   }, [])

@@ -1,0 +1,53 @@
+{
+  "metadata": {
+    "id": "SCN001",
+    "description": "Nominal cruise at 3000 ft. All sensors within spec, no faults, healthy engine.",
+    "seed": 42,
+    "created_at": "2026-10-09T00:00:00Z",
+    "simulator_version": "mission_sim.py",
+    "profile": "NORMAL"
+  },
+  "telemetry": {
+    "cycle": 500,
+    "engine_id": 1,
+    "uav_id": "UAV-01",
+    "rpm": 2400.0,
+    "cht": 385.0,
+    "cht_cyl": [383.5, 386.2, 384.8, 385.5],
+    "egt": 1452.0,
+    "egt_cyl": [1450.0, 1454.0, 1451.0, 1453.0],
+    "oil_pressure": 55.0,
+    "oil_temp": 180.0,
+    "fuel_flow": 10.5,
+    "fuel_rail_pressure_bar": 3.2,
+    "vibration": 1.15,
+    "vibration_kurtosis": 3.05,
+    "battery_v": 14.1,
+    "bus_current_a": 12.0,
+    "inj_timing": 28.0,
+    "map_kpa": 98.5,
+    "true_rul": 500.0,
+    "altitude_ft": 3000,
+    "oat_c": 15.0,
+    "mission_mode": "NORMAL",
+    "latitude": 28.6139,
+    "longitude": 77.2090,
+    "heading_deg": 90.0,
+    "ground_speed_kts": 65.0,
+    "mission_progress_pct": 50.0,
+    "can_frames": [],
+    "active_faults": []
+  },
+  "expected_decisions": {
+    "alert": "NOMINAL",
+    "is_anomaly": false,
+    "anomaly_score_max": 0.30,
+    "health_index_min": 80.0,
+    "health_index_max": 100.0,
+    "twin_consistency_case": "A",
+    "predicted_rul_min": 400.0,
+    "predicted_rul_max": 600.0,
+    "failure_probability_max": 0.15,
+    "max_delta_comment": "ONNX edge agent must match GCS float32 within these tolerances (Phase 4)"
+  }
+}

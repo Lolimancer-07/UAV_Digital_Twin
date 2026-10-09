@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:uav-digital-twin:subscription:1.0",
+  "title": "UAV Digital Twin — Subscription Message v1.0",
+  "description": "Per-tenant stream subscription contract (improvement_plan.md §4 Phase 3 & §6). Replaces unconditional full-state broadcast with tenant-scoped, field-filtered stream subscriptions.",
+  "type": "object",
+  "required": [
+    "subscription_version",
+    "tenant_id",
+    "aircraft_ids"
+  ],
+  "properties": {
+    "subscription_version": {
+      "type": "string",
+      "const": "1.0",
+      "description": "Subscription schema version."
+    },
+    "tenant_id": {
+      "type": "string",
+      "description": "Authorized tenant identifier."
+    },
+    "aircraft_ids": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "description": "List of aircraft callsigns to subscribe to (e.g. ['UAV-01', 'UAV-02'] or ['*'] for all authorized tenant aircraft)."
+    },
+    "field_groups": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "telemetry",
+          "physics",
+          "prognostics",
+          "anomaly",
+          "health",
+          "xai",
+          "risk",
+          "prescriptive",
+          "fleet",
+          "mission_command"
+        ]
+      },
+      "description": "Selective field groups to stream. Omitted groups are pruned to save bandwidth and prevent leakage."
+    },
+    "min_interval_ms": {
+      "type": "integer",
+      "minimum": 50,
+      "default": 100,
+      "description": "Minimum interval in milliseconds between updates (rate throttle)."
+    },
+    "backpressure_policy": {
+      "type": "string",
+      "enum": ["DROP_OLDEST", "DROP_LATEST", "BUFFER"],
+      "default": "DROP_OLDEST",
+      "description": "Handling strategy when client socket falls behind."
+    }
+  }
+}

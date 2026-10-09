@@ -1,0 +1,15 @@
+{
+  "bundle_id": "uav-prognostics-edge-v4.0",
+  "created_at": "2026-10-09T18:00:00Z",
+  "artifacts": {
+    "onnx_f32": "uav_rul_model.onnx",
+    "onnx_int8": "uav_rul_model_int8.onnx",
+    "scaler_params": "scaler_params.json"
+  },
+  "target_architectures": [
+    "Jetson Orin Nano",
+    "NXP i.MX8M Plus",
+    "x86_64"
+  ],
+  "runtime": "onnxruntime"
+}

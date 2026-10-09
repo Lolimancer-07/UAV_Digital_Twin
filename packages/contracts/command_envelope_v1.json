@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:uav-digital-twin:command-envelope:1.0",
+  "title": "UAV Digital Twin — Command Envelope v1.0",
+  "description": "The immutable contract for every operator command issued to the digital twin (improvement_plan.md §4 Phase 2 & §6). Every command is validated against this schema, authorized against the caller scope, recorded in an immutable audit trail, and idempotent via intent_id.",
+  "type": "object",
+  "required": [
+    "command_version",
+    "command",
+    "aircraft_id",
+    "intent_id",
+    "issued_by",
+    "issued_at"
+  ],
+  "properties": {
+    "command_version": {
+      "type": "string",
+      "const": "1.0",
+      "description": "Schema version of this command envelope. Major version mismatches must be rejected."
+    },
+    "command": {
+      "type": "string",
+      "description": "The command action verb to execute.",
+      "enum": [
+        "set_profile",
+        "set_speed",
+        "set_paused",
+        "inject_fault",
+        "clear_faults",
+        "whatif",
+        "optimize",
+        "mission_command_simulate",
+        "mission_command_approve",
+        "ai_engineer_query",
+        "select_uav",
+        "demo_start",
+        "demo_step",
+        "demo_stop",
+        "trigger_federated_round",
+        "set_edge_mode",
+        "annotate_replay",
+        "generate_report"
+      ]
+    },
+    "aircraft_id": {
+      "type": "string",
+      "description": "Target aircraft callsign (e.g. UAV-01, UAV-02) or '*' for fleet-wide command."
+    },
+    "intent_id": {
+      "type": "string",
+      "description": "Unique idempotency key (e.g. UUIDv4 or client monotonic sequence). Duplicate intent_ids are rejected without re-executing side effects."
+    },
+    "issued_by": {
+      "type": "string",
+      "description": "Identity of the issuing operator, service, or script (e.g. operator-alpha, gcs-console, demo-controller)."
+    },
+    "issued_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 UTC timestamp when the operator dispatched the command."
+    },
+    "params": {
+      "type": "object",
+      "description": "Arbitrary typed key-value parameters specific to the command verb.",
+      "default": {}
+    },
+    "signature": {
+      "type": "string",
+      "description": "Cryptographic signature or HMAC digest of the command envelope payload, used for replay protection and non-repudiation."
+    },
+    "tenant_id": {
+      "type": "string",
+      "description": "Multi-tenant partition key (defaults to 'default' in single-tenant deployments).",
+      "default": "default"
+    }
+  }
+}

@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:uav-digital-twin:decision-envelope:1.0",
+  "title": "UAV Digital Twin — Decision Envelope v1.0",
+  "description": "The single, versioned contract for every telemetry + decision payload emitted by the inference engine over WebSocket. Additions are MINOR version bumps; removals or type changes are MAJOR with a dual-emit window.",
+  "type": "object",
+  "required": ["envelope_version", "cycle", "engine_id", "uav_id", "alert"],
+  "properties": {
+    "envelope_version": {
+      "type": "string",
+      "const": "1.0",
+      "description": "Schema version of this envelope. Consumers must reject envelopes with unknown major versions."
+    },
+    "emitted_at":     { "type": "string", "format": "date-time" },
+    "cycle":          { "type": "integer", "minimum": 0 },
+    "engine_id":      { "type": "integer", "minimum": 1 },
+    "uav_id":         { "type": "string" },
+    "alert":          { "type": "string", "enum": ["NOMINAL", "WARNING", "CRITICAL"] },
+    "paused":         { "type": "boolean" },
+    "rpm":            { "type": "number" },
+    "cht":            { "type": "number" },
+    "egt":            { "type": "number" },
+    "oil_pressure":   { "type": "number" },
+    "oil_temp":       { "type": "number" },
+    "fuel_flow":      { "type": "number" },
+    "vibration":      { "type": "number" },
+    "battery_v":      { "type": "number" },
+    "altitude_ft":    { "type": "number" },
+    "true_rul":       { "type": "number", "minimum": 0 },
+    "oat_c":          { "type": "number" },
+    "mission_mode":   { "type": "string" },
+    "predicted_rul":  { "type": "number", "minimum": 0 },
+    "rul_ci_lower":   { "type": "number", "minimum": 0 },
+    "rul_ci_upper":   { "type": "number", "minimum": 0 },
+    "rul_mc_std":     { "type": "number", "minimum": 0 },
+    "is_anomaly":     { "type": "boolean" },
+    "anomaly_score":  { "type": "number" },
+    "failure_probability": { "type": "number", "minimum": 0, "maximum": 1 },
+    "fault_events":   {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "severity"],
+        "properties": {
+          "name":        { "type": "string" },
+          "severity":    { "type": "string", "enum": ["INFO", "WARNING", "CRITICAL"] },
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "physics": {
+      "type": "object",
+      "properties": {
+        "brake_power_hp":     { "type": "number" },
+        "bsfc_g_kwh":         { "type": "number" },
+        "thermal_efficiency": { "type": "number" },
+        "residuals":          { "type": "object" }
+      }
+    },
+    "health": {
+      "type": "object",
+      "properties": {
+        "health_index": { "type": "number", "minimum": 0, "maximum": 100 },
+        "condition":    { "type": "string" }
+      }
+    },
+    "twin_consistency": {
+      "type": "object",
+      "properties": {
+        "case":              { "type": "string", "enum": ["A", "B", "C", "D"] },
+        "ai_agreement":      { "type": "number" },
+        "physics_agreement": { "type": "number" }
+      }
+    },
+    "xai": {
+      "type": "object",
+      "properties": {
+        "top_drivers": { "type": "array" }
+      }
+    },
+    "mission_risk": {
+      "type": "object",
+      "properties": {
+        "mission_completion_probability": { "type": "number", "minimum": 0, "maximum": 1 },
+        "safe_endurance_h":               { "type": "number", "minimum": 0 }
+      }
+    },
+    "prescriptive": {
+      "type": "object",
+      "properties": {
+        "advisories":   { "type": "array" },
+        "work_orders":  { "type": "array" }
+      }
+    },
+    "sensor_integrity": { "type": "object" },
+    "telemetry_integrity": { "type": "object" },
+    "fleet_status":     { "type": "array" },
+    "demo_state":       { "type": "object" },
+    "federated_round":  { "type": "object" },
+    "edge_profile":     { "type": "object" },
+    "security_status":  { "type": "object" },
+    "mission_command":  { "type": "object" },
+    "provenance": {
+      "type": "object",
+      "properties": {
+        "core_version": { "type": "string" },
+        "config_hash":  { "type": "string" },
+        "runtime":      { "type": "string" }
+      }
+    }
+  },
+  "additionalProperties": true,
+  "_notes": {
+    "policy": "additive fields (new optional keys) → minor bump (1.0 → 1.1). Removal or type change of a required field → major bump (1.0 → 2.0) with dual-emit window of at least 2 releases.",
+    "generated_clients": "TypeScript types should be generated from this schema; the hand-maintained frontend/lib/telemetry/types.ts is a target for eventual replacement."
+  }
+}

@@ -273,101 +273,106 @@ def build_telemetry_packet(row, cycle_idx: int, prof: dict, faults: set) -> dict
     return packet
 
 
-# set up MQTT
-client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+def run_simulator():
+    # set up MQTT
+    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
 
-def on_connect(c, userdata, flags, rc, props):
-    if rc == 0:
-        print("[SIM] Connected to MQTT broker at localhost:1883")
-    else:
-        print(f"[SIM] MQTT connection failed (rc={rc})")
-        sys.exit(1)
+    def on_connect(c, userdata, flags, rc, props):
+        if rc == 0:
+            print("[SIM] Connected to MQTT broker at localhost:1883")
+        else:
+            print(f"[SIM] MQTT connection failed (rc={rc})")
+            sys.exit(1)
 
-client.on_connect = on_connect
-client.connect("localhost", 1883, 60)
-client.loop_start()
+    client.on_connect = on_connect
+    client.connect("localhost", 1883, 60)
+    client.loop_start()
 
-# load the dataset and start streaming
-print(f"[SIM] Loading dataset: {CSV_PATH}")
-df = pd.read_csv(CSV_PATH)
+    # load the dataset and start streaming
+    print(f"[SIM] Loading dataset: {CSV_PATH}")
+    df = pd.read_csv(CSV_PATH)
 
-current_engine_id = sim_state.get("engine_id", 1)
-mission_df = df[df['engine_id'] == current_engine_id].reset_index(drop=True)
-if len(mission_df) == 0:
-    mission_df = df.iloc[:192].reset_index(drop=True)
+    current_engine_id = sim_state.get("engine_id", 1)
+    mission_df = df[df['engine_id'] == current_engine_id].reset_index(drop=True)
+    if len(mission_df) == 0:
+        mission_df = df.iloc[:192].reset_index(drop=True)
 
-print(f"[SIM] Initialized UAV-0{current_engine_id} propulsion lifecycle ({len(mission_df)} flight cycles).")
-print(f"[SIM] Real-time 10 Hz telemetry active. Ingesting environmental & fault commands...\n")
+    print(f"[SIM] Initialized UAV-0{current_engine_id} propulsion lifecycle ({len(mission_df)} flight cycles).")
+    print(f"[SIM] Real-time 10 Hz telemetry active. Ingesting environmental & fault commands...\n")
 
-# Clear stale pause state on fresh simulator start so stale control files don't freeze the sim
-if os.path.exists(CONTROL_FILE):
-    try:
-        with open(CONTROL_FILE, 'r') as f:
-            _init_cfg = json.load(f)
-        if _init_cfg.get("paused", False):
-            _init_cfg["paused"] = False
-            with open(CONTROL_FILE, 'w') as f:
-                json.dump(_init_cfg, f, indent=2)
-    except Exception:
-        pass
+    # Clear stale pause state on fresh simulator start so stale control files don't freeze the sim
+    if os.path.exists(CONTROL_FILE):
+        try:
+            with open(CONTROL_FILE, 'r') as f:
+                _init_cfg = json.load(f)
+            if _init_cfg.get("paused", False):
+                _init_cfg["paused"] = False
+                with open(CONTROL_FILE, 'w') as f:
+                    json.dump(_init_cfg, f, indent=2)
+        except Exception:
+            pass
 
-while True:
-    cycle_counter = 1
-    for idx, row in mission_df.iterrows():
-        read_control()
-
-        # Check if active engine was switched by GCS command
-        if sim_state["engine_id"] != current_engine_id:
-            current_engine_id = sim_state["engine_id"]
-            mission_df = df[df['engine_id'] == current_engine_id].reset_index(drop=True)
-            if len(mission_df) == 0:
-                mission_df = df.iloc[:192].reset_index(drop=True)
-            print(f"\n[SIM] Engine switch triggered -> Active UAV-0{current_engine_id} ({len(mission_df)} flight cycles).\n", flush=True)
-            break
-
-        # pause loop — notify user and keep checking until unpaused
-        prev_paused_faults = set(sim_state["injected_faults"])
-        paused_notified = False
-        while sim_state["paused"]:
-            if not paused_notified:
-                print(f"[SIM] Simulation PAUSED at cycle {cycle_counter}. Awaiting resume command...", flush=True)
-                # Also publish a packet marked as paused so the digital twin has initial state
-                p_name = sim_state["profile"]
-                p_prof = PROFILES.get(p_name, PROFILES["NORMAL"])
-                p_payload = build_telemetry_packet(row, cycle_counter, p_prof, sim_state["injected_faults"])
-                client.publish(TOPIC, json.dumps(p_payload), qos=0)
-                paused_notified = True
-            time.sleep(0.2)
+    while True:
+        cycle_counter = 1
+        for idx, row in mission_df.iterrows():
             read_control()
-            if sim_state["injected_faults"] != prev_paused_faults:
-                prev_paused_faults = set(sim_state["injected_faults"])
-                p_name = sim_state["profile"]
-                p_prof = PROFILES.get(p_name, PROFILES["NORMAL"])
-                p_payload = build_telemetry_packet(row, cycle_counter, p_prof, prev_paused_faults)
-                client.publish(TOPIC, json.dumps(p_payload), qos=0)
-        if paused_notified:
-            print(f"[SIM] Simulation RESUMED at cycle {cycle_counter}.", flush=True)
 
-        prof_name = sim_state["profile"]
-        prof = PROFILES.get(prof_name, PROFILES["NORMAL"])
-        faults = sim_state["injected_faults"]
+            # Check if active engine was switched by GCS command
+            if sim_state["engine_id"] != current_engine_id:
+                current_engine_id = sim_state["engine_id"]
+                mission_df = df[df['engine_id'] == current_engine_id].reset_index(drop=True)
+                if len(mission_df) == 0:
+                    mission_df = df.iloc[:192].reset_index(drop=True)
+                print(f"\n[SIM] Engine switch triggered -> Active UAV-0{current_engine_id} ({len(mission_df)} flight cycles).\n", flush=True)
+                break
 
-        payload = build_telemetry_packet(row, cycle_counter, prof, faults)
-        msg = json.dumps(payload)
-        client.publish(TOPIC, msg, qos=0)
+            # pause loop — notify user and keep checking until unpaused
+            prev_paused_faults = set(sim_state["injected_faults"])
+            paused_notified = False
+            while sim_state["paused"]:
+                if not paused_notified:
+                    print(f"[SIM] Simulation PAUSED at cycle {cycle_counter}. Awaiting resume command...", flush=True)
+                    # Also publish a packet marked as paused so the digital twin has initial state
+                    p_name = sim_state["profile"]
+                    p_prof = PROFILES.get(p_name, PROFILES["NORMAL"])
+                    p_payload = build_telemetry_packet(row, cycle_counter, p_prof, sim_state["injected_faults"])
+                    client.publish(TOPIC, json.dumps(p_payload), qos=0)
+                    paused_notified = True
+                time.sleep(0.2)
+                read_control()
+                if sim_state["injected_faults"] != prev_paused_faults:
+                    prev_paused_faults = set(sim_state["injected_faults"])
+                    p_name = sim_state["profile"]
+                    p_prof = PROFILES.get(p_name, PROFILES["NORMAL"])
+                    p_payload = build_telemetry_packet(row, cycle_counter, p_prof, prev_paused_faults)
+                    client.publish(TOPIC, json.dumps(p_payload), qos=0)
+            if paused_notified:
+                print(f"[SIM] Simulation RESUMED at cycle {cycle_counter}.", flush=True)
 
-        fault_str = f" [FAULTS: {','.join(faults)}]" if faults else ""
-        print(f"Tx [{payload['uav_id']} C{cycle_counter:04d}] "
-              f"RUL={payload['true_rul']:3.0f} | "
-              f"RPM={payload['rpm']:6.1f} CHT={payload['cht']:5.1f}°F "
-              f"EGT={payload['egt']:6.1f}°F OIL={payload['oil_pressure']:4.1f}PSI "
-              f"VIB={payload['vibration']:.2f}g [{prof_name}]{fault_str}", flush=True)
+            prof_name = sim_state["profile"]
+            prof = PROFILES.get(prof_name, PROFILES["NORMAL"])
+            faults = sim_state["injected_faults"]
 
-        cycle_counter += 1
+            payload = build_telemetry_packet(row, cycle_counter, prof, faults)
+            msg = json.dumps(payload)
+            client.publish(TOPIC, msg, qos=0)
 
-        # sleep to hit the target Hz — divide by speed multiplier
-        sleep_dur = (1.0 / prof["base_hz"]) / max(0.2, sim_state["speed"])
-        time.sleep(sleep_dur)
+            fault_str = f" [FAULTS: {','.join(faults)}]" if faults else ""
+            print(f"Tx [{payload['uav_id']} C{cycle_counter:04d}] "
+                  f"RUL={payload['true_rul']:3.0f} | "
+                  f"RPM={payload['rpm']:6.1f} CHT={payload['cht']:5.1f}°F "
+                  f"EGT={payload['egt']:6.1f}°F OIL={payload['oil_pressure']:4.1f}PSI "
+                  f"VIB={payload['vibration']:.2f}g [{prof_name}]{fault_str}", flush=True)
 
-    print(f"\n[SIM] UAV-0{current_engine_id} flight cycle completed. Resetting loop...\n", flush=True)
-    time.sleep(1.0)
+            cycle_counter += 1
+
+            # sleep to hit the target Hz — divide by speed multiplier
+            sleep_dur = (1.0 / prof["base_hz"]) / max(0.2, sim_state["speed"])
+            time.sleep(sleep_dur)
+
+        print(f"\n[SIM] UAV-0{current_engine_id} flight cycle completed. Resetting loop...\n", flush=True)
+        time.sleep(1.0)
+
+
+if __name__ == "__main__":
+    run_simulator()

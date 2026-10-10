@@ -231,3 +231,30 @@ class FederatedCoordinator:
 
 # Singleton instance
 federated_coordinator = FederatedCoordinator()
+
+# Re-export production DP-FedAvg components from twin_core
+try:
+    from twin_core.federated_aggregator import (
+        DifferentialPrivacyFederatedCoordinator,
+        dp_federated_average,
+        clip_gradients,
+        dp_federated_coordinator,
+        ParticipantAttestationError,
+        InsufficientParticipantsError,
+    )
+except ImportError:
+    pass
+
+__all__ = [
+    "FederatedCoordinator",
+    "federated_average",
+    "federated_coordinator",
+    "FEDERATED_FEATURES",
+    "DifferentialPrivacyFederatedCoordinator",
+    "dp_federated_average",
+    "clip_gradients",
+    "dp_federated_coordinator",
+    "ParticipantAttestationError",
+    "InsufficientParticipantsError",
+]
+

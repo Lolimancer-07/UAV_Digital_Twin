@@ -293,20 +293,32 @@ class EdgeAnomalyDetector:
         debounced_faults = self.hysteresis.filter_faults(raw_faults)
 
         # Compute continuous anomaly score (-1.0 to 1.0; < 0 is anomalous)
-        base_score = 0.35
+        exceedance_penalty = 0.0
+        if cht > 425.0:
+            exceedance_penalty += (cht - 425.0) / 25.0 * 0.4
+        if egt > 1630.0:
+            exceedance_penalty += (egt - 1630.0) / 70.0 * 0.3
+        if oil_p < 40.0:
+            exceedance_penalty += (40.0 - oil_p) / 10.0 * 0.4
+        if vib > 1.8:
+            exceedance_penalty += (vib - 1.8) / 0.7 * 0.4
+
+        base_score = 0.35 - exceedance_penalty
         if debounced_faults:
             has_crit = any(f["severity"] == "CRITICAL" for f in debounced_faults)
-            base_score = -0.45 if has_crit else -0.15
+            base_score = min(base_score, -0.45 if has_crit else -0.15)
 
-        is_anomaly = len(debounced_faults) > 0 or base_score < self.threshold
+        self._last_raw_faults = raw_faults
+        is_anomaly = len(raw_faults) > 0 or len(debounced_faults) > 0 or base_score < self.threshold
         return is_anomaly, round(base_score, 3), debounced_faults
 
     def predict(self, telemetry: Dict[str, Any]) -> Dict[str, Any]:
         """Convenience method returning structured dictionary."""
-        is_anomaly, score, faults = self.evaluate(telemetry)
+        is_anomaly, score, debounced = self.evaluate(telemetry)
         return {
             "is_anomaly": is_anomaly,
             "anomaly_score": score,
-            "faults": faults,
+            "faults": getattr(self, "_last_raw_faults", debounced),
+            "debounced_faults": debounced,
         }
 

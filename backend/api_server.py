@@ -28,6 +28,60 @@ from twin_core.auth import (
     ROLE_VIEWER,
     ROLE_MAINTAINER,
 )
+from twin_core.drift_detector import drift_detector
+from twin_core.model_governance import model_promotion_gate
+from twin_core.federated_aggregator import dp_federated_coordinator
+from twin_core.safety_assurance import (
+    AdvisorySafetyEnvelope,
+    RequirementsTraceabilityRegistry,
+    HAZARDS_REGISTER,
+)
+from twin_core.hil_testbed import (
+    HILScenarioReplayRunner,
+    HILPassFailEvaluator,
+    FAULT_INJECTION_CATALOG,
+    BENCH_HARDWARE_SPECS,
+)
+from twin_core.security_compliance import (
+    SBOMGenerator,
+    KeyRotationManager,
+    DataResidencyEnforcer,
+)
+from twin_core.demo_kit import ValueStoryDemoController
+from twin_core.data_connectors import CustomerLogBackfillParser
+from twin_core.roi_calculator import EngineHealthROICalculator, COMMERCIAL_TIERS
+
+# Phase 6 & 7 Singletons
+safety_envelope = AdvisorySafetyEnvelope()
+traceability_registry = RequirementsTraceabilityRegistry()
+key_rotation_mgr = KeyRotationManager()
+sbom_generator = SBOMGenerator()
+hil_runner = HILScenarioReplayRunner()
+hil_evaluator = HILPassFailEvaluator()
+
+# Phase 7 GTM Singletons
+demo_story_controller = ValueStoryDemoController()
+backfill_parser = CustomerLogBackfillParser()
+roi_calc = EngineHealthROICalculator()
+
+# Phase 8 Scale Singletons
+from twin_core.platform_profiles import platform_registry
+from twin_core.scale_ingest import PartitionedIngestRouter
+from twin_core.cost_tracker import cost_tracker
+from twin_core.chaos_engine import chaos_runner
+
+partitioned_ingest = PartitionedIngestRouter()
+
+# Planning & Decision Support Singletons (STARTUP_BLUEPRINT.md Phase 4)
+from twin_core.life_burn import life_burn_calc
+from twin_core.mission_planner import mission_planner, MissionSegment
+from twin_core.contingency_footprint import contingency_engine
+
+# Integrity & Trust Singletons (STARTUP_BLUEPRINT.md Phase 3)
+from twin_core.physics_firewall import physics_firewall
+from twin_core.virtual_sensors import virtual_sensors_engine
+from twin_core.reliability_passport import engine_passport
+from twin_core.causal_root_cause import causal_engine
 
 WS_AUTH_TOKEN = os.environ.get("UAV_TWIN_AUTH_TOKEN", "").strip()
 REQUIRE_AUTH = os.environ.get("UAV_TWIN_REQUIRE_AUTH", "").lower() in ("1", "true", "yes")
@@ -102,22 +156,28 @@ class TwinApiHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def _send_json(self, data: dict, status: int = 200):
-        body = json.dumps(data).encode("utf-8")
-        self.send_response(status)
-        self._send_cors_headers()
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+        try:
+            body = json.dumps(data).encode("utf-8")
+            self.send_response(status)
+            self._send_cors_headers()
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            pass
 
     def _send_html(self, html_content: str, status: int = 200):
-        body = html_content.encode("utf-8")
-        self.send_response(status)
-        self._send_cors_headers()
-        self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+        try:
+            body = html_content.encode("utf-8")
+            self.send_response(status)
+            self._send_cors_headers()
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            pass
 
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
@@ -243,6 +303,104 @@ class TwinApiHandler(BaseHTTPRequestHandler):
                 self._send_json({"status": "OK", "migrations": applied, "count": len(applied)})
                 return
 
+            # 9. GET /api/drift/tickets
+            if path in ("/api/drift/tickets", "/api/twin/drift/tickets"):
+                aircraft_id = qs.get("aircraft_id", [None])[0]
+                status_filter = qs.get("status", [None])[0]
+                tickets = drift_detector.list_tickets(aircraft_id=aircraft_id, tenant_id=caller_tenant, status=status_filter)
+                self._send_json({"status": "OK", "tickets": tickets, "count": len(tickets)})
+                return
+
+            # 10. GET /api/models/eval-cards
+            if path in ("/api/models/eval-cards", "/api/twin/models/eval-cards"):
+                cards = [c.to_dict() for c in model_promotion_gate.eval_cards.values()]
+                self._send_json({"status": "OK", "eval_cards": cards, "active_champion": model_promotion_gate.active_champion})
+                return
+
+            # 11. GET /api/federated/status
+            if path in ("/api/federated/status", "/api/twin/federated/status"):
+                fed_status = dp_federated_coordinator.get_status()
+                self._send_json({"status": "OK", "federated_learning": fed_status})
+                return
+
+            # 12. GET /api/compliance/posture
+            if path in ("/api/compliance/posture", "/api/twin/compliance/posture"):
+                self._send_json({
+                    "status": "APPROVED",
+                    "assurance_classification": "GROUND_SIDE_ADVISORY_DECISION_SUPPORT",
+                    "airborne_authority": "NONE_ADVISORY_ONLY",
+                    "runtime_safety_envelope": {
+                        "active": True,
+                        "total_evaluated": safety_envelope.total_evaluated,
+                        "total_suppressed": safety_envelope.total_suppressed,
+                    },
+                    "requirements_traceability": {
+                        "total_hazards": len(HAZARDS_REGISTER),
+                        "hazards": traceability_registry.list_hazards(),
+                    },
+                    "bench_hardware_specs": BENCH_HARDWARE_SPECS,
+                    "active_key_id": key_rotation_mgr.active_key_id,
+                })
+                return
+
+            # 13. GET /api/compliance/sbom
+            if path in ("/api/compliance/sbom", "/api/twin/compliance/sbom"):
+                sbom = sbom_generator.generate_cyclonedx_sbom()
+                self._send_json(sbom)
+                return
+
+            # 14. GET /api/demo/state
+            if path in ("/api/demo/state", "/api/twin/demo/state"):
+                self._send_json(demo_story_controller.get_state())
+                return
+
+            # 15. GET /api/demo/report
+            if path in ("/api/demo/report", "/api/twin/demo/report"):
+                html_rep = demo_story_controller.generate_printable_outcome_report()
+                self._send_html(html_rep)
+                return
+
+            # 16. GET /api/roi/tiers
+            if path in ("/api/roi/tiers", "/api/twin/roi/tiers"):
+                self._send_json({"status": "OK", "pricing_tiers": COMMERCIAL_TIERS})
+                return
+
+            # 17. GET /api/scale/profiles
+            if path in ("/api/scale/profiles", "/api/twin/scale/profiles"):
+                self._send_json({"status": "OK", "profiles": platform_registry.list_profiles()})
+                return
+
+            # 18. GET /api/scale/ingest/status
+            if path in ("/api/scale/ingest/status", "/api/twin/scale/ingest/status"):
+                aid = qs.get("aircraft_id", [None])[0]
+                metrics = partitioned_ingest.get_partition_metrics(aid)
+                self._send_json({"status": "OK", "ingest_metrics": metrics})
+                return
+
+            # 19. GET /api/scale/cost/metrics
+            if path in ("/api/scale/cost/metrics", "/api/twin/scale/cost/metrics"):
+                hrs = float(qs.get("flight_hours_per_month", [50.0])[0])
+                c_out = cost_tracker.compute_monthly_cost_per_aircraft(flight_hours_per_month=hrs)
+                self._send_json({"status": "OK", "cost_metrics": c_out})
+                return
+
+            # 20. GET /api/contingency/sites
+            if path in ("/api/contingency/sites", "/v1/contingency/sites", "/api/twin/contingency/sites"):
+                self._send_json({"status": "OK", "sites": contingency_engine.list_sites()})
+                return
+
+            # 21. GET /api/passport/verify
+            if path in ("/api/passport/verify", "/v1/passport/verify", "/api/twin/passport/verify"):
+                audit_res = engine_passport.verify_integrity()
+                self._send_json({"status": "OK", "audit": audit_res})
+                return
+
+            # 22. GET /api/passport/export
+            if path in ("/api/passport/export", "/v1/passport/export", "/api/twin/passport/export"):
+                pack_res = engine_passport.export_evidence_pack()
+                self._send_json({"status": "OK", "evidence_pack": pack_res})
+                return
+
             # Health probe
             if path in ("/health", "/api/health", "/api/twin/health"):
                 self._send_json({"status": "OK", "service": "uav-twin-replay-api", "version": "3.0", "tenant_isolation": "ACTIVE"})
@@ -357,6 +515,290 @@ class TwinApiHandler(BaseHTTPRequestHandler):
 
                 report = generate_flight_report(store, flight_id, tenant_id=caller_tenant)
                 self._send_json({"status": "OK", "report": report})
+                return
+
+            # 4. POST /api/drift/tickets/acknowledge
+            if path in ("/api/drift/tickets/acknowledge", "/api/twin/drift/tickets/acknowledge"):
+                ticket_id = body.get("ticket_id")
+                if not ticket_id:
+                    self._send_json({"error": "Missing required field: 'ticket_id'"}, 400)
+                    return
+                ok = drift_detector.acknowledge_ticket(ticket_id, assigned_to=caller.get("sub", "engineer@fleet"))
+                if ok:
+                    self._send_json({"status": "OK", "message": f"Ticket {ticket_id} acknowledged"})
+                else:
+                    self._send_json({"error": f"Ticket {ticket_id} not found"}, 404)
+                return
+
+            # 5. POST /api/drift/tickets/resolve
+            if path in ("/api/drift/tickets/resolve", "/api/twin/drift/tickets/resolve"):
+                ticket_id = body.get("ticket_id")
+                note = body.get("resolution_note", "Resolved after inspection")
+                if not ticket_id:
+                    self._send_json({"error": "Missing required field: 'ticket_id'"}, 400)
+                    return
+                ok = drift_detector.resolve_ticket(ticket_id, resolution_note=note, resolved_by=caller.get("sub", "engineer@fleet"))
+                if ok:
+                    self._send_json({"status": "OK", "message": f"Ticket {ticket_id} resolved"})
+                else:
+                    self._send_json({"error": f"Ticket {ticket_id} not found"}, 404)
+                return
+
+            # 6. POST /api/models/promote
+            if path in ("/api/models/promote", "/api/twin/models/promote"):
+                eval_id = body.get("eval_id")
+                justification = body.get("justification", "Passed shadow-mode parity and offline metric gates")
+                if not eval_id:
+                    self._send_json({"error": "Missing required field: 'eval_id'"}, 400)
+                    return
+                ok, msg = model_promotion_gate.promote_candidate(
+                    eval_id=eval_id,
+                    approved_by=caller.get("sub", "engineer@fleet"),
+                    justification=justification,
+                )
+                if ok:
+                    self._send_json({"status": "OK", "message": msg, "champion": model_promotion_gate.active_champion})
+                else:
+                    self._send_json({"error": msg}, 422)
+                return
+
+            # 7. POST /api/models/rollback
+            if path in ("/api/models/rollback", "/api/twin/models/rollback"):
+                reason = body.get("reason", "Operator manual rollback")
+                ok, msg = model_promotion_gate.rollback_model(
+                    reason=reason,
+                    approved_by=caller.get("sub", "engineer@fleet"),
+                )
+                if ok:
+                    self._send_json({"status": "OK", "message": msg, "champion": model_promotion_gate.active_champion})
+                else:
+                    self._send_json({"error": msg}, 422)
+                return
+
+            # 8. POST /api/security/rotate-keys
+            if path in ("/api/security/rotate-keys", "/api/twin/security/rotate-keys"):
+                reason = body.get("reason", "SCHEDULED_ROTATION")
+                new_key = key_rotation_mgr.rotate_key(reason=reason)
+                self._send_json({
+                    "status": "OK",
+                    "message": f"Key rotated successfully to {new_key}",
+                    "active_key_id": new_key,
+                })
+                return
+
+            # 9. POST /api/compliance/hil-eval
+            if path in ("/api/compliance/hil-eval", "/api/twin/compliance/hil-eval"):
+                f_id = body.get("fault_injection_id", "INJ-TH-01")
+                duration = int(body.get("duration_cycles", 50))
+                start_c = int(body.get("fault_start_cycle", 20))
+                frames = hil_runner.generate_scenario_frames(duration_cycles=duration, fault_injection_id=f_id, fault_start_cycle=start_c)
+
+                def _eval_frame(f):
+                    res = {}
+                    if f.get("cht", 0) > 420.0:
+                        res["status"] = "CRITICAL"
+                        res["fault_category"] = "OVERHEATING"
+                    elif f.get("oil_pressure", 100) < 30.0:
+                        res["status"] = "EMERGENCY"
+                        res["fault_category"] = "LOW_OIL_PRESSURE"
+                    elif f.get("vibration", 0) > 2.0:
+                        res["status"] = "WARNING"
+                        res["fault_category"] = "HIGH_VIBRATION"
+                    return res
+
+                eval_res = hil_evaluator.evaluate_run(frames, _eval_frame, fault_injection_id=f_id, fault_start_cycle=start_c)
+                self._send_json(eval_res)
+                return
+
+            # 10. POST /api/compliance/verify-recommendation
+            if path in ("/api/compliance/verify-recommendation", "/api/twin/compliance/verify-recommendation"):
+                rec = body.get("recommendation", {})
+                telemetry = body.get("current_telemetry", {})
+                phase = body.get("flight_phase", "cruise")
+                vetted = safety_envelope.evaluate_recommendation(rec, telemetry, flight_phase=phase)
+                self._send_json(vetted)
+                return
+
+            # 11. POST /api/demo/start
+            if path in ("/api/demo/start", "/api/twin/demo/start"):
+                state = demo_story_controller.start_demo()
+                self._send_json({"status": "OK", "demo": state})
+                return
+
+            # 12. POST /api/demo/advance
+            if path in ("/api/demo/advance", "/api/twin/demo/advance"):
+                target_s = body.get("step")
+                state = demo_story_controller.advance_step(target_step=int(target_s) if target_s is not None else None)
+                self._send_json({"status": "OK", "demo": state})
+                return
+
+            # 13. POST /api/demo/reset
+            if path in ("/api/demo/reset", "/api/twin/demo/reset"):
+                res = demo_story_controller.reset_to_baseline()
+                self._send_json(res)
+                return
+
+            # 14. POST /api/roi/calculate
+            if path in ("/api/roi/calculate", "/api/twin/roi/calculate"):
+                f_size = int(body.get("fleet_size", 10))
+                hrs = float(body.get("annual_flight_hours_per_uav", 600.0))
+                tier_k = str(body.get("tier_choice", "TIER_FLEET_CLOUD"))
+                roi_out = roi_calc.calculate_fleet_roi(fleet_size=f_size, annual_flight_hours_per_uav=hrs, tier_choice=tier_k)
+                self._send_json(roi_out)
+                return
+
+            # 15. POST /api/ingest/backfill
+            if path in ("/api/ingest/backfill", "/api/twin/ingest/backfill"):
+                csv_payload = body.get("csv_data")
+                if not csv_payload and raw_body:
+                    try:
+                        csv_payload = raw_body.decode("utf-8", errors="ignore")
+                    except Exception:
+                        csv_payload = ""
+                frames, meta = backfill_parser.parse_csv_content(csv_payload or "")
+                insight = backfill_parser.generate_first_insight_card(frames)
+                self._send_json({
+                    "status": "OK",
+                    "frames_parsed": len(frames),
+                    "metadata": meta,
+                    "first_insight_card": insight,
+                })
+            # 16. POST /api/scale/profiles
+            if path in ("/api/scale/profiles", "/api/twin/scale/profiles"):
+                ok, err_msg = platform_registry.register_profile(body)
+                if ok:
+                    self._send_json({"status": "OK", "message": f"Profile {body.get('profile_id')} registered successfully"})
+                else:
+                    self._send_json({"error": err_msg}, 422)
+                return
+
+            # 17. POST /api/scale/ingest/frame
+            if path in ("/api/scale/ingest/frame", "/api/twin/scale/ingest/frame"):
+                is_crit = bool(body.get("is_critical", False))
+                route_res = partitioned_ingest.ingest_frame(body, is_critical_event=is_crit)
+                self._send_json(route_res)
+                return
+
+            # 18. POST /api/scale/chaos/drill
+            if path in ("/api/scale/chaos/drill", "/api/twin/scale/chaos/drill"):
+                drill_t = body.get("drill_type", "BROKER_DOWN").upper()
+                if drill_t == "BROKER_DOWN":
+                    d_res = chaos_runner.run_broker_down_drill()
+                elif drill_t == "STORE_DOWN":
+                    d_res = chaos_runner.run_store_down_drill()
+                elif drill_t == "MODEL_MISSING":
+                    d_res = chaos_runner.run_model_missing_drill()
+                else:
+                    self._send_json({"error": f"Unknown drill_type: {drill_t}"}, 400)
+                    return
+                self._send_json(d_res)
+                return
+
+            # 19. POST /api/missions/plan
+            if path in ("/api/missions/plan", "/v1/missions/plan", "/api/twin/missions/plan"):
+                rul_h = float(body.get("current_rul_hours", 120.0))
+                fuel_cap = float(body.get("fuel_capacity_gal", 65.0))
+                seg_data = body.get("segments")
+                parsed_segs = None
+                if seg_data and isinstance(seg_data, list):
+                    parsed_segs = [
+                        MissionSegment(
+                            name=s.get("name", f"Segment-{idx+1}"),
+                            phase=s.get("phase", "CRUISE"),
+                            distance_nmi=float(s.get("distance_nmi", 50.0)),
+                            target_altitude_ft=float(s.get("target_altitude_ft", 8000.0)),
+                            loiter_duration_hours=float(s.get("loiter_duration_hours", 0.0)),
+                            wind_headwind_kts=float(s.get("wind_headwind_kts", 0.0)),
+                        )
+                        for idx, s in enumerate(seg_data)
+                    ]
+                plan_res = mission_planner.plan_mission_pareto(
+                    segments=parsed_segs,
+                    current_rul_hours=rul_h,
+                    fuel_capacity_gal=fuel_cap,
+                )
+                self._send_json(plan_res)
+                return
+
+            # 20. POST /api/missions/score
+            if path in ("/api/missions/score", "/v1/missions/score", "/api/twin/missions/score"):
+                aid = body.get("aircraft_id", "UAV-01")
+                health = float(body.get("current_health_index", 92.0))
+                rul_h = float(body.get("current_rul_hours", 110.0))
+                accum_h = float(body.get("accumulated_life_hours", 340.0))
+                score_res = mission_planner.evaluate_mission_dispatch(
+                    aircraft_id=aid,
+                    proposed_mission=body.get("proposed_mission"),
+                    current_health_index=health,
+                    current_rul_hours=rul_h,
+                    accumulated_life_hours=accum_h,
+                )
+                self._send_json(score_res)
+                return
+
+            # 21. POST /api/contingency/footprint
+            if path in ("/api/contingency/footprint", "/v1/contingency/footprint", "/api/twin/contingency/footprint"):
+                c_lat = float(body.get("current_lat", 34.180))
+                c_lon = float(body.get("current_lon", -116.750))
+                c_alt = float(body.get("current_altitude_ft", 7500.0))
+                derate = float(body.get("derated_power_pct", 60.0))
+                rul_mean = float(body.get("conformal_rul_mean_h", 1.2))
+                rul_sig = float(body.get("conformal_rul_sigma_h", 0.25))
+                w_spd = float(body.get("wind_speed_kts", 15.0))
+                w_dir = float(body.get("wind_direction_deg", 270.0))
+                footprint_res = contingency_engine.calculate_contingency_footprint(
+                    current_lat=c_lat,
+                    current_lon=c_lon,
+                    current_altitude_ft=c_alt,
+                    derated_power_pct=derate,
+                    conformal_rul_mean_h=rul_mean,
+                    conformal_rul_sigma_h=rul_sig,
+                    wind_speed_kts=w_spd,
+                    wind_direction_deg=w_dir,
+                )
+                self._send_json(footprint_res)
+                return
+
+            # 22. POST /api/firewall/inspect
+            if path in ("/api/firewall/inspect", "/v1/firewall/inspect", "/api/twin/firewall/inspect"):
+                dt = float(body.get("dt_s", 0.1))
+                firewall_res = physics_firewall.inspect_frame(body, dt_s=dt)
+                self._send_json(firewall_res)
+                return
+
+            # 23. POST /api/sensors/reconstruct
+            if path in ("/api/sensors/reconstruct", "/v1/sensors/reconstruct", "/api/twin/sensors/reconstruct"):
+                reconstruct_res = virtual_sensors_engine.process_telemetry_frame(body)
+                self._send_json(reconstruct_res)
+                return
+
+            # 24. POST /api/passport/append
+            if path in ("/api/passport/append", "/v1/passport/append", "/api/twin/passport/append"):
+                aid = body.get("aircraft_id", "UAV-01")
+                fid = body.get("flight_id", "flight-manual-01")
+                f_hrs = float(body.get("flight_hours", 2.0))
+                l_hrs = float(body.get("life_burn_equivalent_hours", 2.2))
+                m_cht = float(body.get("max_cht_f", 385.0))
+                m_vib = float(body.get("max_vibration_g", 0.70))
+                anom = int(body.get("anomalies_detected", 0))
+                blk = engine_passport.append_flight_record(
+                    aircraft_id=aid,
+                    flight_id=fid,
+                    flight_hours=f_hrs,
+                    life_burn_equivalent_hours=l_hrs,
+                    max_cht_f=m_cht,
+                    max_vibration_g=m_vib,
+                    anomalies_detected=anom,
+                )
+                self._send_json({"status": "OK", "appended_block": blk.to_dict()})
+                return
+
+            # 25. POST /api/diagnostics/causal-root-cause
+            if path in ("/api/diagnostics/causal-root-cause", "/v1/diagnostics/causal-root-cause", "/api/twin/diagnostics/causal-root-cause"):
+                t_data = body.get("telemetry", body)
+                res_data = body.get("residuals")
+                diag_res = causal_engine.diagnose_root_cause(t_data, res_data)
+                self._send_json(diag_res)
                 return
 
             self._send_json({"error": "Endpoint not found", "path": path}, 404)

@@ -68,6 +68,109 @@ from twin_core.onnx_export import (                     # noqa: F401
     export_scaler_params,
     build_full_edge_bundle,
 )
+from twin_core.drift_detector import (                  # noqa: F401
+    DriftReviewTicket,
+    TelemetryDriftDetector,
+    drift_detector,
+)
+from twin_core.model_governance import (                # noqa: F401
+    ModelEvalCard,
+    ShadowModeRunner,
+    ModelPromotionGate,
+    model_promotion_gate,
+)
+from twin_core.federated_aggregator import (            # noqa: F401
+    DifferentialPrivacyFederatedCoordinator,
+    dp_federated_average,
+    clip_gradients,
+    dp_federated_coordinator,
+)
+
+from twin_core.safety_assurance import (              # noqa: F401
+    AdvisorySafetyEnvelope,
+    SAFETY_ENVELOPE_LIMITS,
+    RequirementsTraceabilityRegistry,
+    HAZARDS_REGISTER,
+)
+from twin_core.hil_testbed import (                     # noqa: F401
+    HILScenarioReplayRunner,
+    HILPassFailEvaluator,
+    FAULT_INJECTION_CATALOG,
+    BENCH_HARDWARE_SPECS,
+)
+from twin_core.security_compliance import (             # noqa: F401
+    SBOMGenerator,
+    ArtifactSignatureVerifier,
+    KeyRotationManager,
+    DataResidencyEnforcer,
+)
+from twin_core.demo_kit import (                        # noqa: F401
+    DEMO_VALUE_STORY_STEPS,
+    ValueStoryDemoController,
+)
+from twin_core.data_connectors import (                 # noqa: F401
+    CustomerLogBackfillParser,
+    J1939CANMessageDecoder,
+)
+from twin_core.roi_calculator import (                  # noqa: F401
+    COMMERCIAL_TIERS,
+    EngineHealthROICalculator,
+)
+from twin_core.platform_profiles import (               # noqa: F401
+    PLATFORM_PROFILES_DATA,
+    PlatformProfileRegistry,
+    platform_registry,
+)
+from twin_core.scale_ingest import (                    # noqa: F401
+    AircraftIngestPartition,
+    BackpressureController,
+    PartitionedIngestRouter,
+)
+from twin_core.cost_tracker import (                    # noqa: F401
+    DEFAULT_CLOUD_UNIT_COSTS,
+    CloudCostTracker,
+    cost_tracker,
+)
+from twin_core.chaos_engine import (                    # noqa: F401
+    ChaosEngineDrillRunner,
+    chaos_runner,
+)
+from twin_core.life_burn import (                       # noqa: F401
+    LifeBurnCalculator,
+    RainflowCycleCounter,
+    life_burn_calc,
+    rainflow_counter,
+)
+from twin_core.mission_planner import (                 # noqa: F401
+    MissionSegment,
+    LifeAwareMissionPlanner,
+    mission_planner,
+)
+from twin_core.contingency_footprint import (           # noqa: F401
+    DEFAULT_RECOVERY_SITES,
+    haversine_distance_nmi,
+    calculate_bearing_deg,
+    ContingencyFootprintCalculator,
+    contingency_engine,
+)
+from twin_core.physics_firewall import (                # noqa: F401
+    PhysicsFirewall,
+    physics_firewall,
+)
+from twin_core.virtual_sensors import (                 # noqa: F401
+    VirtualSensorReconstructor,
+    virtual_sensors_engine,
+)
+from twin_core.reliability_passport import (            # noqa: F401
+    PassportBlock,
+    EngineReliabilityPassport,
+    engine_passport,
+)
+from twin_core.causal_root_cause import (               # noqa: F401
+    PROPULSION_CAUSAL_GRAPH,
+    CausalRootCauseEngine,
+    causal_engine,
+)
 
 __all__ = [
     "ModelRegistry",
@@ -102,6 +205,68 @@ __all__ = [
     "export_int8_quantized_model",
     "export_scaler_params",
     "build_full_edge_bundle",
+    "DriftReviewTicket",
+    "TelemetryDriftDetector",
+    "drift_detector",
+    "ModelEvalCard",
+    "ShadowModeRunner",
+    "ModelPromotionGate",
+    "model_promotion_gate",
+    "DifferentialPrivacyFederatedCoordinator",
+    "dp_federated_average",
+    "clip_gradients",
+    "dp_federated_coordinator",
+    "AdvisorySafetyEnvelope",
+    "SAFETY_ENVELOPE_LIMITS",
+    "RequirementsTraceabilityRegistry",
+    "HAZARDS_REGISTER",
+    "HILScenarioReplayRunner",
+    "HILPassFailEvaluator",
+    "FAULT_INJECTION_CATALOG",
+    "BENCH_HARDWARE_SPECS",
+    "SBOMGenerator",
+    "ArtifactSignatureVerifier",
+    "KeyRotationManager",
+    "DataResidencyEnforcer",
+    "DEMO_VALUE_STORY_STEPS",
+    "ValueStoryDemoController",
+    "CustomerLogBackfillParser",
+    "J1939CANMessageDecoder",
+    "COMMERCIAL_TIERS",
+    "EngineHealthROICalculator",
+    "PLATFORM_PROFILES_DATA",
+    "PlatformProfileRegistry",
+    "platform_registry",
+    "AircraftIngestPartition",
+    "BackpressureController",
+    "PartitionedIngestRouter",
+    "DEFAULT_CLOUD_UNIT_COSTS",
+    "CloudCostTracker",
+    "cost_tracker",
+    "ChaosEngineDrillRunner",
+    "chaos_runner",
+    "LifeBurnCalculator",
+    "RainflowCycleCounter",
+    "life_burn_calc",
+    "rainflow_counter",
+    "MissionSegment",
+    "LifeAwareMissionPlanner",
+    "mission_planner",
+    "DEFAULT_RECOVERY_SITES",
+    "haversine_distance_nmi",
+    "calculate_bearing_deg",
+    "ContingencyFootprintCalculator",
+    "contingency_engine",
+    "PhysicsFirewall",
+    "physics_firewall",
+    "VirtualSensorReconstructor",
+    "virtual_sensors_engine",
+    "PassportBlock",
+    "EngineReliabilityPassport",
+    "engine_passport",
+    "PROPULSION_CAUSAL_GRAPH",
+    "CausalRootCauseEngine",
+    "causal_engine",
     "__version__",
 ]
 

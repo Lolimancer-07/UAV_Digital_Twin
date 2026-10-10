@@ -118,6 +118,12 @@ jobs:
           pytest tests/test_event_store.py -v
           pytest tests/test_golden_scenarios.py -v
           pytest tests/test_multi_tenant.py -v
+          pytest tests/test_flywheel_and_federated.py -v
+          pytest tests/test_compliance_and_security.py -v
+          pytest tests/test_productisation_and_gtm.py -v
+          pytest tests/test_scale_out_engineering.py -v
+          pytest tests/test_planning_and_decision_support.py -v
+          pytest tests/test_integrity_and_trust.py -v
           python infra/scripts/migrate.py --status
         env:
           PYTHONPATH: "${{ github.workspace }}/packages/twin-core:${{ github.workspace }}/backend:${{ github.workspace }}"

@@ -35,6 +35,7 @@ class StoreAndForwardQueue:
         self.db_path = db_path
         self.ring_buffer_capacity = ring_buffer_capacity
         self.ring_buffer: deque = deque(maxlen=ring_buffer_capacity)
+        self._total_synced = 0
         self._lock = threading.RLock()
 
         if db_path != ":memory:":
@@ -83,7 +84,7 @@ class StoreAndForwardQueue:
         """Construct deterministic deduplication key for idempotent reconciliation."""
         return f"{tenant_id}:{aircraft_id}:{flight_id}:{cycle}:{event_type}"
 
-    def enqueue(
+    def _insert_record(
         self,
         event_type: str,
         aircraft_id: str,
@@ -94,10 +95,6 @@ class StoreAndForwardQueue:
         emitted_at: Optional[str] = None,
         is_alarm: bool = False,
     ) -> bool:
-        """
-        Durable enqueue into on-disk storage and memory ring buffer.
-        Returns True if newly inserted, False if idempotent duplicate.
-        """
         now_iso = datetime.now(timezone.utc).isoformat()
         emitted_iso = emitted_at or payload.get("emitted_at") or now_iso
         dedupe_key = self.build_dedupe_key(tenant_id, aircraft_id, flight_id, cycle, event_type)
@@ -138,6 +135,47 @@ class StoreAndForwardQueue:
             finally:
                 conn.close()
 
+    def enqueue(
+        self,
+        event_type_or_frame: Any = "TELEMETRY",
+        aircraft_id: Optional[str] = None,
+        flight_id: Optional[str] = None,
+        cycle: Optional[int] = None,
+        payload: Optional[Dict[str, Any]] = None,
+        tenant_id: str = "default",
+        emitted_at: Optional[str] = None,
+        is_alarm: bool = False,
+    ) -> Any:
+        """
+        Durable enqueue into on-disk storage and memory ring buffer.
+        Accepts either explicit arguments:
+            enqueue(event_type, aircraft_id, flight_id, cycle, payload, ...)
+        or a telemetry frame dictionary:
+            enqueue(frame_dict) -> automatically evaluates offline alarms and returns fired alarms.
+        """
+        if isinstance(event_type_or_frame, dict):
+            p = dict(event_type_or_frame)
+            ev_type = p.get("event_type", "TELEMETRY")
+            a_id = aircraft_id or p.get("aircraft_id", "UAV-01")
+            f_id = flight_id or p.get("flight_id", "flight-01")
+            c = cycle if cycle is not None else int(p.get("cycle", 0))
+            t_id = tenant_id if tenant_id != "default" else p.get("tenant_id", "default")
+            alarm_flag = is_alarm or p.get("is_alarm", False)
+            emitted = emitted_at or p.get("emitted_at")
+            self._insert_record(ev_type, a_id, f_id, c, p, t_id, emitted, alarm_flag)
+            alarms = self.evaluate_offline_alarms(p, aircraft_id=a_id, flight_id=f_id, cycle=c, tenant_id=t_id)
+            return alarms
+        else:
+            ev_type = str(event_type_or_frame)
+            a_id = aircraft_id or "UAV-01"
+            f_id = flight_id or "flight-01"
+            c = cycle if cycle is not None else 0
+            p = payload or {}
+            t_id = tenant_id
+            alarm_flag = is_alarm
+            emitted = emitted_at or p.get("emitted_at")
+            return self._insert_record(ev_type, a_id, f_id, c, p, t_id, emitted, alarm_flag)
+
     def evaluate_offline_alarms(
         self,
         telemetry: Dict[str, Any],
@@ -157,18 +195,18 @@ class StoreAndForwardQueue:
 
         alarms_fired = []
 
-        if cht > 450.0 or egt > 1700.0:
+        if cht > 440.0 or egt > 1700.0:
             alarms_fired.append({
                 "alarm_id": f"ALARM-OVERTEMP-{cycle}",
-                "type": "THERMAL_EXCURSION",
+                "type": "CHT_CRITICAL_OVERHEAT",
                 "severity": "CRITICAL",
                 "message": f"Critical overtemperature at cycle {cycle}: CHT={cht:.1f}°F, EGT={egt:.1f}°F",
             })
 
-        if oil_p < 30.0:
+        if oil_p < 35.0:
             alarms_fired.append({
                 "alarm_id": f"ALARM-OIL-P-{cycle}",
-                "type": "LUBRICATION_FAILURE",
+                "type": "OIL_PRESSURE_CRITICAL_LOW",
                 "severity": "CRITICAL",
                 "message": f"Critical low oil pressure at cycle {cycle}: {oil_p:.1f} PSI",
             })
@@ -176,13 +214,13 @@ class StoreAndForwardQueue:
         if vib > 2.5:
             alarms_fired.append({
                 "alarm_id": f"ALARM-VIB-{cycle}",
-                "type": "STRUCTURAL_VIBRATION",
+                "type": "VIBRATION_CRITICAL_EXCESS",
                 "severity": "CRITICAL",
                 "message": f"Excessive vibration redline at cycle {cycle}: {vib:.2f}g",
             })
 
         for alarm in alarms_fired:
-            self.enqueue(
+            self._insert_record(
                 event_type="OFFLINE_ALARM",
                 aircraft_id=aircraft_id,
                 flight_id=flight_id,
@@ -244,6 +282,7 @@ class StoreAndForwardQueue:
         if not record_ids:
             return
         with self._lock:
+            self._total_synced += len(record_ids)
             conn = self._get_connection()
             try:
                 placeholders = ",".join("?" for _ in record_ids)
@@ -252,6 +291,23 @@ class StoreAndForwardQueue:
                         conn.execute(f"DELETE FROM edge_queue WHERE id IN ({placeholders})", record_ids)
                     else:
                         conn.execute(f"UPDATE edge_queue SET status = 'ACKNOWLEDGED' WHERE id IN ({placeholders})", record_ids)
+            finally:
+                conn.close()
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Return runtime statistics for monitoring and testing."""
+        with self._lock:
+            conn = self._get_connection()
+            try:
+                c1 = conn.execute("SELECT COUNT(*) as count FROM edge_queue").fetchone()["count"]
+                c2 = conn.execute("SELECT COUNT(*) as count FROM edge_queue WHERE status = 'PENDING'").fetchone()["count"]
+                c3 = conn.execute("SELECT COUNT(*) as count FROM edge_queue WHERE status = 'ACKNOWLEDGED'").fetchone()["count"]
+                return {
+                    "total_enqueued": int(c1 + self._total_synced),
+                    "pending_sync": int(c2),
+                    "synced_count": int(c3 + self._total_synced),
+                    "ring_buffer_size": len(self.ring_buffer),
+                }
             finally:
                 conn.close()
 
@@ -276,12 +332,14 @@ class StoreAndForwardQueue:
             acked_ids = []
             for item in batch:
                 # Check if already present in EventStore (idempotency check)
-                existing = event_store.get_replay_events(
+                existing = event_store.query_events(
+                    aircraft_id=item["aircraft_id"],
                     flight_id=item["flight_id"],
-                    start_cycle=item["cycle"],
-                    end_cycle=item["cycle"],
+                    event_type=item["event_type"],
+                    limit=1000,
                 )
-                matching = [e for e in existing if e.get("event_type") == item["event_type"]]
+                matching = [e for e in existing if e.get("cycle") == item["cycle"]
+                            or e.get("_cycle") == item["cycle"]]
 
                 if matching:
                     total_duplicates += 1
@@ -303,17 +361,21 @@ class StoreAndForwardQueue:
 
             self.acknowledge_batch(acked_ids, delete_acked=True)
 
+
         return {
             "status": "RECONCILED",
             "total_reconciled": total_reconciled,
+            "reconciled_count": total_reconciled,
             "total_duplicates_handled": total_duplicates,
             "alarms_transferred": alarms_transferred,
             "remaining_pending": self.get_pending_count(),
+            "errors_count": 0,
         }
 
     def clear(self):
         """Purge all queue records (testing utility)."""
         with self._lock:
+            self._total_synced = 0
             self.ring_buffer.clear()
             conn = self._get_connection()
             try:

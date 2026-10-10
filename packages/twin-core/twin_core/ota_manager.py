@@ -286,7 +286,12 @@ def create_model_bundle(
     metadata: Optional[Dict[str, Any]] = None,
 ) -> str:
     mgr = ModelBundleManager(base_dir=output_dir, signing_secret=secret)
-    return mgr.create_bundle(version, model_path, scaler_path, metadata)
+    return mgr.create_bundle(
+        version=version,
+        model_path=model_path,
+        scaler_path=scaler_path,
+        metadata=metadata,
+    )
 
 
 def verify_model_bundle(
@@ -295,4 +300,5 @@ def verify_model_bundle(
 ) -> Tuple[bool, str, Dict[str, Any]]:
     mgr = ModelBundleManager(signing_secret=secret)
     return mgr.verify_bundle(bundle_path)
+
 

@@ -1,0 +1,7 @@
+{
+  "mode": "NORMAL",
+  "speed": 1.0,
+  "paused": false,
+  "injected_faults": [],
+  "target_rpm": 1400.0
+}

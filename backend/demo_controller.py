@@ -155,5 +155,25 @@ class DemoController:
             "steps": [{"step": s["step"], "name": s["name"]} for s in DEMO_STEPS],
         }
 
+    def reset(self) -> dict:
+        """Instantaneous reset button restoring pristine baseline state."""
+        self.stop()
+        return {
+            "status": "RESET_COMPLETE",
+            "message": "Pristine baseline operational state restored.",
+            "active": False,
+            "step": 0,
+        }
+
+    def generate_outcome_report(self) -> str:
+        """Generates printable executive outcome report in HTML."""
+        from twin_core.demo_kit import ValueStoryDemoController
+        val_ctrl = ValueStoryDemoController(control_file_path=CONTROL_FILE)
+        return val_ctrl.generate_printable_outcome_report()
+
+
+# Re-export ValueStoryDemoController from twin_core
+from twin_core.demo_kit import ValueStoryDemoController, DEMO_VALUE_STORY_STEPS
 
 demo_controller = DemoController()
+value_story_controller = ValueStoryDemoController()

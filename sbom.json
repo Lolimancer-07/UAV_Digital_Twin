@@ -1,0 +1,178 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "serialNumber": "urn:uuid:0cccff75e0beddbc63001b2af8f46a96",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-10-09T18:33:59.909467+00:00",
+    "tools": [
+      {
+        "vendor": "AeroTwin Security",
+        "name": "twin-core-sbom-generator",
+        "version": "1.0.0"
+      }
+    ],
+    "component": {
+      "type": "application",
+      "name": "uav-engine-digital-twin",
+      "version": "1.0.0",
+      "description": "Enterprise UAV Aero-Piston Digital Twin Diagnostic & Prognostic System"
+    }
+  },
+  "components": [
+    {
+      "type": "library",
+      "name": "twin-core",
+      "version": "1.0.0",
+      "purl": "pkg:generic/twin-core@1.0.0",
+      "supplier": {
+        "name": "AeroTwin Defense Systems"
+      },
+      "licenses": [
+        {
+          "license": {
+            "id": "Proprietary"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "9b51e0e2546ec68d62a9ecc94550eabf329092415c18173fc495baa141b1414a"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "numpy",
+      "version": "2.2.0",
+      "purl": "pkg:pypi/numpy@2.2.0",
+      "supplier": {
+        "name": "NumPy Developers"
+      },
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "73dd0baf8e5438da8816254a073ee43b61f8b2cdef6f393e0059cdbc55cb8d9c"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "fastapi",
+      "version": "0.115.0",
+      "purl": "pkg:pypi/fastapi@0.115.0",
+      "supplier": {
+        "name": "Tiangolo"
+      },
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "6aee0e678a168eeae8df707e083a158fc23515bdd52eed77ec65b669baa82917"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "uvicorn",
+      "version": "0.32.0",
+      "purl": "pkg:pypi/uvicorn@0.32.0",
+      "supplier": {
+        "name": "Encode OSS"
+      },
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "bab9d6737501f7a2521e63c358531a9ee20394a17ca15e05901715b42906f8cb"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "onnxruntime",
+      "version": "1.20.0",
+      "purl": "pkg:pypi/onnxruntime@1.20.0",
+      "supplier": {
+        "name": "Microsoft"
+      },
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "8eeceae1fd9f7aad4f66a0203c14f8abd56964912d14f01e8e17cbd7af53a677"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "cryptography",
+      "version": "44.0.0",
+      "purl": "pkg:pypi/cryptography@44.0.0",
+      "supplier": {
+        "name": "PyCA"
+      },
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0 OR BSD-3-Clause"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "e06554818e902b4ba339f066967c0000da3fcda4fd7eb4ef89c124fa78bda419"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "pydantic",
+      "version": "2.10.0",
+      "purl": "pkg:pypi/pydantic@2.10.0",
+      "supplier": {
+        "name": "Pydantic Services Inc"
+      },
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "6366233f6ef384378474702390c9c5cb784f7c52ed486ac14766de2ffce79210"
+        }
+      ]
+    }
+  ]
+}

@@ -456,6 +456,40 @@ class EventStore:
                 events.append(payload)
             return events
 
+    def query_events(
+        self,
+        aircraft_id: Optional[str] = None,
+        flight_id: Optional[str] = None,
+        event_type: Optional[str] = None,
+        limit: int = 1000,
+    ) -> List[Dict[str, Any]]:
+        """Query raw stored events by aircraft, flight, or event type."""
+        with self._lock:
+            conn = self._get_connection()
+            query = "SELECT * FROM events WHERE 1=1"
+            params: list = []
+            if aircraft_id:
+                query += " AND aircraft_id = ?"
+                params.append(aircraft_id)
+            if flight_id:
+                query += " AND flight_id = ?"
+                params.append(flight_id)
+            if event_type:
+                query += " AND event_type = ?"
+                params.append(event_type)
+            query += " ORDER BY id ASC LIMIT ?"
+            params.append(limit)
+
+            cursor = conn.execute(query, params)
+            events = []
+            for row in cursor.fetchall():
+                p = json.loads(row["payload_json"])
+                p["_event_type"] = row["event_type"]
+                p["_aircraft_id"] = row["aircraft_id"]
+                p["_flight_id"] = row["flight_id"]
+                events.append(p)
+            return events
+
     # ── Annotations API ────────────────────────────────────────────────────────
 
     def add_annotation(

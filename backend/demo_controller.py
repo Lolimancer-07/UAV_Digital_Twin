@@ -126,8 +126,10 @@ class DemoController:
             cfg["injected_faults"] = list(faults)
         try:
             os.makedirs(os.path.dirname(CONTROL_FILE), exist_ok=True)
-            with open(CONTROL_FILE, 'w') as f:
+            tmp_path = CONTROL_FILE + ".tmp"
+            with open(tmp_path, 'w') as f:
                 json.dump(cfg, f, indent=2)
+            os.replace(tmp_path, CONTROL_FILE)
         except Exception:
             pass
 
@@ -136,8 +138,10 @@ class DemoController:
         cfg = {"mode": "NORMAL", "speed": 1.0, "paused": False, "injected_faults": []}
         try:
             os.makedirs(os.path.dirname(CONTROL_FILE), exist_ok=True)
-            with open(CONTROL_FILE, 'w') as f:
+            tmp_path = CONTROL_FILE + ".tmp"
+            with open(tmp_path, 'w') as f:
                 json.dump(cfg, f, indent=2)
+            os.replace(tmp_path, CONTROL_FILE)
         except Exception:
             pass
 

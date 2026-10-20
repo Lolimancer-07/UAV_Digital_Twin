@@ -1,0 +1,66 @@
+{
+  "system": "UAV Digital Twin Propulsion AI Suite",
+  "phase": "Phase 0 \u2014 Credibility Fixes",
+  "generated_at": "2026-10-10T12:41:35.499039",
+  "random_seed": 42,
+  "runtime_environment": {
+    "python": "3.14.7",
+    "tensorflow": "2.22.0-rc0",
+    "numpy": "2.5.3",
+    "pandas": "2.3.3"
+  },
+  "datasets": {
+    "training": {
+      "file": "data/synthetic_piston_train.csv",
+      "provenance": "synthetic (physics-first simulation)",
+      "sha256": "1ba599d7bffd205f49f15e806a3268227a875b75edec1f17bef5312594199578",
+      "rows": 4500,
+      "flights": 18
+    },
+    "validation": {
+      "file": "data/synthetic_piston_val.csv",
+      "provenance": "synthetic (physics-first simulation)",
+      "sha256": "b9b9c387d7c031a2f4c28d30982be7759e01a5acc22ad67303877b890a64f774",
+      "rows": 2250,
+      "flights": 9
+    }
+  },
+  "models": {
+    "uav_rul_lstm": {
+      "artifact": "backend/uav_rul_model.h5",
+      "sha256": "20a1bcb6484f98bb3ebaf60ad04458f4dcbeed81d0d8b8dd054d161a24cd8082",
+      "task": "Remaining Useful Life Regression",
+      "architecture": "Stacked LSTM (128 -> 64 -> Dense 32 -> Dense 1)",
+      "input_shape": [
+        1,
+        50,
+        3
+      ],
+      "input_channels": [
+        "rpm",
+        "cht",
+        "egt"
+      ],
+      "val_rmse_cycles": 61.04,
+      "val_mae_cycles": 50.07
+    },
+    "channel_scaler": {
+      "artifact": "backend/scaler.pkl",
+      "sha256": "a47ec552b40bf15aa38b7bffd4f9daa2fc755422a52101358afc5a2aab90d95f",
+      "channels": [
+        "rpm",
+        "cht",
+        "egt"
+      ],
+      "type": "ChannelScalerBundle (MinMaxScaler)"
+    },
+    "anomaly_detector": {
+      "artifact": "backend/anomaly_model.pkl",
+      "sha256": "c26a2ef88090e5c49b1a88261ac269bd537e8c67df2e7d36addcc49e1f657a8b",
+      "task": "Multivariate Unsupervised Anomaly Detection",
+      "algorithm": "IsolationForest",
+      "contamination": 0.03,
+      "n_estimators": 300
+    }
+  }
+}

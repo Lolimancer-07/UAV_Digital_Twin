@@ -15,6 +15,7 @@ from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime, timezone
 import json
 import threading
+import hashlib
 
 # Operational flight envelope limits (Rotax 914 class aero-piston)
 SAFETY_ENVELOPE_LIMITS: Dict[str, Dict[str, float]] = {
@@ -143,6 +144,25 @@ class AdvisorySafetyEnvelope:
                 except (ValueError, TypeError):
                     pass
 
+            # 4. Enforce Two-Person Verification Rule if flagged as safety-critical
+            requires_two_person = bool(
+                recommendation.get("safety_critical")
+                or recommendation.get("requires_two_person_approval")
+            )
+            if requires_two_person:
+                req_by = recommendation.get("requested_by")
+                app_by = recommendation.get("approved_by")
+                if not req_by or not app_by:
+                    is_safe = False
+                    violations.append(
+                        "Two-person rule violation: Safety-critical action requires both 'requested_by' and 'approved_by'."
+                    )
+                elif str(req_by).strip().lower() == str(app_by).strip().lower():
+                    is_safe = False
+                    violations.append(
+                        f"Two-person rule violation: Requester '{req_by}' cannot self-approve safety-critical action."
+                    )
+
             if not is_safe:
                 self.total_suppressed += 1
                 return {
@@ -205,3 +225,145 @@ class RequirementsTraceabilityRegistry:
             "missing_details": missing,
             "status": "COMPLETE" if not missing else "INCOMPLETE",
         }
+
+
+class TwoPersonApprovalGate:
+    """
+    Two-person integrity gate for safety-critical and high-impact actions.
+    Enforces aviation safety principle: the initiator of a critical advisory,
+    operational command, or maintenance work order CANNOT self-approve.
+    Requires requested_by != approved_by, records SHA-256 audit evidence,
+    and supports integration with EventStore.
+    """
+
+    def __init__(self, event_store: Optional[Any] = None):
+        self.event_store = event_store
+        self._lock = threading.RLock()
+        self.requests: Dict[str, Dict[str, Any]] = {}
+
+    def create_request(
+        self,
+        action_id: str,
+        action_type: str,
+        requested_by: str,
+        payload: Optional[Dict[str, Any]] = None,
+        requester_role: str = "OPERATOR",
+        aircraft_id: str = "UAV-01",
+    ) -> Dict[str, Any]:
+        with self._lock:
+            now_iso = datetime.now(timezone.utc).isoformat()
+            req = {
+                "action_id": action_id,
+                "action_type": action_type,
+                "aircraft_id": aircraft_id,
+                "requested_by": requested_by,
+                "requester_role": requester_role,
+                "payload": payload or {},
+                "status": "PENDING_SECOND_APPROVAL",
+                "requested_at": now_iso,
+                "approved_by": None,
+                "approver_role": None,
+                "approved_at": None,
+                "rejected_by": None,
+                "rejected_at": None,
+                "rejection_reason": None,
+                "audit_digest": None,
+            }
+            self.requests[action_id] = req
+            return dict(req)
+
+    def approve_request(
+        self,
+        action_id: str,
+        approved_by: str,
+        approver_role: str = "SAFETY_OFFICER",
+        comment: str = "",
+    ) -> Tuple[bool, Dict[str, Any], str]:
+        with self._lock:
+            req = self.requests.get(action_id)
+            if not req:
+                return False, {}, f"Request '{action_id}' not found."
+
+            if req["status"] != "PENDING_SECOND_APPROVAL":
+                return False, dict(req), f"Cannot approve request with status '{req['status']}'."
+
+            # Strict Two-Person Rule: Approver CANNOT be the Requester
+            if str(approved_by).strip().lower() == str(req["requested_by"]).strip().lower():
+                return (
+                    False,
+                    dict(req),
+                    f"Two-person rule violation: Requester '{req['requested_by']}' cannot self-approve.",
+                )
+
+            now_iso = datetime.now(timezone.utc).isoformat()
+            digest_src = f"{action_id}:{req['action_type']}:{req['requested_by']}:{approved_by}:{now_iso}"
+            digest = hashlib.sha256(digest_src.encode("utf-8")).hexdigest()
+
+            req["status"] = "APPROVED"
+            req["approved_by"] = approved_by
+            req["approver_role"] = approver_role
+            req["approved_at"] = now_iso
+            req["approval_comment"] = comment
+            req["audit_digest"] = digest
+
+            # Optional append to event store
+            if self.event_store and hasattr(self.event_store, "append_event"):
+                try:
+                    self.event_store.append_event(
+                        event_type="SAFETY_CRITICAL_APPROVAL",
+                        aircraft_id=req.get("aircraft_id", "UAV-01"),
+                        flight_id="APPROVAL_AUDIT",
+                        cycle=0,
+                        payload=dict(req),
+                        tenant_id="default",
+                    )
+                except Exception:
+                    pass
+
+            return True, dict(req), "Approval granted under two-person verification rule."
+
+    def reject_request(
+        self,
+        action_id: str,
+        rejected_by: str,
+        reason: str = "Rejected by safety supervisor",
+    ) -> Tuple[bool, Dict[str, Any], str]:
+        with self._lock:
+            req = self.requests.get(action_id)
+            if not req:
+                return False, {}, f"Request '{action_id}' not found."
+
+            if req["status"] != "PENDING_SECOND_APPROVAL":
+                return False, dict(req), f"Cannot reject request with status '{req['status']}'."
+
+            now_iso = datetime.now(timezone.utc).isoformat()
+            req["status"] = "REJECTED"
+            req["rejected_by"] = rejected_by
+            req["rejected_at"] = now_iso
+            req["rejection_reason"] = reason
+
+            return True, dict(req), "Request rejected."
+
+    def get_request(self, action_id: str) -> Optional[Dict[str, Any]]:
+        with self._lock:
+            req = self.requests.get(action_id)
+            return dict(req) if req else None
+
+    def list_requests(self, status: Optional[str] = None) -> List[Dict[str, Any]]:
+        with self._lock:
+            if status:
+                return [dict(r) for r in self.requests.values() if r.get("status") == status]
+            return [dict(r) for r in self.requests.values()]
+
+
+# Global singleton instances
+two_person_approval_gate = TwoPersonApprovalGate()
+
+__all__ = [
+    "SAFETY_ENVELOPE_LIMITS",
+    "HAZARDS_REGISTER",
+    "AdvisorySafetyEnvelope",
+    "RequirementsTraceabilityRegistry",
+    "TwoPersonApprovalGate",
+    "two_person_approval_gate",
+]

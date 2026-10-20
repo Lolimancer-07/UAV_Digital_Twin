@@ -1,102 +1,125 @@
 """
 backend/train_anomaly_detector.py
 ----------------------------------
-Trains an Isolation Forest anomaly detector on the "healthy" portion of the
-CMAPSS dataset (RUL > 100 cycles). Uses the same synthetic sensor physics
-model as ecu_sim.c so the detector sees realistic 7-feature vectors.
-
-Run from UAV_Digital_Twin root:
-    python3 backend/train_anomaly_detector.py
+Trains an Isolation Forest anomaly detector on nominal flight operations from the
+physics-first aero piston simulator (Rotax 914 F domain).
+Implements Phase 0 honesty fixes:
+  - Trains on genuine aero piston thermodynamics instead of turbofan proxy mappings
+  - Sets fixed random seed for reproducible training
+  - Generates SHA-256 hash sidecar
 """
-import pandas as pd
-import numpy as np
-from sklearn.ensemble import IsolationForest
-from sklearn.preprocessing import MinMaxScaler
-import pickle
+
 import os
+import sys
+import pickle
+import hashlib
+import numpy as np
+import pandas as pd
+from sklearn.ensemble import IsolationForest
 
-# ── Config ──────────────────────────────────────────────────────────────────
-CSV_PATH      = 'data/telemetry_ready.csv'
-OUTPUT_PATH   = 'backend/anomaly_model.pkl'
-MAX_RUL       = 260.0
-HEALTHY_RUL   = 100          # Only train on "healthy" engine data
-CONTAMINATION = 0.03         # Expect ~3% anomalies in full dataset
-N_ESTIMATORS  = 300
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
 
-FEATURES = ['rpm', 'cht', 'egt',
-            'oil_pressure', 'fuel_flow', 'vibration',
-            'battery_v', 'inj_timing']
+SEED = 42
+np.random.seed(SEED)
 
-# ── Load and compute synthetic sensors (mirrors ecu_sim.c exactly) ──────────
-print("Loading dataset...")
-df = pd.read_csv(CSV_PATH)
-print(f"  {len(df):,} rows loaded.")
+PRIMARY_CSV = os.path.join(_REPO_ROOT, "data", "synthetic_piston_train.csv")
+LEGACY_CSV = os.path.join(_REPO_ROOT, "data", "telemetry_ready.csv")
+OUTPUT_PATH = os.path.join(_REPO_ROOT, "backend", "anomaly_model.pkl")
 
-# Degradation factor [0=new, 1=end-of-life] — same formula as C simulator
-deg = (1.0 - (df['rul'] / MAX_RUL)).clip(0.0, 1.0)
+CONTAMINATION = 0.03
+N_ESTIMATORS = 300
 
-df['oil_pressure'] = 65.0 - (deg * 30.0) + np.random.normal(0, 1.5, len(df))
-df['oil_pressure'] = df['oil_pressure'].clip(10, 80)
+FEATURES = [
+    "rpm", "cht", "egt",
+    "oil_pressure", "oil_temp",
+    "fuel_flow", "vibration",
+    "battery_v", "map_kpa", "bus_current_a",
+]
 
-df['fuel_flow']    = (df['rpm'] / 1400.0) * 8.5 + np.random.normal(0, 0.15, len(df))
-df['fuel_flow']    = df['fuel_flow'].clip(0.5, 15)
 
-df['vibration']    = 0.3 + (deg * 3.2) + np.random.normal(0, 0.08, len(df))
-df['vibration']    = df['vibration'].clip(0, 10)
+def train():
+    print("=" * 60)
+    print("  TRAINING ISOLATION FOREST ANOMALY DETECTOR (PHASE 0)")
+    print("=" * 60)
 
-df['battery_v']    = 13.8 - (deg * 0.8) + np.random.normal(0, 0.05, len(df))
-df['battery_v']    = df['battery_v'].clip(11, 15)
+    if not os.path.exists(PRIMARY_CSV):
+        print(f"Generating synthetic piston dataset first...")
+        from simulator.generate_dataset import generate_benchmark_datasets
+        generate_benchmark_datasets(output_dir=os.path.join(_REPO_ROOT, "data"), base_seed=SEED)
 
-df['inj_timing']   = 28.0 - (deg * 8.0) + np.random.normal(0, 0.3, len(df))
-df['inj_timing']   = df['inj_timing'].clip(10, 35)
+    if os.path.exists(PRIMARY_CSV):
+        print(f"Loading physics-first aero piston training dataset from {PRIMARY_CSV}...")
+        df = pd.read_csv(PRIMARY_CSV)
+        dataset_source = "synthetic_piston_train.csv"
+        provenance = "synthetic (physics-first simulation)"
+        domain = "piston_aero"
+        # Train strictly on healthy nominal flight operations
+        healthy_df = df[df.get("fault_family", "none") == "none"].copy()
+    else:
+        print(f"Fallback to legacy dataset at {LEGACY_CSV}...")
+        df = pd.read_csv(LEGACY_CSV)
+        dataset_source = "telemetry_ready.csv"
+        provenance = "derived-benchmark (legacy turbofan)"
+        domain = "turbofan_legacy"
+        healthy_df = df[df.get("rul", 150) > 100].copy()
 
-# ── Train only on healthy data ───────────────────────────────────────────────
-healthy_df = df[df['rul'] > HEALTHY_RUL].copy()
-print(f"  Healthy samples (RUL > {HEALTHY_RUL}): {len(healthy_df):,}")
+    print(f"  Total records: {len(df):,} | Healthy baseline samples: {len(healthy_df):,}")
 
-X_train = healthy_df[FEATURES].values
+    # Ensure all features exist in dataframe
+    for f in FEATURES:
+        if f not in healthy_df.columns:
+            healthy_df[f] = 0.0
 
-# ── Fit Isolation Forest ─────────────────────────────────────────────────────
-print(f"\nTraining Isolation Forest ({N_ESTIMATORS} trees, "
-      f"contamination={CONTAMINATION})...")
-detector = IsolationForest(
-    n_estimators=N_ESTIMATORS,
-    contamination=CONTAMINATION,
-    max_samples='auto',
-    random_state=42,
-    n_jobs=-1,
-    verbose=0
-)
-detector.fit(X_train)
-print("  Training complete.")
+    X_train = healthy_df[FEATURES].values
 
-# Quick sanity check on full dataset
-labels     = detector.predict(df[FEATURES].values)
-n_anomaly  = (labels == -1).sum()
-print(f"\nSanity check — anomalies flagged in full dataset: "
-      f"{n_anomaly} / {len(df)} ({100*n_anomaly/len(df):.1f}%)")
+    print(f"Fitting Isolation Forest ({N_ESTIMATORS} trees, contamination={CONTAMINATION}, random_state={SEED})...")
+    detector = IsolationForest(
+        n_estimators=N_ESTIMATORS,
+        contamination=CONTAMINATION,
+        max_samples="auto",
+        random_state=SEED,
+        n_jobs=-1,
+    )
+    detector.fit(X_train)
+    print("  ✓ Isolation Forest fitted successfully.")
 
-# Verify high-anomaly rate near end-of-life (RUL < 20)
-end_of_life = df[df['rul'] < 20]
-eol_labels  = detector.predict(end_of_life[FEATURES].values)
-eol_anom    = (eol_labels == -1).sum()
-print(f"  End-of-life (RUL < 20) anomaly rate: "
-      f"{eol_anom} / {len(end_of_life)} ({100*eol_anom/max(1,len(end_of_life)):.1f}%)")
+    # Compute data hash
+    with open(PRIMARY_CSV if os.path.exists(PRIMARY_CSV) else LEGACY_CSV, "rb") as f:
+        data_hash = hashlib.sha256(f.read()).hexdigest()
 
-# ── Save model bundle ────────────────────────────────────────────────────────
-os.makedirs('backend', exist_ok=True)
-bundle = {
-    'model':    detector,
-    'features': FEATURES,
-    'meta': {
-        'healthy_rul_threshold': HEALTHY_RUL,
-        'n_estimators':          N_ESTIMATORS,
-        'contamination':         CONTAMINATION,
-        'train_samples':         len(healthy_df),
+    # Model bundle
+    bundle = {
+        "model": detector,
+        "features": FEATURES,
+        "domain": domain,
+        "meta": {
+            "dataset": dataset_source,
+            "dataset_provenance": provenance,
+            "dataset_sha256": data_hash,
+            "n_estimators": N_ESTIMATORS,
+            "contamination": CONTAMINATION,
+            "train_samples": len(healthy_df),
+            "seed": SEED,
+            "features": FEATURES,
+            "domain": domain,
+        },
     }
-}
-with open(OUTPUT_PATH, 'wb') as f:
-    pickle.dump(bundle, f)
 
-print(f"\n✅ Anomaly detector saved → '{OUTPUT_PATH}'")
-print(f"   Features: {FEATURES}")
+    os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
+    with open(OUTPUT_PATH, "wb") as f:
+        pickle.dump(bundle, f, protocol=4)
+    print(f"  ✓ Model saved → {OUTPUT_PATH}")
+
+    # Compute model sha256
+    with open(OUTPUT_PATH, "rb") as f:
+        model_hash = hashlib.sha256(f.read()).hexdigest()
+
+    with open(f"{OUTPUT_PATH}.sha256", "w") as f:
+        f.write(f"{model_hash}  {os.path.basename(OUTPUT_PATH)}\n")
+    print(f"  ✓ Checksum saved → {OUTPUT_PATH}.sha256 ({model_hash[:16]}...)")
+
+
+if __name__ == "__main__":
+    train()

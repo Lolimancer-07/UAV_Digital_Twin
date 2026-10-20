@@ -36,6 +36,10 @@ interface TelemetryContextValue {
   metSeconds: number
   /** Whether simulation telemetry playback is currently paused. */
   isPaused: boolean
+  /** Data freshness age in seconds since last packet. */
+  dataFreshnessSeconds: number
+  /** Whether telemetry stream is stale (>3s without packets or disconnected). */
+  isStale: boolean
   /** Toggle pause/resume state across all UI controls and pause/resume audio. */
   togglePause: () => void
   /** Explicitly set paused state. */
@@ -56,6 +60,8 @@ export function TelemetryProvider({ children }: { children: React.ReactNode }) {
     connectionStatus,
     sendCommand,
     reconnect,
+    dataFreshnessSeconds,
+    isStale,
   } = useTelemetrySocket()
 
   // Mission Elapsed Time — starts ticking on the first live telemetry packet
@@ -120,6 +126,8 @@ export function TelemetryProvider({ children }: { children: React.ReactNode }) {
       reconnect,
       metSeconds,
       isPaused,
+      dataFreshnessSeconds,
+      isStale,
       togglePause,
       setPaused,
     }),
@@ -134,6 +142,8 @@ export function TelemetryProvider({ children }: { children: React.ReactNode }) {
       reconnect,
       metSeconds,
       isPaused,
+      dataFreshnessSeconds,
+      isStale,
       togglePause,
       setPaused,
     ]

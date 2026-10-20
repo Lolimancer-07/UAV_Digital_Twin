@@ -1,0 +1,75 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "EngineProfileSchema",
+  "type": "object",
+  "required": ["engine", "version", "cylinders", "rated_rpm", "channels", "physics", "causal_graph", "damage", "phases"],
+  "properties": {
+    "engine": {
+      "type": "string"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "cylinders": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "rated_rpm": {
+      "type": "number",
+      "minimum": 500
+    },
+    "channels": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "unit", "rate_hz", "limits"],
+        "properties": {
+          "id": { "type": "string" },
+          "unit": { "type": "string" },
+          "rate_hz": { "type": "number" },
+          "limits": { "type": "object" },
+          "sensor": { "type": "object" }
+        }
+      }
+    },
+    "physics": {
+      "type": "object",
+      "required": ["model", "params"],
+      "properties": {
+        "model": { "type": "string" },
+        "params": { "type": "object" }
+      }
+    },
+    "causal_graph": {
+      "type": "object",
+      "required": ["edges"],
+      "properties": {
+        "edges": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": { "type": "string" },
+            "minItems": 2,
+            "maxItems": 2
+          }
+        }
+      }
+    },
+    "damage": {
+      "type": "object",
+      "required": ["rainflow_channels", "exponents"],
+      "properties": {
+        "rainflow_channels": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "exponents": { "type": "object" }
+      }
+    },
+    "phases": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

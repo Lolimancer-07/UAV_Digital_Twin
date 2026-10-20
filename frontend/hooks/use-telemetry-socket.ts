@@ -25,11 +25,17 @@ export function useTelemetrySocket(endpoint = DEFAULT_WS_ENDPOINT) {
   const [connectionStatus, setConnectionStatus] =
     React.useState<ConnectionStatus>("connecting")
   const connectionStatusRef = React.useRef<ConnectionStatus>("connecting")
+  const [dataFreshnessSeconds, setDataFreshnessSeconds] = React.useState<number>(0)
+  const [isStale, setIsStale] = React.useState<boolean>(true)
+  const lastPacketTimeRef = React.useRef<number>(0)
 
   const updateConnectionStatus = React.useCallback((status: ConnectionStatus) => {
     if (connectionStatusRef.current !== status) {
       connectionStatusRef.current = status
       setConnectionStatus(status)
+      if (status !== "live") {
+        setIsStale(true)
+      }
     }
   }, [])
 
@@ -150,6 +156,9 @@ export function useTelemetrySocket(endpoint = DEFAULT_WS_ENDPOINT) {
           updateConnectionStatus("live")
         }
 
+        lastPacketTimeRef.current = Date.now()
+        setIsStale(false)
+
         // Calm, readable UI update rate (at most once every 250ms = 4 Hz),
         // but immediately push updates on urgent state transitions or tool responses!
         const now = Date.now()
@@ -230,6 +239,21 @@ export function useTelemetrySocket(endpoint = DEFAULT_WS_ENDPOINT) {
     }
   }, [endpoint, clearReconnect])
 
+  // Telemetry freshness & staleness monitoring watchdog
+  React.useEffect(() => {
+    const freshnessTimer = window.setInterval(() => {
+      if (lastPacketTimeRef.current > 0) {
+        const elapsedSec = Math.max(0, (Date.now() - lastPacketTimeRef.current) / 1000)
+        setDataFreshnessSeconds(Math.round(elapsedSec * 10) / 10)
+        setIsStale(elapsedSec > 3.0 || connectionStatusRef.current !== "live")
+      } else {
+        setIsStale(true)
+      }
+    }, 500)
+
+    return () => window.clearInterval(freshnessTimer)
+  }, [])
+
   const reconnect = React.useCallback(() => {
     connect()
   }, [connect])
@@ -258,6 +282,8 @@ export function useTelemetrySocket(endpoint = DEFAULT_WS_ENDPOINT) {
     latestTelemetry,
     reconnect,
     sendCommand,
+    dataFreshnessSeconds,
+    isStale,
     telemetryLog: history.telemetryLog,
     canLog: history.canLog,
     sparklineHistory: history.sparklineHistory,

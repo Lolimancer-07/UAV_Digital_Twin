@@ -33,7 +33,7 @@ def get_event_store(db_path: str = None) -> EventStore:
     """Retrieve or create the process-level EventStore singleton."""
     global _global_store
     path = db_path or DEFAULT_DB_PATH
-    if _global_store is None:
+    if _global_store is None or getattr(_global_store, "_closed", False):
         _global_store = EventStore(path)
     return _global_store
 

@@ -216,8 +216,10 @@ class ValueStoryDemoController:
             cfg["injected_faults"] = [step.get("fault", "cooling_degradation")]
         try:
             os.makedirs(os.path.dirname(self.control_file_path), exist_ok=True)
-            with open(self.control_file_path, "w") as f:
+            tmp_path = self.control_file_path + ".tmp"
+            with open(tmp_path, "w") as f:
                 json.dump(cfg, f, indent=2)
+            os.replace(tmp_path, self.control_file_path)
         except Exception:
             pass
 

@@ -91,6 +91,8 @@ from twin_core.safety_assurance import (              # noqa: F401
     SAFETY_ENVELOPE_LIMITS,
     RequirementsTraceabilityRegistry,
     HAZARDS_REGISTER,
+    TwoPersonApprovalGate,
+    two_person_approval_gate,
 )
 from twin_core.hil_testbed import (                     # noqa: F401
     HILScenarioReplayRunner,
@@ -171,6 +173,27 @@ from twin_core.causal_root_cause import (               # noqa: F401
     CausalRootCauseEngine,
     causal_engine,
 )
+from twin_core.conformal_prognostics import (           # noqa: F401
+    ConformalPrognosticsEngine,
+    conformal_prognostics,
+)
+from twin_core.self_calibration import (                # noqa: F401
+    PerAirframeSelfCalibrator,
+    per_airframe_calibrator,
+)
+from twin_core.abstention_alerting import (             # noqa: F401
+    AbstentionAlertManager,
+    abstention_alert_manager,
+)
+from twin_core.twin_trust import (                      # noqa: F401
+    TwinTrustScoreAuditor,
+    twin_trust_auditor,
+)
+from twin_core.profile_loader import (                  # noqa: F401
+    EngineProfileLoader,
+    EngineProfileValidationError,
+    profile_loader,
+)
 
 __all__ = [
     "ModelRegistry",
@@ -220,6 +243,8 @@ __all__ = [
     "SAFETY_ENVELOPE_LIMITS",
     "RequirementsTraceabilityRegistry",
     "HAZARDS_REGISTER",
+    "TwoPersonApprovalGate",
+    "two_person_approval_gate",
     "HILScenarioReplayRunner",
     "HILPassFailEvaluator",
     "FAULT_INJECTION_CATALOG",
@@ -267,6 +292,17 @@ __all__ = [
     "PROPULSION_CAUSAL_GRAPH",
     "CausalRootCauseEngine",
     "causal_engine",
+    "ConformalPrognosticsEngine",
+    "conformal_prognostics",
+    "PerAirframeSelfCalibrator",
+    "per_airframe_calibrator",
+    "AbstentionAlertManager",
+    "abstention_alert_manager",
+    "TwinTrustScoreAuditor",
+    "twin_trust_auditor",
+    "EngineProfileLoader",
+    "EngineProfileValidationError",
+    "profile_loader",
     "__version__",
 ]
 

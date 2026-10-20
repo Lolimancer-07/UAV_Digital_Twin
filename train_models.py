@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 """
 train_models.py
-
-One-shot script to train and export everything the backend needs:
-  1. MinMaxScaler fitted on RPM/CHT/EGT (saved as scaler.pkl)
-  2. Deep LSTM for RUL prediction (saved as uav_rul_model.h5)
-  3. Isolation Forest anomaly detector (saved as anomaly_model.pkl)
-  4. Validation metrics printed at the end
-
-Run this once before starting the system, or re-run it if you change
-the dataset or want to retrain from scratch.
+---------------
+Unified AI model training pipeline for UAV Digital Twin (Phase 0).
+Implements Tasks B1, B2, B3, B5, B6:
+  1. Loads physics-first aero piston dataset (synthetic_piston_train.csv & val.csv).
+  2. Fits ChannelScalerBundle on model input channels ['rpm', 'cht', 'egt'] and exports backend/scaler.pkl.
+  3. Trains Deep LSTM on flight-partitioned time series with zero window leakage across flights.
+  4. Trains Multi-Channel Isolation Forest on certified nominal operations (fault_family == 'none').
+  5. Computes SHA-256 hashes for all generated model artifacts and writes backend/model_card.json.
 
 Usage:
   python3 train_models.py
@@ -17,186 +16,224 @@ Usage:
 
 import os
 import sys
+import json
 import pickle
+import random
+import hashlib
 import numpy as np
 import pandas as pd
 
-# suppress TensorFlow startup noise
+# Set fixed random seeds for deterministic retraining (Task B5)
+SEED = 42
+random.seed(SEED)
+np.random.seed(SEED)
+
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import tensorflow as tf
+tf.random.set_seed(SEED)
+
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense, Dropout, BatchNormalization
+from tensorflow.keras.layers import LSTM, Dense, Dropout
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
-from sklearn.preprocessing import MinMaxScaler
-from sklearn.ensemble import IsolationForest
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-DATA_PATH = os.path.join(ROOT, 'data', 'telemetry_ready.csv')
-BACKEND_DIR = os.path.join(ROOT, 'backend')
-RUL_MODEL_PATH = os.path.join(BACKEND_DIR, 'uav_rul_model.h5')
-SCALER_PATH = os.path.join(BACKEND_DIR, 'scaler.pkl')
-ANOMALY_MODEL_PATH = os.path.join(BACKEND_DIR, 'anomaly_model.pkl')
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+TWIN_CORE = os.path.join(ROOT, "packages", "twin-core")
+if TWIN_CORE not in sys.path:
+    sys.path.insert(0, TWIN_CORE)
+
+from twin_core.channel_config import get_channel_config, ChannelScalerBundle
+from backend.train_anomaly_detector import train as train_anomaly_detector
+
+DATA_DIR = os.path.join(ROOT, "data")
+TRAIN_DATA_PATH = os.path.join(DATA_DIR, "synthetic_piston_train.csv")
+VAL_DATA_PATH = os.path.join(DATA_DIR, "synthetic_piston_val.csv")
+BACKEND_DIR = os.path.join(ROOT, "backend")
+
+RUL_MODEL_PATH = os.path.join(BACKEND_DIR, "uav_rul_model.h5")
+SCALER_PATH = os.path.join(BACKEND_DIR, "scaler.pkl")
+ANOMALY_MODEL_PATH = os.path.join(BACKEND_DIR, "anomaly_model.pkl")
+MODEL_CARD_PATH = os.path.join(BACKEND_DIR, "model_card.json")
 
 os.makedirs(BACKEND_DIR, exist_ok=True)
 
-print("=" * 70)
-print("  UAV DIGITAL TWIN — UNIFIED AI MODEL TRAINING PIPELINE")
-print("=" * 70)
 
-# step 1: load or prepare the dataset
-print("\n[Step 1/4] Loading & preparing telemetry dataset...")
-if not os.path.exists(DATA_PATH):
-    # if telemetry_ready.csv doesn't exist, try building it from the raw CMAPSS file
-    raw_path = os.path.join(ROOT, 'data', 'train_FD001(1).txt')
-    if os.path.exists(raw_path):
-        print("  → Prepping raw CMAPSS data...")
-        cols = ['engine_id', 'cycle', 'os1', 'os2', 'os3'] + [f's{i}' for i in range(1, 22)]
-        raw_df = pd.read_csv(raw_path, sep=r'\s+', header=None, names=cols)
-        rul_max = raw_df.groupby('engine_id')['cycle'].max().reset_index()
-        rul_max.columns = ['engine_id', 'max_cycle']
-        raw_df = raw_df.merge(rul_max, on='engine_id', how='left')
-        raw_df['rul'] = raw_df['max_cycle'] - raw_df['cycle']
+def sha256_file(filepath: str) -> str:
+    with open(filepath, "rb") as f:
+        return hashlib.sha256(f.read()).hexdigest()
 
-        # map CMAPSS sensor names to our aero engine channel names
-        # s9 → rpm, s2 → cht, s3 → egt (best analog equivalents in this dataset)
-        clean_df = raw_df[['engine_id', 'cycle', 's9', 's2', 's3', 'rul']].copy()
-        clean_df.columns = ['engine_id', 'cycle', 'rpm', 'cht', 'egt', 'rul']
-        clean_df.to_csv(DATA_PATH, index=False)
-        df = clean_df
-    else:
-        print(f"  ❌ Error: Neither {DATA_PATH} nor raw dataset found.")
-        sys.exit(1)
-else:
-    df = pd.read_csv(DATA_PATH)
 
-print(f"  ✓ Total dataset records: {len(df):,} cycles across {df['engine_id'].nunique()} engine units.")
+def write_hash_sidecar(filepath: str) -> str:
+    h = sha256_file(filepath)
+    with open(f"{filepath}.sha256", "w") as f:
+        f.write(f"{h}  {os.path.basename(filepath)}\n")
+    return h
 
-# step 2: train the LSTM RUL model
-print("\n[Step 2/4] Training Deep LSTM RUL Prognostics Network...")
-lstm_features = ['rpm', 'cht', 'egt']
-scaler = MinMaxScaler()
-df_scaled = df.copy()
-df_scaled[lstm_features] = scaler.fit_transform(df[lstm_features])
 
-# save the scaler — must match what inference.py uses
-with open(SCALER_PATH, 'wb') as f:
-    pickle.dump(scaler, f)
-print(f"  ✓ Normalization scaler saved → {SCALER_PATH}")
+def main():
+    print("=" * 70)
+    print("  UAV DIGITAL TWIN — DEFENSIVE AI TRAINING PIPELINE (PHASE 0)")
+    print("=" * 70)
 
-# build sliding windows of 50 cycles for LSTM input
-sequence_length = 50
-def build_lstm_windows(data, seq_len):
-    X, y = [], []
-    for _, group in data.groupby('engine_id'):
-        mat = group[lstm_features].values
-        ruls = group['rul'].values
-        for i in range(len(group) - seq_len):
-            X.append(mat[i:i + seq_len])
-            y.append(ruls[i + seq_len])
-    return np.array(X), np.array(y)
+    # Step 1: Ensure datasets exist
+    if not os.path.exists(TRAIN_DATA_PATH) or not os.path.exists(VAL_DATA_PATH):
+        print("\n[Step 1/5] Generating physics-first synthetic datasets...")
+        from simulator.generate_dataset import generate_benchmark_datasets
+        generate_benchmark_datasets(output_dir=DATA_DIR, base_seed=SEED)
 
-X, y = build_lstm_windows(df_scaled, sequence_length)
-print(f"  ✓ Extracted time windows: {X.shape[0]:,} samples of shape (50 cycles, 3 features).")
+    print("\n[Step 1/5] Loading physics-first training & validation telemetry...")
+    train_df = pd.read_csv(TRAIN_DATA_PATH)
+    val_df = pd.read_csv(VAL_DATA_PATH)
+    train_data_hash = sha256_file(TRAIN_DATA_PATH)
+    print(f"  ✓ Train records: {len(train_df):,} across {train_df['flight_id'].nunique()} flights.")
+    print(f"  ✓ Val records:   {len(val_df):,} across {val_df['flight_id'].nunique()} flights.")
+    print(f"  ✓ Data SHA-256:  {train_data_hash[:16]}...")
 
-# 80/20 split — keeping it simple, no shuffle (time series)
-split_idx = int(len(X) * 0.80)
-X_train, X_val = X[:split_idx], X[split_idx:]
-y_train, y_val = y[:split_idx], y[split_idx:]
+    # Step 2: Fit ChannelScalerBundle (Task B1 & B2)
+    print("\n[Step 2/5] Fitting ChannelScalerBundle on model input channels...")
+    cfg = get_channel_config()
+    lstm_features = ["rpm", "cht", "egt"]
+    scaler_bundle = ChannelScalerBundle(channels=lstm_features)
+    scaler_bundle.fit(train_df[lstm_features])
+    scaler_bundle.save(SCALER_PATH)
+    scaler_hash = write_hash_sidecar(SCALER_PATH)
+    print(f"  ✓ Scaler saved with channel list {lstm_features} → {SCALER_PATH} (SHA-256: {scaler_hash[:16]}...)")
 
-# stacked LSTM with dropout for Monte Carlo uncertainty estimation
-lstm_model = Sequential([
-    LSTM(128, input_shape=(sequence_length, len(lstm_features)), return_sequences=True),
-    Dropout(0.2),
-    LSTM(64, return_sequences=False),
-    Dropout(0.2),
-    Dense(32, activation='relu'),
-    Dense(1)
-])
+    # Step 3: Extract time windows strictly per-flight (Task B3: Zero Leakage)
+    print("\n[Step 3/5] Extracting sliding time windows (seq_len=50) strictly per-flight...")
+    sequence_length = 50
 
-optimizer = Adam(learning_rate=0.001)
-lstm_model.compile(optimizer=optimizer, loss='mean_squared_error', metrics=['mae'])
+    def build_flight_windows(df: pd.DataFrame, bundle: ChannelScalerBundle, seq_len: int):
+        X, y = [], []
+        # Normalise features within dataset
+        df_scaled = df.copy()
+        df_scaled[bundle.channels] = bundle.transform(df[bundle.channels])
 
-callbacks = [
-    EarlyStopping(monitor='val_loss', patience=6, restore_best_weights=True, verbose=0),
-    ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=3, min_lr=1e-5, verbose=0)
-]
+        for flight_id, group in df_scaled.groupby("flight_id"):
+            mat = group[bundle.channels].values
+            ruls = group["true_rul"].values
+            # Only create windows within the flight boundary
+            for i in range(len(group) - seq_len):
+                X.append(mat[i : i + seq_len])
+                y.append(ruls[i + seq_len])
 
-print("  → Fitting LSTM network (epochs=30, batch_size=64)...")
-history = lstm_model.fit(
-    X_train, y_train,
-    validation_data=(X_val, y_val),
-    epochs=30,
-    batch_size=64,
-    callbacks=callbacks,
-    verbose=1
-)
+        return np.array(X, dtype=np.float32), np.array(y, dtype=np.float32)
 
-lstm_model.save(RUL_MODEL_PATH)
-print(f"  ✓ Deep LSTM Model saved → {RUL_MODEL_PATH}")
+    X_train, y_train = build_flight_windows(train_df, scaler_bundle, sequence_length)
+    X_val, y_val = build_flight_windows(val_df, scaler_bundle, sequence_length)
+    print(f"  ✓ Extracted {len(X_train):,} train windows and {len(X_val):,} validation windows.")
+    print(f"  ✓ Input tensor shape: {X_train.shape}")
 
-# evaluate on the validation set
-val_preds = lstm_model.predict(X_val, verbose=0).flatten()
-val_rmse = np.sqrt(mean_squared_error(y_val, val_preds))
-val_mae = mean_absolute_error(y_val, val_preds)
-print(f"  📊 RUL Validation Performance: RMSE = {val_rmse:.2f} cycles | MAE = {val_mae:.2f} cycles")
+    # Step 4: Train Deep LSTM Model
+    print("\n[Step 4/5] Training Deep Stacked LSTM Prognostics Network...")
+    lstm_model = Sequential([
+        LSTM(128, input_shape=(sequence_length, len(lstm_features)), return_sequences=True),
+        Dropout(0.2),
+        LSTM(64, return_sequences=False),
+        Dropout(0.2),
+        Dense(32, activation='relu'),
+        Dense(1)
+    ])
 
-# step 3: train the anomaly detector
-print("\n[Step 3/4] Training Multi-Channel Isolation Forest Anomaly Detector...")
-anom_features = ['rpm', 'cht', 'egt', 'oil_pressure', 'fuel_flow', 'vibration', 'battery_v', 'inj_timing']
-max_rul = 260.0
-deg = (1.0 - (df['rul'] / max_rul)).clip(0.0, 1.0)
+    optimizer = Adam(learning_rate=0.001)
+    lstm_model.compile(optimizer=optimizer, loss='mean_squared_error', metrics=['mae'])
 
-# synthesize the channels that aren't in the raw dataset using the same physics as the simulator
-anom_df = df.copy()
-anom_df['oil_pressure'] = (65.0 - (deg * 30.0) + np.random.normal(0, 1.5, len(df))).clip(10, 80)
-anom_df['fuel_flow']    = ((anom_df['rpm'] / 1400.0) * 8.5 + np.random.normal(0, 0.15, len(df))).clip(0.5, 15)
-anom_df['vibration']    = (0.3 + (deg * 3.2) + np.random.normal(0, 0.08, len(df))).clip(0, 10)
-anom_df['battery_v']    = (13.8 - (deg * 0.8) + np.random.normal(0, 0.05, len(df))).clip(11, 15)
-anom_df['inj_timing']   = (28.0 - (deg * 8.0) + np.random.normal(0, 0.3, len(df))).clip(10, 35)
+    callbacks = [
+        EarlyStopping(monitor='val_loss', patience=6, restore_best_weights=True, verbose=0),
+        ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=3, min_lr=1e-5, verbose=0)
+    ]
 
-# train only on healthy data (RUL > 100) so the model learns the normal envelope
-healthy_samples = anom_df[anom_df['rul'] > 100][anom_features].values
-print(f"  ✓ Healthy baseline training set: {len(healthy_samples):,} samples.")
+    history = lstm_model.fit(
+        X_train, y_train,
+        validation_data=(X_val, y_val),
+        epochs=30,
+        batch_size=64,
+        callbacks=callbacks,
+        verbose=1
+    )
 
-iso_forest = IsolationForest(
-    n_estimators=300,
-    contamination=0.03,
-    max_samples='auto',
-    random_state=42,
-    n_jobs=-1
-)
-iso_forest.fit(healthy_samples)
+    lstm_model.save(RUL_MODEL_PATH)
+    rul_model_hash = write_hash_sidecar(RUL_MODEL_PATH)
+    print(f"  ✓ Deep LSTM Model saved → {RUL_MODEL_PATH} (SHA-256: {rul_model_hash[:16]}...)")
 
-# bundle the model with its feature list for robust loading in anomaly_detector.py
-anom_bundle = {
-    'model': iso_forest,
-    'features': anom_features,
-    'meta': {
-        'n_estimators': 300,
-        'contamination': 0.03,
-        'features': anom_features,
-        'trained_samples': len(healthy_samples)
+    # Evaluate validation metrics
+    val_preds = lstm_model.predict(X_val, verbose=0).flatten()
+    val_rmse = float(np.sqrt(mean_squared_error(y_val, val_preds)))
+    val_mae = float(mean_absolute_error(y_val, val_preds))
+    print(f"  📊 RUL Validation Performance: RMSE = {val_rmse:.2f} cycles | MAE = {val_mae:.2f} cycles")
+
+    # Step 5: Train Isolation Forest Anomaly Detector
+    print("\n[Step 5/5] Training Multi-Channel Isolation Forest Anomaly Detector...")
+    train_anomaly_detector()
+    anom_hash = sha256_file(ANOMALY_MODEL_PATH)
+
+    # Step 6: Write Comprehensive Model Card (Task B6 & D4)
+    model_card = {
+        "system": "UAV Digital Twin Propulsion AI Suite",
+        "phase": "Phase 0 — Credibility Fixes",
+        "generated_at": pd.Timestamp.now().isoformat(),
+        "random_seed": SEED,
+        "runtime_environment": {
+            "python": sys.version.split()[0],
+            "tensorflow": tf.__version__,
+            "numpy": np.__version__,
+            "pandas": pd.__version__,
+        },
+        "datasets": {
+            "training": {
+                "file": "data/synthetic_piston_train.csv",
+                "provenance": "synthetic (physics-first simulation)",
+                "sha256": train_data_hash,
+                "rows": len(train_df),
+                "flights": int(train_df["flight_id"].nunique()),
+            },
+            "validation": {
+                "file": "data/synthetic_piston_val.csv",
+                "provenance": "synthetic (physics-first simulation)",
+                "sha256": sha256_file(VAL_DATA_PATH),
+                "rows": len(val_df),
+                "flights": int(val_df["flight_id"].nunique()),
+            },
+        },
+        "models": {
+            "uav_rul_lstm": {
+                "artifact": "backend/uav_rul_model.h5",
+                "sha256": rul_model_hash,
+                "task": "Remaining Useful Life Regression",
+                "architecture": "Stacked LSTM (128 -> 64 -> Dense 32 -> Dense 1)",
+                "input_shape": [1, sequence_length, len(lstm_features)],
+                "input_channels": lstm_features,
+                "val_rmse_cycles": round(val_rmse, 2),
+                "val_mae_cycles": round(val_mae, 2),
+            },
+            "channel_scaler": {
+                "artifact": "backend/scaler.pkl",
+                "sha256": scaler_hash,
+                "channels": lstm_features,
+                "type": "ChannelScalerBundle (MinMaxScaler)",
+            },
+            "anomaly_detector": {
+                "artifact": "backend/anomaly_model.pkl",
+                "sha256": anom_hash,
+                "task": "Multivariate Unsupervised Anomaly Detection",
+                "algorithm": "IsolationForest",
+                "contamination": 0.03,
+                "n_estimators": 300,
+            },
+        },
     }
-}
-with open(ANOMALY_MODEL_PATH, 'wb') as f:
-    pickle.dump(anom_bundle, f)
-print(f"  ✓ Anomaly Detector Bundle saved → {ANOMALY_MODEL_PATH}")
 
-# benchmark: how well does it catch end-of-life degradation?
-eol_samples = anom_df[anom_df['rul'] < 20][anom_features].values
-eol_detected = (iso_forest.predict(eol_samples) == -1).sum()
-eol_recall = (eol_detected / max(1, len(eol_samples))) * 100.0
-print(f"  📊 Anomaly Detector End-of-Life Detection Recall: {eol_recall:.1f}% ({eol_detected}/{len(eol_samples)})")
+    with open(MODEL_CARD_PATH, "w") as f:
+        json.dump(model_card, f, indent=2)
+    print(f"  ✓ Model Card metadata saved → {MODEL_CARD_PATH}")
 
-# step 4: summary
-print("\n" + "=" * 70)
-print("  AI TRAINING PIPELINE COMPLETE ✓")
-print("=" * 70)
-print(f"  1. LSTM RUL Model:      {RUL_MODEL_PATH}")
-print(f"  2. Feature Scaler:       {SCALER_PATH}")
-print(f"  3. Anomaly Model:       {ANOMALY_MODEL_PATH}")
-print(f"  4. RUL Accuracy:        RMSE {val_rmse:.2f} cycles (MAE {val_mae:.2f})")
-print(f"  5. Anomaly Recall:      {eol_recall:.1f}% on degraded propulsion states")
-print("=" * 70 + "\n")
+    print("\n" + "=" * 70)
+    print("  PHASE 0 DEFENSIVE MODEL TRAINING COMPLETE ✓")
+    print("=" * 70 + "\n")
+
+
+if __name__ == "__main__":
+    main()

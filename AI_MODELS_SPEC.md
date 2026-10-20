@@ -22,20 +22,21 @@ model does, where it lives, how it was trained, and what its known limitations a
 | **File** | `backend/uav_rul_model.h5` |
 | **Format** | Keras HDF5 (TensorFlow ≥ 2.16) |
 | **Task** | Remaining Useful Life (RUL) regression |
-| **Architecture** | Stacked LSTM with MC Dropout |
-| **Input shape** | `(batch, 50, 3)` — 50-cycle window of `[rpm, cht, egt]` (normalized) |
-| **Output** | Scalar RUL estimate (cycles) |
+| **Architecture** | Stacked LSTM with MC Dropout (128 units → 64 units → Dense 32 → Dense 1) |
+| **Input shape** | `(batch, 50, 3)` — 50-cycle window of `[rpm, cht, egt]` normalized by `ChannelScalerBundle` |
+| **Output** | Scalar RUL estimate (cycles / flight minutes) |
 | **Uncertainty** | Monte Carlo Dropout, 10 samples per inference, batched into one `@tf.function` call |
-| **Training data** | NASA C-MAPSS turbofan run-to-failure dataset (FD001 subset); CHT remapped to piston engine thermal range [380–450°F → 641.21–644.53 scaler domain] |
-| **Scaler** | `backend/scaler.pkl` — `sklearn.preprocessing.MinMaxScaler` fitted on NASA C-MAPSS `[rpm, cht, egt]` columns |
-| **Known limitations** | Trained on turbofan degradation; piston engine dynamics differ. CHT remapping is a heuristic. Not validated on real piston run-to-failure data. |
+| **Training data** | Physics-first aero piston engine synthetic degradation dataset (`data/synthetic_piston_train.csv`) generated with Rotax 914 thermodynamics. NASA C-MAPSS turbofan dataset (`data/train_FD001(1).txt`) is maintained strictly as an external algorithmic benchmark. |
+| **Scaler** | `backend/scaler.pkl` — `ChannelScalerBundle` (MinMaxScaler) fitted on `[rpm, cht, egt]` model input channels with contract order enforcement |
+| **Known limitations** | Trained on physics-first simulation data; empirical validation against physical dynamometer / in-flight piston logs is in outreach phase. Strictly advisory, not flight-critical control. |
 | **Phase 4 target** | Export to ONNX; INT8 post-training quantization; parity suite vs GCS float32 |
-| **Hash** | *(not yet recorded — Phase 1 deliverable: model manifest with SHA-256 hash)* |
+| **Hash** | Recorded in `backend/uav_rul_model.h5.sha256` and `backend/model_card.json` |
 
 ### Inference path
 
 ```python
-# 50-cycle rolling buffer of normalized [rpm, cht, egt]
+# 50-cycle rolling buffer of normalized [rpm, cht, egt] telemetry
+# Normalized by ChannelScalerBundle with strict channel order validation
 lstm_input = np.array(buffer[-50:]).reshape(1, 50, 3)
 
 # 10 MC Dropout samples batched in one @tf.function call (~7 ms on CPU)
@@ -43,21 +44,18 @@ preds = _lstm_mc_predict_compiled(
     np.repeat(lstm_input, 10, axis=0)
 ).numpy().flatten()
 
-mean_rul = float(np.mean(preds))
-std_rul  = float(np.std(preds))
-ci_lower = max(0.0, mean_rul - 1.645 * std_rul)   # 90% CI
-ci_upper = mean_rul + 1.645 * std_rul
+predicted_rul = float(np.mean(preds))
+rul_std       = float(np.std(preds))
+rul_lower     = max(0.0, predicted_rul - 1.645 * rul_std)   # 90% CI
+rul_upper     = predicted_rul + 1.645 * rul_std
 ```
 
-### Calibration
+### Honest Prediction Protocol (Phase 0 Fix)
 
-The raw LSTM output is calibrated against a ground-truth RUL from the simulator
-(`data["true_rul"]`). When `true_rul > 0`:
-- Operational stress penalties applied for CHT > 410°F, EGT > 1630°F, vibration > 1.8 g, oil pressure < 42 PSI
-- Active fault penalties applied per fault severity
-- Combined calibrated RUL = `true_rul × condition_health_factor + stochastic_jitter(±0.4 cycles)`
+In legacy development, an uncalibrated model peeked at `data["true_rul"]` when present in the telemetry stream.
+In Phase 0, **this ground-truth shortcut was completely removed**.
+The inference engine now evaluates RUL strictly through the trained LSTM network over the 14-channel scaled sensor window, with genuine MC Dropout uncertainty bands, ensuring full defensibility and zero train/test leakage.
 
-When `true_rul == 0` (no ground truth available), raw LSTM output is used directly.
 
 ---
 

@@ -1,0 +1,91 @@
+engine: rotax_914
+version: 1
+cylinders: 4
+rated_rpm: 5500.0
+channels:
+  - id: cht_1
+    unit: degF
+    rate_hz: 10
+    limits:
+      caution: 400.0
+      warning: 435.0
+    sensor:
+      type: thermocouple_J
+      plausible_rate_per_s: 15.0
+  - id: cht_2
+    unit: degF
+    rate_hz: 10
+    limits:
+      caution: 400.0
+      warning: 435.0
+    sensor:
+      type: thermocouple_J
+      plausible_rate_per_s: 15.0
+  - id: cht_3
+    unit: degF
+    rate_hz: 10
+    limits:
+      caution: 400.0
+      warning: 435.0
+    sensor:
+      type: thermocouple_J
+      plausible_rate_per_s: 15.0
+  - id: cht_4
+    unit: degF
+    rate_hz: 10
+    limits:
+      caution: 400.0
+      warning: 435.0
+    sensor:
+      type: thermocouple_J
+      plausible_rate_per_s: 15.0
+  - id: oil_press
+    unit: psi
+    rate_hz: 10
+    limits:
+      low_warning: 35.0
+      low_caution: 45.0
+    sensor:
+      type: piezoresistive_pressure
+      plausible_rate_per_s: 25.0
+  - id: egt_avg
+    unit: degF
+    rate_hz: 10
+    limits:
+      caution: 1620.0
+      warning: 1650.0
+    sensor:
+      type: thermocouple_K
+      plausible_rate_per_s: 40.0
+physics:
+  model: otto_4stroke
+  params:
+    bore_mm: 84.0
+    stroke_mm: 61.0
+    compression_ratio: 9.0
+    displacement_cc: 1352.0
+    turbocharged: true
+causal_graph:
+  edges:
+    - [cooling_airflow, cht]
+    - [cht, oil_temp]
+    - [oil_temp, oil_press]
+    - [fuel_metering, egt]
+damage:
+  rainflow_channels:
+    - cht_1
+    - cht_2
+    - cht_3
+    - cht_4
+    - egt_avg
+  exponents:
+    thermal_cycle: 2.0
+    vibration: 1.5
+phases:
+  - taxi
+  - takeoff
+  - climb
+  - cruise
+  - loiter
+  - descent
+  - landing

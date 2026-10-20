@@ -123,16 +123,27 @@ def export_scaler_params(scaler_pickle_path: str, output_json_path: str) -> str:
     Allows pure NumPy normalization on airborne edge hardware with 0 dependencies.
     """
     with open(scaler_pickle_path, "rb") as f:
-        scaler = pickle.load(f)
+        raw_bundle = pickle.load(f)
+
+    if isinstance(raw_bundle, dict) and "scaler" in raw_bundle:
+        scaler_obj = raw_bundle["scaler"]
+        features = raw_bundle.get("channels", ["rpm", "cht", "egt"])
+    elif hasattr(raw_bundle, "scaler"):
+        scaler_obj = raw_bundle.scaler
+        features = getattr(raw_bundle, "channels", ["rpm", "cht", "egt"])
+    else:
+        scaler_obj = raw_bundle
+        features = ["rpm", "cht", "egt"]
 
     params = {
         "scaler_type": "MinMaxScaler",
-        "features": ["rpm", "cht", "egt"],
-        "scale": [float(x) for x in scaler.scale_],
-        "min": [float(x) for x in scaler.min_],
-        "data_min": [float(x) for x in scaler.data_min_],
-        "data_max": [float(x) for x in scaler.data_max_],
+        "features": features,
+        "scale": [float(x) for x in scaler_obj.scale_],
+        "min": [float(x) for x in scaler_obj.min_],
+        "data_min": [float(x) for x in scaler_obj.data_min_],
+        "data_max": [float(x) for x in scaler_obj.data_max_],
     }
+
 
     os.makedirs(os.path.dirname(os.path.abspath(output_json_path)), exist_ok=True)
     with open(output_json_path, "w") as f:

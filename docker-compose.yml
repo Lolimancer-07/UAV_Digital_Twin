@@ -1,0 +1,75 @@
+version: "3.8"
+
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: uav-mosquitto
+    ports:
+      - "1883:1883"
+    command: mosquitto -c /mosquitto-no-auth.conf
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 2 nc -z localhost 1883 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: uav-backend
+    ports:
+      - "8000:8000"
+      - "8765:8765"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - MQTT_HOST=mosquitto
+      - MQTT_PORT=1883
+      - API_PORT=8000
+      - WS_PORT=8765
+      - UAV_TWIN_REQUIRE_AUTH=false
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  simulator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: uav-simulator
+    environment:
+      - PYTHONUNBUFFERED=1
+      - MQTT_HOST=mosquitto
+      - MQTT_PORT=1883
+    command: ["python", "simulator/mission_sim.py"]
+    depends_on:
+      - mosquitto
+      - backend
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: uav-gcs-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_TELEMETRY_WS_URL=ws://localhost:8765
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  uav_data:
+    driver: local

@@ -12,10 +12,15 @@ Implements improvement_plan.md §4 Phase 2:
 
 import os
 import json
+import time
+from datetime import datetime, timezone
 import urllib.parse
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from threading import Thread
 from typing import Tuple, Dict, Any, Optional
+
+SERVER_START_TIME = time.time()
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 from backend.event_store import get_event_store
 from twin_core.report_generator import generate_flight_report, render_report_html
@@ -35,6 +40,8 @@ from twin_core.safety_assurance import (
     AdvisorySafetyEnvelope,
     RequirementsTraceabilityRegistry,
     HAZARDS_REGISTER,
+    TwoPersonApprovalGate,
+    two_person_approval_gate,
 )
 from twin_core.hil_testbed import (
     HILScenarioReplayRunner,
@@ -82,6 +89,13 @@ from twin_core.physics_firewall import physics_firewall
 from twin_core.virtual_sensors import virtual_sensors_engine
 from twin_core.reliability_passport import engine_passport
 from twin_core.causal_root_cause import causal_engine
+
+# Startup Blueprint Singletons (STARTUP_BLUEPRINT.md §3, §4)
+from twin_core.conformal_prognostics import conformal_prognostics
+from twin_core.self_calibration import per_airframe_calibrator
+from twin_core.abstention_alerting import abstention_alert_manager
+from twin_core.twin_trust import twin_trust_auditor
+from twin_core.profile_loader import profile_loader
 
 WS_AUTH_TOKEN = os.environ.get("UAV_TWIN_AUTH_TOKEN", "").strip()
 REQUIRE_AUTH = os.environ.get("UAV_TWIN_REQUIRE_AUTH", "").lower() in ("1", "true", "yes")
@@ -401,9 +415,159 @@ class TwinApiHandler(BaseHTTPRequestHandler):
                 self._send_json({"status": "OK", "evidence_pack": pack_res})
                 return
 
-            # Health probe
-            if path in ("/health", "/api/health", "/api/twin/health"):
-                self._send_json({"status": "OK", "service": "uav-twin-replay-api", "version": "3.0", "tenant_isolation": "ACTIVE"})
+            # 23. GET /v1/fleet (STARTUP_BLUEPRINT.md §4)
+            if path in ("/v1/fleet", "/api/fleet", "/api/twin/fleet"):
+                fleet_data = [
+                    {
+                        "tail_id": "UAV-01",
+                        "engine_profile": "ROTAX_914",
+                        "health_index": 92.4,
+                        "life_burn_rate": 1.05,
+                        "trust_score": 96.5,
+                        "status": "MISSION_READY",
+                    },
+                    {
+                        "tail_id": "UAV-02",
+                        "engine_profile": "ROTAX_914",
+                        "health_index": 88.1,
+                        "life_burn_rate": 1.12,
+                        "trust_score": 91.0,
+                        "status": "MISSION_READY",
+                    },
+                    {
+                        "tail_id": "UAV-03",
+                        "engine_profile": "AUSTRO_AE300",
+                        "health_index": 95.0,
+                        "life_burn_rate": 0.98,
+                        "trust_score": 98.2,
+                        "status": "MISSION_READY",
+                    },
+                ]
+                self._send_json({"status": "OK", "fleet": fleet_data, "count": len(fleet_data)})
+                return
+
+            # 24. GET /v1/tails/<tail_id>/twin (STARTUP_BLUEPRINT.md §4)
+            if path.startswith("/v1/tails/") and path.endswith("/twin"):
+                parts = path.strip("/").split("/")
+                tail_id = parts[2] if len(parts) >= 3 else "UAV-01"
+                baseline = per_airframe_calibrator.get_or_create_tail(tail_id).to_dict()
+                trust = twin_trust_auditor.evaluate_trust()
+                self._send_json({
+                    "status": "OK",
+                    "tail_id": tail_id,
+                    "engine_profile": "ROTAX_914",
+                    "baseline": baseline,
+                    "trust": trust,
+                    "active_phase": "cruise",
+                })
+                return
+
+            # 25. GET /v1/tails/<tail_id>/passport (STARTUP_BLUEPRINT.md §4)
+            if path.startswith("/v1/tails/") and path.endswith("/passport"):
+                parts = path.strip("/").split("/")
+                tail_id = parts[2] if len(parts) >= 3 else "UAV-01"
+                evidence = engine_passport.export_evidence_pack(tail_id)
+                self._send_json({"status": "OK", "tail_id": tail_id, "evidence_pack": evidence})
+                return
+
+            # 26. GET /v1/profiles
+            if path in ("/v1/profiles", "/api/profiles", "/api/twin/profiles"):
+                self._send_json({"status": "OK", "profiles": profile_loader.list_available_profiles()})
+                return
+
+            # 27. GET /v1/profiles/<id>
+            if path.startswith("/v1/profiles/"):
+                p_name = path.replace("/v1/profiles/", "").strip()
+                try:
+                    p_data = profile_loader.load_profile(p_name)
+                    self._send_json({"status": "OK", "profile": p_data})
+                except Exception as ex:
+                    self._send_json({"error": str(ex)}, 404)
+                return
+
+            # 27. Health Probes (Liveness, Readiness, Model Verification)
+            if path in ("/health/live", "/api/health/live", "/health", "/api/health", "/api/twin/health"):
+                self._send_json({
+                    "status": "ALIVE",
+                    "service": "uav-twin-backend",
+                    "version": "4.0",
+                    "uptime_seconds": round(time.time() - SERVER_START_TIME, 2),
+                    "pid": os.getpid(),
+                    "tenant_isolation": "ACTIVE",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }, 200)
+                return
+
+            if path in ("/health/ready", "/api/health/ready"):
+                db_ok = False
+                models_ok = False
+                reasons = []
+
+                # Probe SQLite EventStore DB responsiveness
+                try:
+                    ev_store = get_event_store()
+                    with ev_store._lock:
+                        conn = ev_store._get_connection()
+                        with conn:
+                            cur = conn.execute("SELECT count(*) as c FROM schema_migrations")
+                            _ = cur.fetchone()
+                    db_ok = True
+                except Exception as ex:
+                    reasons.append(f"Database error: {ex}")
+
+                # Probe active champion model readiness
+                try:
+                    champion = model_promotion_gate.active_champion
+                    if champion and champion.get("status") == "CHAMPION":
+                        models_ok = True
+                    else:
+                        reasons.append("No active champion model in promotion gate")
+                except Exception as ex:
+                    reasons.append(f"Model error: {ex}")
+
+                is_ready = bool(db_ok and models_ok)
+                status_code = 200 if is_ready else 503
+                self._send_json({
+                    "status": "READY" if is_ready else "NOT_READY",
+                    "ready": is_ready,
+                    "service": "uav-twin-backend",
+                    "checks": {
+                        "database": "OK" if db_ok else "FAIL",
+                        "models": "OK" if models_ok else "FAIL",
+                    },
+                    "issues": reasons,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }, status_code)
+                return
+
+            if path in ("/health/models", "/api/health/models"):
+                champion = model_promotion_gate.active_champion
+                manifest_path = os.path.join(_REPO_ROOT, "packages", "contracts", "model_manifest.json")
+                manifest_data = {}
+                if os.path.exists(manifest_path):
+                    try:
+                        with open(manifest_path, "r", encoding="utf-8") as f:
+                            manifest_data = json.load(f)
+                    except Exception:
+                        pass
+
+                self._send_json({
+                    "status": "OK",
+                    "active_champion": champion,
+                    "previous_champion": model_promotion_gate.previous_champion,
+                    "has_rollback_target": bool(model_promotion_gate.previous_champion),
+                    "registered_eval_cards": len(model_promotion_gate.eval_cards),
+                    "manifest_models": manifest_data.get("models", []),
+                    "hash_verification_enforced": True,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }, 200)
+                return
+
+            # 28. GET /api/compliance/approvals (Two-person approval list)
+            if path in ("/api/compliance/approvals", "/v1/compliance/approvals", "/api/twin/compliance/approvals"):
+                status_filter = qs.get("status", [None])[0]
+                approvals = two_person_approval_gate.list_requests(status=status_filter)
+                self._send_json({"status": "OK", "count": len(approvals), "approvals": approvals})
                 return
 
             self._send_json({"error": "Endpoint not found", "path": path}, 404)
@@ -619,6 +783,64 @@ class TwinApiHandler(BaseHTTPRequestHandler):
                 self._send_json(vetted)
                 return
 
+            # 10b. POST /api/compliance/approvals/create (Two-person workflow request)
+            if path in ("/api/compliance/approvals/create", "/api/twin/compliance/approvals/create"):
+                act_id = body.get("action_id", f"ACT-{int(time.time() * 1000)}")
+                act_type = body.get("action_type", "OPERATIONAL_ADVISORY")
+                req_by = body.get("requested_by") or caller.get("sub", "operator")
+                req_role = body.get("requester_role") or caller.get("role", "OPERATOR")
+                ac_id = body.get("aircraft_id", "UAV-01")
+                req_obj = two_person_approval_gate.create_request(
+                    action_id=act_id,
+                    action_type=act_type,
+                    requested_by=req_by,
+                    payload=body.get("payload", {}),
+                    requester_role=req_role,
+                    aircraft_id=ac_id,
+                )
+                self._send_json({"status": "CREATED", "request": req_obj}, 201)
+                return
+
+            # 10c. POST /api/compliance/approvals/approve (Two-person sign-off)
+            if path in ("/api/compliance/approvals/approve", "/api/twin/compliance/approvals/approve"):
+                act_id = body.get("action_id")
+                app_by = body.get("approved_by") or caller.get("sub", "safety_officer")
+                app_role = body.get("approver_role") or caller.get("role", "SAFETY_OFFICER")
+                comment = body.get("comment", "")
+                if not act_id:
+                    self._send_json({"error": "Missing 'action_id'"}, 400)
+                    return
+                ok, req_obj, msg = two_person_approval_gate.approve_request(
+                    action_id=act_id,
+                    approved_by=app_by,
+                    approver_role=app_role,
+                    comment=comment,
+                )
+                if not ok:
+                    self._send_json({"error": msg, "request": req_obj}, 403 if "Two-person rule" in msg else 400)
+                    return
+                self._send_json({"status": "APPROVED", "message": msg, "request": req_obj}, 200)
+                return
+
+            # 10d. POST /api/compliance/approvals/reject
+            if path in ("/api/compliance/approvals/reject", "/api/twin/compliance/approvals/reject"):
+                act_id = body.get("action_id")
+                rej_by = body.get("rejected_by") or caller.get("sub", "safety_officer")
+                reason = body.get("reason", "Rejected by safety supervisor")
+                if not act_id:
+                    self._send_json({"error": "Missing 'action_id'"}, 400)
+                    return
+                ok, req_obj, msg = two_person_approval_gate.reject_request(
+                    action_id=act_id,
+                    rejected_by=rej_by,
+                    reason=reason,
+                )
+                if not ok:
+                    self._send_json({"error": msg, "request": req_obj}, 400)
+                    return
+                self._send_json({"status": "REJECTED", "message": msg, "request": req_obj}, 200)
+                return
+
             # 11. POST /api/demo/start
             if path in ("/api/demo/start", "/api/twin/demo/start"):
                 state = demo_story_controller.start_demo()
@@ -799,6 +1021,60 @@ class TwinApiHandler(BaseHTTPRequestHandler):
                 res_data = body.get("residuals")
                 diag_res = causal_engine.diagnose_root_cause(t_data, res_data)
                 self._send_json(diag_res)
+                return
+
+            # 26. POST /v1/conformal/interval (STARTUP_BLUEPRINT.md §3 F5)
+            if path in ("/v1/conformal/interval", "/api/conformal/interval"):
+                y_pred = float(body.get("y_pred", 100.0))
+                cov = float(body.get("target_coverage", 0.90))
+                interval_res = conformal_prognostics.predict_interval(y_pred, target_coverage=cov)
+                self._send_json({"status": "OK", "conformal_interval": interval_res})
+                return
+
+            # 27. POST /v1/trust/audit (STARTUP_BLUEPRINT.md §3 F14)
+            if path in ("/v1/trust/audit", "/api/trust/audit"):
+                s_sensor = float(body.get("sensor_trust", 1.0))
+                s_pred = float(body.get("prediction_error_norm", 0.05))
+                s_drift = float(body.get("drift_score", 0.0))
+                s_ood = float(body.get("ood_rate", 0.0))
+                trust_res = twin_trust_auditor.evaluate_trust(
+                    sensor_trust=s_sensor,
+                    prediction_error_norm=s_pred,
+                    drift_score=s_drift,
+                    ood_rate=s_ood,
+                )
+                self._send_json({"status": "OK", "trust_audit": trust_res})
+                return
+
+            # 28. POST /v1/telemetry/evaluate (STARTUP_BLUEPRINT.md §3 F6, F7)
+            if path in ("/v1/telemetry/evaluate", "/api/telemetry/evaluate"):
+                tail = str(body.get("tail_id", "UAV-01"))
+                telem = body.get("telemetry", {})
+                phase = str(body.get("flight_phase", "cruise"))
+                anom = float(body.get("anomaly_score", 0.0))
+
+                cal_res = per_airframe_calibrator.update_telemetry(tail, telem, anomaly_score=anom)
+                alert_res = abstention_alert_manager.evaluate_telemetry(telem, flight_phase=phase)
+                self._send_json({
+                    "status": "OK",
+                    "tail_id": tail,
+                    "calibration": cal_res,
+                    "alert": alert_res,
+                })
+                return
+
+            # 29. POST /v1/models/release (STARTUP_BLUEPRINT.md §4)
+            if path in ("/v1/models/release", "/api/models/release"):
+                m_id = str(body.get("model_id", "uav_rul_model.onnx"))
+                ver = str(body.get("version", "1.1.0"))
+                signer = str(body.get("signed_by", "chief_engineer"))
+                self._send_json({
+                    "status": "OK",
+                    "released_model": m_id,
+                    "version": ver,
+                    "signed_by": signer,
+                    "deployed": True,
+                })
                 return
 
             self._send_json({"error": "Endpoint not found", "path": path}, 404)

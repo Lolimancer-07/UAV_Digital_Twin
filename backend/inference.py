@@ -207,11 +207,21 @@ _verify_model_hashes()
 print("[1/3] Loading Deep LSTM RUL Prognostics Model...")
 try:
     lstm_model = load_model(MODEL_PATH)
-    with open(SCALER_PATH, 'rb') as f:
-        scaler = pickle.load(f)
+    try:
+        from twin_core.channel_config import ChannelScalerBundle
+        scaler = ChannelScalerBundle.load(SCALER_PATH)
+    except Exception:
+        with open(SCALER_PATH, 'rb') as f:
+            raw_s = pickle.load(f)
+        if isinstance(raw_s, dict) and "scaler" in raw_s:
+            from twin_core.channel_config import ChannelScalerBundle
+            scaler = ChannelScalerBundle(channels=raw_s.get("channels", ["rpm", "cht", "egt"]), scaler=raw_s["scaler"], meta=raw_s.get("meta", {}))
+        else:
+            scaler = raw_s
     print("      LSTM Prognostics Model Loaded OK.")
     _log("INFO", "model_loaded", "LSTM + scaler loaded",
          model_path=MODEL_PATH, scaler_path=SCALER_PATH)
+
 except Exception as e:
     print(f"      ERROR loading LSTM model: {e}")
     sys.exit(1)
@@ -351,20 +361,22 @@ def _process_telemetry_packet(data):
     is_anomaly, anomaly_score, fault_events = anomaly_detector.predict(data)
     fault_names = [f["name"] for f in fault_events]
 
-    # step 5 — LSTM needs RPM/CHT/EGT normalized into a 50-cycle window
-    # The LSTM scaler was fitted on NASA turbofan data where CHT was in the ~641.21-644.53°F range.
-    # The mission simulator scales CHT into aero piston engine operational temperatures (~380-450°F).
-    # We map piston CHT [380, 450] to the scaler's trained domain [641.21, 644.53] and clip norm3 to [0.0, 1.0].
-    cht_val = float(data.get('cht', 390.0))
-    if cht_val < 550.0:
-        cht_norm = float(np.clip((cht_val - 380.0) / (450.0 - 380.0), 0.0, 1.0))
-        raw_cht = 641.21 + cht_norm * (644.53 - 641.21)
+    # step 5 — LSTM input normalization
+    raw_df = pd.DataFrame([[data.get('rpm', 2400.0), data.get('cht', 390.0), data.get('egt', 1450.0)]], columns=['rpm', 'cht', 'egt'])
+    if hasattr(scaler, "transform"):
+        try:
+            norm3 = np.clip(scaler.transform(raw_df)[0], 0.0, 1.0)
+        except Exception:
+            # Fallback if scaler expects different columns
+            norm3 = np.array([
+                np.clip((data.get('rpm', 2400.0) - 600.0) / (2800.0 - 600.0), 0.0, 1.0),
+                np.clip((data.get('cht', 390.0) - 150.0) / (450.0 - 150.0), 0.0, 1.0),
+                np.clip((data.get('egt', 1450.0) - 900.0) / (1680.0 - 900.0), 0.0, 1.0),
+            ], dtype=np.float32)
     else:
-        raw_cht = cht_val
-
-    raw3 = pd.DataFrame([[data['rpm'], raw_cht, data['egt']]], columns=['rpm', 'cht', 'egt'])
-    norm3 = np.clip(scaler.transform(raw3)[0], 0.0, 1.0)
+        norm3 = np.clip(scaler.transform(raw_df)[0], 0.0, 1.0)
     engine_buffer.append(norm3)
+
 
     predicted_rul = 0.0
     rul_std       = 0.0
@@ -381,39 +393,13 @@ def _process_telemetry_packet(data):
         lstm_input = np.array(tiled).reshape(1, WINDOW_SIZE, 3)
         raw_lstm_rul, rul_std, raw_rul_lower, raw_rul_upper = predict_rul_with_uncertainty(lstm_input)
 
-        # Digital Twin Hybrid Prognostics Calibration:
-        # Aligns predicted RUL with reference ground truth during nominal operations,
-        # and dynamically degrades RUL whenever abnormal operating stress or faults occur.
+        # Phase 0 Honest Prognostics Protocol (Task B4):
+        # Ground-truth shortcut eradicated. Evaluate RUL strictly through the trained LSTM network.
         true_rul = float(data.get("true_rul", 0.0))
-        if true_rul > 0:
-            # Operational stress penalties only when sensors exceed warning thresholds:
-            cht_excess = max(0.0, float(data.get('cht', 380.0)) - 410.0) / 25.0
-            egt_excess = max(0.0, float(data.get('egt', 1585.0)) - 1630.0) / 40.0
-            vib_excess = max(0.0, float(data.get('vibration', 0.65)) - 1.8) / 1.0
-            oil_drop   = max(0.0, 42.0 - float(data.get('oil_pressure', 58.0))) / 12.0
+        predicted_rul = float(np.clip(round(raw_lstm_rul, 1), 1.0, 500.0))
+        rul_lower = float(np.clip(round(raw_rul_lower, 1), 0.0, 500.0))
+        rul_upper = float(np.clip(round(raw_rul_upper, 1), rul_lower + 1.0, 600.0))
 
-            thermal_mech_stress = min(1.0, cht_excess * 0.35 + egt_excess * 0.25 + vib_excess * 0.25 + oil_drop * 0.15)
-
-            # Active fault penalties
-            fault_penalty = 0.0
-            if fault_events:
-                fault_penalty = min(0.75, sum(0.35 if f.get("severity") == "CRITICAL" else 0.20 for f in fault_events))
-
-            combined_degradation = max(thermal_mech_stress * 0.50, fault_penalty)
-            condition_health_factor = max(0.10, 1.0 - combined_degradation)
-
-            # Small stochastic model variance (±0.4 cycles) for realistic telemetry instrument realism
-            stochastic_jitter = ((hash(f"{data.get('cycle')}_{int(data.get('rpm', 0))}") % 11) - 5) * 0.08
-            predicted_rul = max(1.0, round(true_rul * condition_health_factor + stochastic_jitter, 1))
-
-            # Confidence interval tightly bound to ground truth when healthy, expanding when stressed
-            effective_std = max(2.0, min(8.0, 2.5 + combined_degradation * 6.0))
-            rul_lower = max(0.0, round(predicted_rul - 1.645 * effective_std, 1))
-            rul_upper = max(rul_lower + 1.0, round(predicted_rul + 1.645 * effective_std, 1))
-        else:
-            predicted_rul = raw_lstm_rul
-            rul_lower = raw_rul_lower
-            rul_upper = raw_rul_upper
 
         if data.get("cycle", 0) % 10 == 0:
             print(f"[LSTM DEBUG] cycle={data.get('cycle')} buf={len(buf_samples)}/{WINDOW_SIZE} predicted_rul={predicted_rul:.1f} (raw_lstm={raw_lstm_rul:.1f}, true={true_rul:.1f}) std={rul_std:.1f} lower={rul_lower:.1f} upper={rul_upper:.1f}")
@@ -470,13 +456,20 @@ def _process_telemetry_packet(data):
     # determine top-level alert status for the GCS banner
     has_critical = any(f["severity"] == "CRITICAL" for f in fault_events)
     has_warning  = any(f["severity"] == "WARNING"  for f in fault_events)
+    sensor_score = sensor_integrity.get("integrity_score", 1.0)
+    tel_status   = tel_integrity.get("status", "NORMAL")
 
-    if has_critical or (predicted_rul > 0 and predicted_rul < 20):
+    if has_critical or (predicted_rul > 0 and predicted_rul < 20) or sensor_score < 0.4:
         alert_status = "CRITICAL"
-    elif has_warning or is_anomaly:
+    elif has_warning or is_anomaly or sensor_score < 0.7 or tel_status in ("COMPROMISED", "REPLAY_DETECTED"):
         alert_status = "WARNING"
+    elif sensor_score < 0.85 or tel_status == "DEGRADED":
+        alert_status = "ADVISORY"
     else:
         alert_status = "NOMINAL"
+
+    # Production prognostics evidence guard (STARTUP_BLUEPRINT.md / Production Plan)
+    prognostics_status = "ACTIVE" if len(engine_buffer) >= WINDOW_SIZE else "INSUFFICIENT_EVIDENCE"
 
     # map engine ID to UAV callsign for the fleet panel
     active_uav = data.get("uav_id", fleet_manager.active_uav_id)
@@ -534,6 +527,8 @@ def _process_telemetry_packet(data):
 
         # AI prognostics outputs
         "predicted_rul":          round(predicted_rul, 1),
+        "prognostics_status":     prognostics_status,
+        "evidence_quality":       "HIGH" if sensor_score >= 0.85 and len(engine_buffer) >= WINDOW_SIZE else ("INSUFFICIENT" if len(engine_buffer) < WINDOW_SIZE else "DEGRADED"),
         "rul_ci_lower":           round(rul_lower, 1),
         "rul_ci_upper":           round(rul_upper, 1),
         "rul_mc_std":             round(rul_std, 2),
@@ -1343,8 +1338,10 @@ def start_service():
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
     client.on_connect = on_connect
     client.on_message = on_message
-    client.connect("localhost", 1883, 60)
-    print("[MQTT] Connecting to MQTT broker at localhost:1883...")
+    mqtt_host = os.environ.get("MQTT_HOST", "localhost")
+    mqtt_port = int(os.environ.get("MQTT_PORT", "1883"))
+    client.connect(mqtt_host, mqtt_port, 60)
+    print(f"[MQTT] Connecting to MQTT broker at {mqtt_host}:{mqtt_port}...")
     import traceback as _tb
     try:
         client.loop_forever()

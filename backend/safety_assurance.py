@@ -8,6 +8,8 @@ from twin_core.safety_assurance import (
     SAFETY_ENVELOPE_LIMITS,
     RequirementsTraceabilityRegistry,
     HAZARDS_REGISTER,
+    TwoPersonApprovalGate,
+    two_person_approval_gate,
 )
 
 __all__ = [
@@ -15,4 +17,6 @@ __all__ = [
     "SAFETY_ENVELOPE_LIMITS",
     "RequirementsTraceabilityRegistry",
     "HAZARDS_REGISTER",
+    "TwoPersonApprovalGate",
+    "two_person_approval_gate",
 ]

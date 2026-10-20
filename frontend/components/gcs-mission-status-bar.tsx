@@ -50,7 +50,16 @@ function LiveClock() {
 }
 
 export function GcsMissionStatusBar() {
-  const { latestTelemetry: t, connectionStatus, metSeconds, sendCommand, isPaused, togglePause } = useTelemetry()
+  const {
+    latestTelemetry: t,
+    connectionStatus,
+    metSeconds,
+    sendCommand,
+    isPaused,
+    togglePause,
+    dataFreshnessSeconds,
+    isStale,
+  } = useTelemetry()
 
   const uavId = t?.uav_id ?? "UAV-01"
   const alertLevel = t?.alert ?? "NOMINAL"
@@ -59,30 +68,36 @@ export function GcsMissionStatusBar() {
   const currentMode = t?.mission_mode ?? "NORMAL"
   const missionMode = currentMode.replace(/_/g, " ")
   const isAnomaly = t?.is_anomaly ?? false
+  const sensorIntegrity = t?.sensor_integrity?.integrity_score ?? 1.0
+  const isDegraded = sensorIntegrity < 0.7
 
   const isLive = connectionStatus === "live"
   const isCritical = alertLevel === "CRITICAL" || healthIndex < 40
-  const isWarning = alertLevel === "WARNING" || isAnomaly
-  const isNominal = !isCritical && !isWarning
+  const isWarning = alertLevel === "WARNING" || isAnomaly || isDegraded
+  const isNominal = isLive && !isStale && !isCritical && !isWarning
 
-  // Status color
-  const statusColor = isCritical
-    ? "bg-red-500"
-    : isWarning
-    ? "bg-amber-500"
-    : "bg-emerald-500"
+  // Status color & description (Never display nominal green when stale, disconnected, or degraded)
+  let statusColor = "bg-emerald-500"
+  let statusText = "SYSTEM NOMINAL"
+  let statusBg = "bg-card border-border"
 
-  const statusText = isCritical
-    ? "CRITICAL FAULT"
-    : isWarning
-    ? "ANOMALY DETECTED"
-    : "SYSTEM NOMINAL"
-
-  const statusBg = isCritical
-    ? "bg-red-50 border-red-600 dark:bg-red-950 dark:border-red-800"
-    : isWarning
-    ? "bg-amber-50 border-amber-600 dark:bg-amber-950 dark:border-amber-800"
-    : "bg-card border-border"
+  if (!isLive) {
+    statusColor = "bg-zinc-500"
+    statusText = "LINK OFFLINE"
+    statusBg = "bg-muted border-border"
+  } else if (isStale) {
+    statusColor = "bg-amber-500"
+    statusText = `STALE TELEMETRY (${dataFreshnessSeconds}s)`
+    statusBg = "bg-amber-50 border-amber-600 dark:bg-amber-950 dark:border-amber-800"
+  } else if (isCritical) {
+    statusColor = "bg-red-500"
+    statusText = "CRITICAL FAULT"
+    statusBg = "bg-red-50 border-red-600 dark:bg-red-950 dark:border-red-800"
+  } else if (isWarning) {
+    statusColor = "bg-amber-500"
+    statusText = isDegraded ? "INTEGRITY DEGRADED" : "ANOMALY DETECTED"
+    statusBg = "bg-amber-50 border-amber-600 dark:bg-amber-950 dark:border-amber-800"
+  }
 
   // Audio annunciator live state subscription
   const [audioState, setAudioState] = React.useState(() => audioAnnunciator.getState())
@@ -183,8 +198,8 @@ export function GcsMissionStatusBar() {
           <Stat icon={<Clock className="h-3.5 w-3.5" />} label="MISSION ELAPSED" value={metHms(metSeconds)} />
         </div>
 
-        {/* Right: system clocks & link quality */}
-        <div className="flex items-center gap-3 text-[11px] font-mono">
+        {/* Right: system clocks, link quality & provenance */}
+        <div className="flex items-center gap-2.5 text-[11px] font-mono">
           <div className="hidden flex-col items-end leading-none lg:flex">
             <span className="text-muted-foreground">ZULU TIME</span>
             <span className="font-medium text-foreground">
@@ -192,6 +207,28 @@ export function GcsMissionStatusBar() {
             </span>
           </div>
           <div className="hidden h-6 w-px bg-border lg:block" />
+
+          {/* Data Freshness Indicator */}
+          <div
+            className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold border ${
+              !isLive
+                ? "bg-muted text-muted-foreground border-border"
+                : isStale
+                ? "bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/40 animate-pulse"
+                : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+            }`}
+            title="Telemetry Data Freshness (alerts on link staleness > 3.0s)"
+          >
+            <Clock className="h-3 w-3" />
+            <span>{!isLive ? "NO LINK" : isStale ? `STALE (${dataFreshnessSeconds}s)` : "< 0.3s (LIVE)"}</span>
+          </div>
+
+          {/* Model / Digital Twin Release Provenance */}
+          <div className="hidden xl:flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] bg-secondary/80 border border-border text-muted-foreground">
+            <span className="font-semibold text-foreground">PROV:</span>
+            <span>v4.0 · ONNX LSTM CHAMPION</span>
+          </div>
+
           <div
             className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold border ${
               isLive

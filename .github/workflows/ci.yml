@@ -27,14 +27,16 @@ jobs:
           pip install -r requirements.txt
           pip install pytest pytest-cov
 
-      # Train anomaly model and ML classifier so tests can import them
-      - name: Train models (CI seed run)
-        working-directory: backend
+      # Generate synthetic datasets & train models (CI seed run)
+      - name: Generate Phase 0 Datasets and Train Models
         run: |
-          python train_anomaly_detector.py
-          if [ -f ml_chatbot/train_intent_clf.py ]; then
-            python ml_chatbot/train_intent_clf.py || true
+          python simulator/generate_dataset.py --seed 42
+          python train_models.py
+          if [ -f backend/ml_chatbot/train_intent_clf.py ]; then
+            python backend/ml_chatbot/train_intent_clf.py || true
           fi
+          python eval/run_eval.py
+
 
       - name: Run pytest with coverage
         run: |

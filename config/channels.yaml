@@ -1,0 +1,190 @@
+# config/channels.yaml
+# Central telemetry channel specification for UAV Digital Twin.
+# Source of truth for training pipelines, inference engine, physics verification, and sensor integrity monitors.
+
+version: "1.0.0"
+airframe: "MALE UAV (Rotax 914 F Turbocharged 4-Cylinder Boxer)"
+canonical_rate_hz: 10.0
+
+channels:
+  - name: "rpm"
+    symbol: "N_eng"
+    unit: "RPM"
+    description: "Propulsion shaft rotational speed"
+    category: "mechanical"
+    min_valid: 0.0
+    max_valid: 3200.0
+    normal_min: 600.0
+    normal_max: 2800.0
+    critical_threshold: 3000.0
+    expected_rate_hz: 10.0
+    noise_sigma: 2.5
+
+  - name: "cht"
+    symbol: "T_cht"
+    unit: "degF"
+    description: "Average cylinder head temperature across 4 cylinders"
+    category: "thermal"
+    min_valid: 50.0
+    max_valid: 600.0
+    normal_min: 150.0
+    normal_max: 435.0
+    critical_threshold: 430.0
+    expected_rate_hz: 10.0
+    noise_sigma: 0.5
+
+  - name: "egt"
+    symbol: "T_egt"
+    unit: "degF"
+    description: "Average exhaust gas temperature across 4 cylinders"
+    category: "thermal"
+    min_valid: 200.0
+    max_valid: 2000.0
+    normal_min: 900.0
+    normal_max: 1680.0
+    critical_threshold: 1650.0
+    expected_rate_hz: 10.0
+    noise_sigma: 1.2
+
+  - name: "oil_pressure"
+    symbol: "P_oil"
+    unit: "PSI"
+    description: "Lubrication circuit oil pressure"
+    category: "lube"
+    min_valid: 0.0
+    max_valid: 120.0
+    normal_min: 30.0
+    normal_max: 85.0
+    critical_threshold: 30.0
+    expected_rate_hz: 10.0
+    noise_sigma: 0.4
+
+  - name: "oil_temp"
+    symbol: "T_oil"
+    unit: "degF"
+    description: "Lubrication circuit oil sump temperature"
+    category: "lube"
+    min_valid: 40.0
+    max_valid: 320.0
+    normal_min: 130.0
+    normal_max: 245.0
+    critical_threshold: 235.0
+    expected_rate_hz: 10.0
+    noise_sigma: 0.3
+
+  - name: "fuel_flow"
+    symbol: "Q_fuel"
+    unit: "L/h"
+    description: "Instantaneous volumetric fuel consumption"
+    category: "fuel"
+    min_valid: 0.0
+    max_valid: 25.0
+    normal_min: 0.5
+    normal_max: 18.0
+    critical_threshold: 20.0
+    expected_rate_hz: 10.0
+    noise_sigma: 0.05
+
+  - name: "fuel_rail_pressure_bar"
+    symbol: "P_rail"
+    unit: "bar"
+    description: "Common fuel injection delivery rail pressure"
+    category: "fuel"
+    min_valid: 0.5
+    max_valid: 8.0
+    normal_min: 1.8
+    normal_max: 4.5
+    critical_threshold: 1.5
+    expected_rate_hz: 10.0
+    noise_sigma: 0.02
+
+  - name: "vibration"
+    symbol: "Vib_rms"
+    unit: "g"
+    description: "Propulsion block root-mean-square acceleration vibration"
+    category: "mechanical"
+    min_valid: 0.0
+    max_valid: 15.0
+    normal_min: 0.05
+    normal_max: 5.0
+    critical_threshold: 2.5
+    expected_rate_hz: 10.0
+    noise_sigma: 0.04
+
+  - name: "vibration_kurtosis"
+    symbol: "Vib_kurt"
+    unit: "dimensionless"
+    description: "Statistical kurtosis of bearing vibration signal"
+    category: "mechanical"
+    min_valid: 1.5
+    max_valid: 12.0
+    normal_min: 1.8
+    normal_max: 8.0
+    critical_threshold: 5.5
+    expected_rate_hz: 10.0
+    noise_sigma: 0.05
+
+  - name: "battery_v"
+    symbol: "V_bus"
+    unit: "V"
+    description: "Main electrical avionics DC bus voltage"
+    category: "electrical"
+    min_valid: 9.0
+    max_valid: 17.0
+    normal_min: 11.5
+    normal_max: 15.5
+    critical_threshold: 11.0
+    expected_rate_hz: 10.0
+    noise_sigma: 0.02
+
+  - name: "bus_current_a"
+    symbol: "I_bus"
+    unit: "A"
+    description: "Alternator / battery electrical current load"
+    category: "electrical"
+    min_valid: 0.0
+    max_valid: 60.0
+    normal_min: 3.0
+    normal_max: 50.0
+    critical_threshold: 55.0
+    expected_rate_hz: 10.0
+    noise_sigma: 0.2
+
+  - name: "inj_timing"
+    symbol: "Deg_btsc"
+    unit: "degBTDC"
+    description: "Ignition / injection timing advance"
+    category: "combustion"
+    min_valid: 5.0
+    max_valid: 45.0
+    normal_min: 10.0
+    normal_max: 40.0
+    critical_threshold: 12.0
+    expected_rate_hz: 10.0
+    noise_sigma: 0.1
+
+  - name: "map_kpa"
+    symbol: "MAP"
+    unit: "kPa"
+    description: "Intake manifold absolute air pressure"
+    category: "air"
+    min_valid: 10.0
+    max_valid: 130.0
+    normal_min: 25.0
+    normal_max: 108.0
+    critical_threshold: 20.0
+    expected_rate_hz: 10.0
+    noise_sigma: 0.3
+
+  - name: "oat_c"
+    symbol: "T_amb"
+    unit: "degC"
+    description: "Outside ambient air temperature"
+    category: "environment"
+    min_valid: -50.0
+    max_valid: 60.0
+    normal_min: -25.0
+    normal_max: 50.0
+    critical_threshold: 52.0
+    expected_rate_hz: 10.0
+    noise_sigma: 0.2

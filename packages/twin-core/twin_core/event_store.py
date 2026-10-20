@@ -51,6 +51,7 @@ class EventStore:
                 )
                 conn.row_factory = sqlite3.Row
                 self._shared_conn = conn
+                self._init_db()
             return self._shared_conn
 
         if not hasattr(self._local, "conn") or self._local.conn is None:
@@ -686,6 +687,7 @@ class EventStore:
 
     def close(self) -> None:
         """Close database connections."""
+        self._closed = True
         if self._shared_conn is not None:
             try:
                 self._shared_conn.close()

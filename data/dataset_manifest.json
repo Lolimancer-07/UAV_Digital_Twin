@@ -1,0 +1,50 @@
+{
+  "generator_version": "1.0.0",
+  "base_seed": 42,
+  "created_at": "2026-10-10T12:00:00Z",
+  "datasets": {
+    "synthetic_piston_train.csv": {
+      "rows": 4500,
+      "flights": 18,
+      "sha256": "98e1fa7ab923cfa86668191b0e618de5e213539b031bf3451bce3dcba9e51ee8",
+      "fault_families": [
+        "cooling_degradation",
+        "injector_clog",
+        "misfire",
+        "none",
+        "oil_leak"
+      ]
+    },
+    "synthetic_piston_val.csv": {
+      "rows": 2250,
+      "flights": 9,
+      "sha256": "3457894ca58fa6879e2992d1f454e6bde7a994138c37eb819e20fcae21c0ee36",
+      "fault_families": [
+        "cooling_degradation",
+        "injector_clog",
+        "misfire",
+        "none",
+        "oil_leak"
+      ]
+    },
+    "synthetic_piston_test_frozen.csv": {
+      "rows": 5000,
+      "flights": 20,
+      "sha256": "7fd0e85a39b00203500bbae787b811d306031d5436b76c35f5fac97d44bd2da9",
+      "fault_families": [
+        "bearing_spalling",
+        "cooling_degradation",
+        "exhaust_valve_leak",
+        "injector_clog",
+        "intake_manifold_leak",
+        "misfire",
+        "none",
+        "oil_leak",
+        "sensor_drift",
+        "sensor_dropout",
+        "sensor_noise_burst",
+        "sensor_stuck"
+      ]
+    }
+  }
+}

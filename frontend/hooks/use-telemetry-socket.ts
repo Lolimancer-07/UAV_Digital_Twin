@@ -128,6 +128,7 @@ export function useTelemetrySocket(endpoint = DEFAULT_WS_ENDPOINT) {
             "prescriptive",
             "fleet",
             "mission_command",
+            "interactive",
           ],
           min_interval_ms: 100,
         }

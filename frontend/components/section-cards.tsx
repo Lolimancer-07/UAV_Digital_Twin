@@ -194,33 +194,43 @@ export function SectionCards() {
             <CardHeader className="min-h-28 p-5">
               <CardDescription>REMAINING USEFUL LIFE</CardDescription>
               <CardTitle className="mt-2 text-3xl font-semibold tracking-tight tabular-nums @[250px]/card:text-4xl">
-                {bufPct < 100
-                  ? `${fmtNum(bufPct, 0)}%`
-                  : `${fmtInt(displayRul)}`}
-                <span className="text-lg text-muted-foreground">
-                  {bufPct < 100 ? " BUF" : " cyc"}
-                </span>
+                {displayRul > 0 ? (
+                  <>
+                    {fmtInt(displayRul)}
+                    <span className="text-lg text-muted-foreground"> cyc</span>
+                  </>
+                ) : bufPct > 0 ? (
+                  <>
+                    {fmtNum(bufPct, 0)}%
+                    <span className="text-lg text-muted-foreground"> BUF</span>
+                  </>
+                ) : (
+                  <>
+                    --
+                    <span className="text-lg text-muted-foreground"> cyc</span>
+                  </>
+                )}
               </CardTitle>
               <CardAction>
                 <Badge variant="outline">
                   <ActivityIcon data-icon="inline-start" />
-                  {bufPct < 100 ? "WARMING UP" : "MODEL LIVE"}
+                  {displayRul > 0 ? "MODEL LIVE" : bufPct > 0 ? `WARMING UP (${fmtNum(bufPct, 0)}%)` : "INITIALIZING"}
                 </Badge>
               </CardAction>
             </CardHeader>
             <CardFooter className="flex-col items-start gap-1 px-5 pb-4 text-xs">
               <div className="line-clamp-1 flex gap-2 font-medium">
-                {bufPct >= 100
-                  ? predRul > 0
-                    ? `PRED: ${fmtInt(predRul)} · TRUE: ${fmtInt(trueRul)} cyc`
-                    : `TRUE: ${fmtInt(trueRul)} cyc`
-                  : `Loading… ${fmtNum(bufPct, 0)}%`}
+                {predRul > 0
+                  ? `PRED: ${fmtInt(predRul)} · TRUE: ${fmtInt(trueRul)} cyc`
+                  : trueRul > 0
+                  ? `ESTIMATED: ${fmtInt(trueRul)} cyc`
+                  : `Buffer: ${fmtNum(bufPct, 0)}%`}
               </div>
               <div className="text-muted-foreground">
-                {bufPct >= 100
-                  ? hasValidCI
-                    ? `90% CI [${fmtInt(rulLower)} — ${fmtInt(rulUpper)}]`
-                    : "90% CI unavailable"
+                {hasValidCI
+                  ? `90% CI [${fmtInt(rulLower)} — ${fmtInt(rulUpper)}]`
+                  : bufPct < 100 && bufPct > 0
+                  ? `Window building (${fmtNum(bufPct, 0)}% / 50 cycles)`
                   : "FADEC prediction window"}
               </div>
             </CardFooter>

@@ -180,6 +180,14 @@ export function AICopilotProvider({ children }: { children: React.ReactNode }) {
     setTimeout(tick, TYPEWRITER_SPEED_MS)
   }, [])
 
+  // On mount, ignore any stale response generated before the user session started
+  React.useEffect(() => {
+    const existing = latestTelemetry?.ai_engineer_response
+    if (existing && existing.answer && lastProcessedRef.current === null) {
+      lastProcessedRef.current = `${existing.question || ""}_${existing.timestamp || ""}_${existing.answer.slice(0, 20)}`
+    }
+  }, [latestTelemetry?.ai_engineer_response])
+
   // Ingest answers from backend WebSocket
   React.useEffect(() => {
     const resp = latestTelemetry?.ai_engineer_response
@@ -234,12 +242,12 @@ export function AICopilotProvider({ children }: { children: React.ReactNode }) {
       question: q,
     })
 
-    // If socket is disconnected, or if backend takes > 4s, provide immediate intelligent answer
+    // If socket is disconnected, or if backend takes > 1.8s, provide immediate intelligent answer
     if (fallbackTimerRef.current) {
       clearTimeout(fallbackTimerRef.current)
     }
 
-    const delay = sent ? 4500 : 400
+    const delay = sent ? 1800 : 300
     fallbackTimerRef.current = setTimeout(() => {
       setWaiting((currentWaiting) => {
         if (!currentWaiting) return false

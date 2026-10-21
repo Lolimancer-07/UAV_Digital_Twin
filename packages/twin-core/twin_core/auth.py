@@ -218,17 +218,27 @@ FIELD_GROUP_MAPPING = {
         "oil_pressure", "oil_temp", "fuel_flow", "fuel_rail_pressure_bar", "vibration",
         "vibration_kurtosis", "battery_v", "bus_current_a", "inj_timing", "map_kpa",
         "altitude_ft", "oat_c", "mission_mode", "paused", "alert", "envelope_version",
-        "emitted_at"
+        "emitted_at", "can_frames"
     ],
     "physics": ["physics"],
-    "prognostics": ["predicted_rul", "rul_ci_lower", "rul_ci_upper", "rul_mc_std", "true_rul"],
-    "anomaly": ["is_anomaly", "anomaly_score", "fault_events", "active_faults", "injected_faults"],
+    "prognostics": [
+        "predicted_rul", "rul_ci_lower", "rul_ci_upper", "rul_mc_std", "true_rul",
+        "buffer_pct", "prognostics_status", "evidence_quality"
+    ],
+    "anomaly": [
+        "is_anomaly", "anomaly_score", "fault_events", "active_faults", "injected_faults",
+        "cooling_degradation_active", "misfire_active"
+    ],
     "health": ["health", "sensor_integrity", "twin_consistency", "failure_probability"],
     "xai": ["xai"],
     "risk": ["mission_risk"],
     "prescriptive": ["prescriptive", "advisories"],
     "fleet": ["fleet_status"],
     "mission_command": ["mission_command", "mission_command_action", "route"],
+    "interactive": [
+        "whatif_result", "optimize_result", "ai_engineer_response", "demo_state",
+        "federated_round", "edge_profile", "security_status", "provenance"
+    ],
 }
 
 
@@ -263,8 +273,12 @@ def filter_payload_for_subscriber(
     for grp in field_groups:
         allowed_fields.update(FIELD_GROUP_MAPPING.get(grp, []))
 
-    # Always preserve core envelope identification
-    allowed_fields.update(["envelope_version", "emitted_at", "cycle", "uav_id", "engine_id", "alert"])
+    # Always preserve core envelope identification and interactive response channels
+    allowed_fields.update([
+        "envelope_version", "emitted_at", "cycle", "uav_id", "engine_id", "alert",
+        "buffer_pct", "predicted_rul", "true_rul", "ai_engineer_response",
+        "whatif_result", "optimize_result", "demo_state", "federated_round", "edge_profile"
+    ])
 
     filtered = {k: v for k, v in payload.items() if k in allowed_fields}
     return filtered

@@ -64,9 +64,16 @@ function CheckItem({ label, done, pulse }: { label: string; done: boolean; pulse
 export function BackendGate({ children }: { children: React.ReactNode }) {
   const { connectionStatus, latestTelemetry, reconnect } = useTelemetry()
   const [demoMode, setDemoMode] = React.useState(false)
+  const hasEverConnectedRef = React.useRef(false)
+
+  if (latestTelemetry != null) {
+    hasEverConnectedRef.current = true
+  }
+
   const hasTelemetry = latestTelemetry != null
   const isWsOpen = connectionStatus === "live"
-  const isConnected = (isWsOpen && hasTelemetry) || demoMode
+  // Keep dashboard interactive and smooth once initialized — never reset or flash full screen splash on tenant switch
+  const isConnected = (isWsOpen && hasTelemetry) || demoMode || hasEverConnectedRef.current
   const isReconnecting = connectionStatus === "reconnecting"
   const isConnecting = connectionStatus === "connecting"
   const isWaitingForSim = isWsOpen && !hasTelemetry

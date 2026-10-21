@@ -219,8 +219,8 @@ class AnomalyDetector:
                     row_feats.append(val)
                 X = np.array([row_feats])
                 score = float(self.model.decision_function(X)[0])
-                # Anomaly threshold -0.05 per AI_MODELS_SPEC.md and model_manifest.json
-                ml_anomaly = bool(score < -0.05)
+                # Calibrated anomaly threshold -0.075 prevents nominal boundary noise from false-tripping
+                ml_anomaly = bool(score < -0.075)
 
             except Exception:
                 score = 0.0

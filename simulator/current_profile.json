@@ -1,8 +1,6 @@
 {
-  "mode": "RAPID_THROTTLE",
-  "speed": 2.0,
+  "mode": "NORMAL",
+  "speed": 1.0,
   "paused": false,
-  "injected_faults": [],
-  "uav_id": "UAV-01",
-  "engine_id": 1
+  "injected_faults": []
 }

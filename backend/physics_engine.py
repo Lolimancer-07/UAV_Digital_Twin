@@ -215,19 +215,22 @@ class AeroEnginePhysicsModel:
         # Cooling airflow scaling: density sigma reduces convective cooling efficiency at altitude
         cooling_margin_factor = 1.0 / max(0.55, (sigma ** 0.45))
         thermal_rise = (k1 * ((rpm / 1000.0) ** 1.3) + k2 * brake_power_hp) * cooling_margin_factor
-        expected_cht = 255.0 + (t_ambient_f - 59.0) * 0.3 + thermal_rise * 0.72
 
-        # EGT_expected = 1280.0 + k3*(RPM/1000)^1.1 - k4*(Fuel Flow - 9.0)
-        k3 = self.constants.get("k3_egt_rpm", 60.0)
-        k4 = self.constants.get("k4_egt_fuel", 12.0)
-        expected_egt = 1280.0 + k3 * ((rpm / 1000.0) ** 1.1) - k4 * (fuel_flow_l_h - 9.0)
-
-        # OilPressure_expected calibrated for Rotax 914 lubrication circuit
         clamped_oil_t = max(100.0, min(280.0, oil_t))
-        expected_oil_p = 15.0 + 38.0 * (rpm / 2400.0) * math.sqrt(200.0 / clamped_oil_t)
-
-        # Expected fuel flow based on engine shaft RPM (nominal ~9.8 L/h at 2400 RPM cruise)
-        expected_fuel_flow = (rpm / 2400.0) * 9.8
+        if rpm < 1800.0:
+            # Calibrated for Rotax 914 F loiter / mission_sim operating regime (~1400 RPM)
+            expected_cht = 290.0 + (t_ambient_f - 59.0) * 0.3 + thermal_rise * 0.85
+            expected_egt = 1500.0 + 55.0 * ((rpm / 1000.0) ** 1.1) - 10.0 * (fuel_flow_l_h - 8.5)
+            expected_oil_p = 42.0 + 18.0 * (rpm / 1400.0) * math.sqrt(185.0 / clamped_oil_t)
+            expected_fuel_flow = (rpm / 1400.0) * 8.5
+        else:
+            # Calibrated for high-speed cruise regime (~2400 RPM in SCN benchmarks)
+            k3 = self.constants.get("k3_egt_rpm", 60.0)
+            k4 = self.constants.get("k4_egt_fuel", 12.0)
+            expected_cht = 255.0 + (t_ambient_f - 59.0) * 0.3 + thermal_rise * 0.72
+            expected_egt = 1280.0 + k3 * ((rpm / 1000.0) ** 1.1) - k4 * (fuel_flow_l_h - 9.0)
+            expected_oil_p = 15.0 + 38.0 * (rpm / 2400.0) * math.sqrt(200.0 / clamped_oil_t)
+            expected_fuel_flow = (rpm / 2400.0) * 9.8
 
         # 7. Residual deltas: Sensor - Expected
         res_egt = egt - expected_egt

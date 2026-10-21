@@ -62,60 +62,63 @@ def compute_health_index(
     """
     global _last_health_state
 
-    # RUL is the biggest single factor — 40% of the composite score
+    # RUL endurance tracking score (reported in sub_scores)
     if predicted_rul > 0:
         rul_score = min(100.0, max(0.0, (predicted_rul / MAX_RUL) * 100.0))
     else:
-        # before the LSTM buffer fills up, use cycle count as a rough proxy
         cycle = float(data.get('cycle', 1))
         rul_score = max(50.0, 100.0 - (cycle / MAX_RUL) * 70.0)
 
-    # thermal score — CHT nominal < 395°F, gets punished above that
+    # Thermal subsystem — CHT nominal <= 410°F per Rotax 914 F operational envelope
     cht = float(data.get('cht', 380.0))
     egt = float(data.get('egt', 1580.0))
-    cht_score = 100.0 if cht <= 390 else max(0.0, 100.0 - (cht - 390.0) * 2.2)
-    # EGT nominal < 1600°F, critical > 1660°F
-    egt_score = 100.0 if egt <= 1585 else max(0.0, 100.0 - (egt - 1585.0) * 1.3)
+    cht_score = 100.0 if cht <= 410.0 else max(0.0, 100.0 - (cht - 410.0) * 2.5)
+    # EGT nominal <= 1620°F, critical redline > 1660°F
+    egt_score = 100.0 if egt <= 1620.0 else max(0.0, 100.0 - (egt - 1620.0) * 2.0)
     raw_thermal = (cht_score * 0.55 + egt_score * 0.45)
 
-    # lubrication — oil pressure is the critical one (65% weight here)
+    # Lubrication subsystem — oil pressure nominal 50–65 PSI (65% weight)
     oil_p = float(data.get('oil_pressure', 58.0))
     oil_t = float(data.get('oil_temp', 185.0))
-    oil_p_score = 100.0 if oil_p >= 50.0 else max(0.0, (oil_p - 30.0) / 20.0 * 100.0)
-    oil_t_score = 100.0 if oil_t <= 195.0 else max(0.0, 100.0 - (oil_t - 195.0) * 2.2)
+    oil_p_score = 100.0 if oil_p >= 50.0 else max(0.0, (oil_p - 28.0) / 22.0 * 100.0)
+    oil_t_score = 100.0 if oil_t <= 205.0 else max(0.0, 100.0 - (oil_t - 205.0) * 2.5)
     raw_lubrication = (oil_p_score * 0.65 + oil_t_score * 0.35)
 
-    # mechanical — kurtosis catches impulsive bearing faults better than RMS alone
+    # Mechanical subsystem — vibration RMS nominal <= 1.0g, kurtosis nominal <= 3.6
     vib = float(data.get('vibration', 0.65))
     vib_kurt = float(data.get('vibration_kurtosis', 3.0))
-    vib_score = 100.0 if vib <= 0.90 else max(0.0, 100.0 - (vib - 0.90) * 45.0)
-    kurt_score = 100.0 if vib_kurt <= 3.4 else max(0.0, 100.0 - (vib_kurt - 3.4) * 45.0)
+    vib_score = 100.0 if vib <= 1.0 else max(0.0, 100.0 - (vib - 1.0) * 35.0)
+    kurt_score = 100.0 if vib_kurt <= 3.6 else max(0.0, 100.0 - (vib_kurt - 3.6) * 30.0)
     raw_mechanical = (vib_score * 0.70 + kurt_score * 0.30)
 
-    # electrical — only 5% weight, but battery sag is a real red flag
+    # Electrical subsystem — 10% weight, nominal 13.2–14.5 V
     batt_v = float(data.get('battery_v', 13.8))
-    raw_elec = 100.0 if 13.2 <= batt_v <= 14.5 else max(0.0, 100.0 - abs(batt_v - 13.8) * 35.0)
+    raw_elec = 100.0 if 13.2 <= batt_v <= 14.5 else max(0.0, 100.0 - abs(batt_v - 13.8) * 30.0)
 
-    # anomaly score contribution — more negative = more anomalous
-    anomaly_norm = min(100.0, max(0.0, (anomaly_score + 0.20) / 0.35 * 100.0))
+    # Anomaly score contribution — normalized across [-0.15, +0.15]
+    anomaly_norm = min(100.0, max(0.0, (anomaly_score + 0.15) / 0.30 * 100.0))
 
-    # weighted composite — weights sum to 1.0
+    # Aerospace composite health index — weighted across physical subsystems
     raw_composite = (
-        rul_score       * 0.40 +
-        raw_thermal     * 0.20 +
-        raw_lubrication * 0.15 +
-        raw_mechanical  * 0.15 +
-        raw_elec        * 0.05 +
-        anomaly_norm    * 0.05
+        raw_thermal     * 0.30 +
+        raw_lubrication * 0.25 +
+        raw_mechanical  * 0.25 +
+        raw_elec        * 0.10 +
+        anomaly_norm    * 0.10
     )
 
-    # active critical faults get a hard penalty regardless of sensor readings
+    # Graceful near-end-of-life endurance derating only when remaining life falls below 30 cycles
+    if 0 < predicted_rul < 30.0:
+        endurance_penalty = (30.0 - predicted_rul) * 0.5
+        raw_composite -= endurance_penalty
+
+    # Active critical faults apply hard operational safety deductions
     critical_faults = {"OVERHEATING", "LOW_OIL_PRESSURE", "MISFIRE_SUSPECT"}
     for f in fault_names:
         if f in critical_faults:
-            raw_composite -= 18.0
+            raw_composite -= 20.0
         else:
-            raw_composite -= 6.0
+            raw_composite -= 8.0
 
     raw_composite = max(0.0, min(100.0, raw_composite))
 

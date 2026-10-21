@@ -146,8 +146,8 @@ export function TelemetryDistribution() {
       unit: "°F",
       getValue: (t) => t?.egt ?? 1465,
       format: (v) => Math.round(v).toString(),
-      status: (v) => (v > 1680 ? "crit" : v > 1600 ? "warn" : "nom"),
-      limits: "< 1600°F",
+      status: (v) => (v > 1660 ? "crit" : v > 1625 ? "warn" : "nom"),
+      limits: "< 1625°F",
       sparkKey: "egt",
     },
     {

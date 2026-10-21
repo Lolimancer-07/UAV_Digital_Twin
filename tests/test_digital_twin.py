@@ -71,6 +71,10 @@ class TestPhysicsEngine(unittest.TestCase):
 class TestSensorIntegrity(unittest.TestCase):
     """Verifies detection of stuck, noisy, or physically impossible readings."""
 
+    def setUp(self):
+        for ch in sensor_integrity_monitor.history:
+            sensor_integrity_monitor.history[ch].clear()
+
     def test_nominal_sensors(self):
         telemetry = {
             'rpm': 2100.0, 'cht': 375.0, 'egt': 1420.0,

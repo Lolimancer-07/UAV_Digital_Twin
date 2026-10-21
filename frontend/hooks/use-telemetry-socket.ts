@@ -226,8 +226,41 @@ export function useTelemetrySocket(endpoint = DEFAULT_WS_ENDPOINT) {
     }, 3000)
 
     // Listen for tenant or role switching
-    const unsubscribeAuth = subscribeToSessionChanges(() => {
-      connectRef.current()
+    const unsubscribeAuth = subscribeToSessionChanges((newSession) => {
+      const socket = socketRef.current
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        // Send in-flight subscription & auth update directly — avoids socket tear-down and screen reset
+        const subMsg = {
+          command: "subscribe",
+          action: "subscribe",
+          auth_token: newSession.token,
+          token: newSession.token,
+          subscription_version: "1.0",
+          tenant_id: newSession.tenant_id,
+          aircraft_ids: newSession.aircraft_ids.length > 0 ? newSession.aircraft_ids : ["*"],
+          field_groups: [
+            "telemetry",
+            "physics",
+            "prognostics",
+            "anomaly",
+            "health",
+            "xai",
+            "risk",
+            "prescriptive",
+            "fleet",
+            "mission_command",
+            "interactive",
+          ],
+          min_interval_ms: 100,
+        }
+        try {
+          socket.send(JSON.stringify(subMsg))
+        } catch {
+          connectRef.current()
+        }
+      } else {
+        connectRef.current()
+      }
     })
 
     return () => {

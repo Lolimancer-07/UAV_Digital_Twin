@@ -397,7 +397,7 @@ function AudioToggle() {
   )
 }
 
-import { Users } from "lucide-react"
+import { Users, ChevronDown, Check, ShieldCheck, Lock, Loader2 } from "lucide-react"
 import { getActiveSession, fetchSessionToken, UserRole, subscribeToSessionChanges } from "@/lib/telemetry/auth"
 
 function TenantRoleSwitcher() {
@@ -429,72 +429,242 @@ function TenantRoleSwitcher() {
   }
 
   const tenantLabel = session.tenant_id === "tenant_bravo" ? "Bravo Fleet" : "Alpha Fleet"
-  const roleColors: Record<string, string> = {
-    admin: "border-purple-500 text-purple-600 dark:text-purple-400 bg-purple-500/10",
-    maintainer: "border-amber-500 text-amber-600 dark:text-amber-400 bg-amber-500/10",
-    dispatcher: "border-blue-500 text-blue-600 dark:text-blue-400 bg-blue-500/10",
-    viewer: "border-zinc-500 text-zinc-600 dark:text-zinc-400 bg-zinc-500/10",
+
+  const roleConfig: Record<
+    UserRole,
+    {
+      label: string
+      level: string
+      desc: string
+      badge: string
+      border: string
+      glow: string
+      activeRing: string
+    }
+  > = {
+    viewer: {
+      label: "Viewer",
+      level: "L1",
+      desc: "Read-only telemetry",
+      badge: "bg-zinc-500/15 text-zinc-400 border-zinc-500/30",
+      border: "border-zinc-500/40 hover:border-zinc-400",
+      glow: "hover:shadow-[0_0_12px_rgba(161,161,170,0.15)]",
+      activeRing: "border-zinc-400 bg-zinc-500/10 ring-1 ring-zinc-400/40",
+    },
+    dispatcher: {
+      label: "Dispatcher",
+      level: "L2",
+      desc: "Mission & flight ops",
+      badge: "bg-sky-500/15 text-sky-400 border-sky-500/30",
+      border: "border-sky-500/40 hover:border-sky-400",
+      glow: "hover:shadow-[0_0_12px_rgba(56,189,248,0.2)]",
+      activeRing: "border-sky-500 bg-sky-500/10 ring-1 ring-sky-500/50",
+    },
+    maintainer: {
+      label: "Maintainer",
+      level: "L3",
+      desc: "Diagnostics & health",
+      badge: "bg-amber-500/15 text-amber-400 border-amber-500/30",
+      border: "border-amber-500/40 hover:border-amber-400",
+      glow: "hover:shadow-[0_0_12px_rgba(245,158,11,0.2)]",
+      activeRing: "border-amber-500 bg-amber-500/10 ring-1 ring-amber-500/50",
+    },
+    admin: {
+      label: "Admin",
+      level: "L4",
+      desc: "Root policy & keys",
+      badge: "bg-purple-500/15 text-purple-400 border-purple-500/30",
+      border: "border-purple-500/40 hover:border-purple-400",
+      glow: "hover:shadow-[0_0_12px_rgba(168,85,247,0.25)]",
+      activeRing: "border-purple-500 bg-purple-500/10 ring-1 ring-purple-500/50",
+    },
   }
+
+  const currentRole = roleConfig[session.role] || roleConfig.dispatcher
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        className={`hidden sm:inline-flex items-center gap-1.5 px-2 py-1 rounded-md border text-[11px] font-mono font-medium transition-colors cursor-pointer ${
-          roleColors[session.role] || "border-border text-foreground"
-        }`}
-        title="Tenant & RBAC Role Switcher"
+        className={`group hidden sm:inline-flex items-center gap-2 px-2.5 py-1 rounded-lg border text-xs font-mono font-medium transition-all duration-200 cursor-pointer shadow-xs bg-background/80 hover:bg-muted/40 active:scale-[0.98] ${currentRole.border} ${currentRole.glow}`}
+        title="Tenant & RBAC Access Scope"
       >
-        <Users className="size-3" />
-        <span>{tenantLabel}</span>
-        <span className="text-[10px] opacity-70">[{session.role.toUpperCase()}]</span>
+        <div className="flex items-center gap-1.5">
+          <Users className="size-3.5 text-muted-foreground group-hover:text-foreground transition-colors" />
+          <span className="font-semibold text-foreground tracking-tight">{tenantLabel}</span>
+        </div>
+        <span
+          className={`inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-bold tracking-wider uppercase border ${currentRole.badge}`}
+        >
+          {session.role}
+        </span>
+        <ChevronDown className="size-3 text-muted-foreground/70 group-hover:text-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56 p-2 font-mono text-xs">
-        <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
-          Tenant Isolation Scope
-        </DropdownMenuLabel>
-        <div className="grid grid-cols-2 gap-1 my-1">
-          <Button
-            size="sm"
-            variant={session.tenant_id === "tenant_alpha" ? "default" : "outline"}
-            className="h-7 text-[10px] cursor-pointer"
-            disabled={switching}
-            onClick={() => handleSwitchTenant("tenant_alpha")}
-          >
-            Alpha (UAV-01..03)
-          </Button>
-          <Button
-            size="sm"
-            variant={session.tenant_id === "tenant_bravo" ? "default" : "outline"}
-            className="h-7 text-[10px] cursor-pointer"
-            disabled={switching}
-            onClick={() => handleSwitchTenant("tenant_bravo")}
-          >
-            Bravo (UAV-04..05)
-          </Button>
+
+      <DropdownMenuContent
+        align="end"
+        className="w-[330px] p-3 font-sans rounded-xl border border-border/80 bg-popover/95 backdrop-blur-xl shadow-2xl animate-in fade-in-50 zoom-in-95 data-[side=bottom]:slide-in-from-top-2"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-border/60">
+          <div className="flex items-center gap-2">
+            <div className="flex size-7 items-center justify-center rounded-lg bg-primary/10 border border-primary/20 text-primary">
+              <ShieldCheck className="size-4" />
+            </div>
+            <div>
+              <div className="text-xs font-bold uppercase tracking-wider text-foreground">
+                Access & Fleet Scope
+              </div>
+              <div className="text-[10px] font-mono text-muted-foreground">
+                HMAC-SHA256 Tokenized Envelope
+              </div>
+            </div>
+          </div>
+          {switching ? (
+            <span className="inline-flex items-center gap-1 text-[10px] font-mono text-primary animate-pulse font-medium">
+              <Loader2 className="size-3 animate-spin" />
+              Syncing…
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-[9px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/25 font-semibold">
+              <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              LIVE JWS
+            </span>
+          )}
         </div>
 
-        <DropdownMenuSeparator className="my-1.5" />
-        <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
-          RBAC Role Level
-        </DropdownMenuLabel>
-        <div className="grid grid-cols-2 gap-1 my-1">
-          {(["viewer", "dispatcher", "maintainer", "admin"] as UserRole[]).map((r) => (
-            <Button
-              key={r}
-              size="sm"
-              variant={session.role === r ? "default" : "outline"}
-              className="h-6 text-[10px] uppercase cursor-pointer"
-              disabled={switching}
-              onClick={() => handleSwitchRole(r)}
-            >
-              {r}
-            </Button>
-          ))}
+        {/* Tenant Section */}
+        <div className="space-y-1.5 mb-3">
+          <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground/80 px-1 font-semibold flex items-center justify-between">
+            <span>Tenant Isolation Squadron</span>
+            <span className="text-[9px] font-normal lowercase text-muted-foreground/60">aircraft-scoped</span>
+          </div>
+
+          {/* Alpha Fleet */}
+          <button
+            type="button"
+            disabled={switching}
+            onClick={() => handleSwitchTenant("tenant_alpha")}
+            className={`w-full flex items-center justify-between p-2.5 rounded-lg border text-left transition-all duration-150 cursor-pointer ${
+              session.tenant_id === "tenant_alpha"
+                ? "bg-primary/10 border-primary/60 shadow-xs"
+                : "bg-muted/30 border-border/60 hover:bg-muted/70 hover:border-border"
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <div
+                className={`size-2 rounded-full ${
+                  session.tenant_id === "tenant_alpha"
+                    ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]"
+                    : "bg-muted-foreground/40"
+                }`}
+              />
+              <div>
+                <div className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                  Alpha Fleet
+                  <span className="text-[10px] font-mono font-normal text-muted-foreground">
+                    (UAV-01 .. UAV-03)
+                  </span>
+                </div>
+                <div className="text-[10px] text-muted-foreground font-mono">
+                  Active Mission Squadron · 3 Aircraft
+                </div>
+              </div>
+            </div>
+            {session.tenant_id === "tenant_alpha" && (
+              <Check className="size-4 text-primary shrink-0" />
+            )}
+          </button>
+
+          {/* Bravo Fleet */}
+          <button
+            type="button"
+            disabled={switching}
+            onClick={() => handleSwitchTenant("tenant_bravo")}
+            className={`w-full flex items-center justify-between p-2.5 rounded-lg border text-left transition-all duration-150 cursor-pointer ${
+              session.tenant_id === "tenant_bravo"
+                ? "bg-primary/10 border-primary/60 shadow-xs"
+                : "bg-muted/30 border-border/60 hover:bg-muted/70 hover:border-border"
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <div
+                className={`size-2 rounded-full ${
+                  session.tenant_id === "tenant_bravo"
+                    ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]"
+                    : "bg-muted-foreground/40"
+                }`}
+              />
+              <div>
+                <div className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                  Bravo Fleet
+                  <span className="text-[10px] font-mono font-normal text-muted-foreground">
+                    (UAV-04 .. UAV-05)
+                  </span>
+                </div>
+                <div className="text-[10px] text-muted-foreground font-mono">
+                  Reserve Patrol Wing · 2 Aircraft
+                </div>
+              </div>
+            </div>
+            {session.tenant_id === "tenant_bravo" && (
+              <Check className="size-4 text-primary shrink-0" />
+            )}
+          </button>
+        </div>
+
+        {/* RBAC Role Clearance Level Matrix */}
+        <div className="space-y-1.5">
+          <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground/80 px-1 font-semibold flex items-center justify-between">
+            <span>RBAC Clearance Level</span>
+            <span className="text-[9px] font-normal lowercase text-muted-foreground/60">role permissions</span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-1.5">
+            {(["viewer", "dispatcher", "maintainer", "admin"] as UserRole[]).map((r) => {
+              const cfg = roleConfig[r]
+              const isSelected = session.role === r
+              return (
+                <button
+                  key={r}
+                  type="button"
+                  disabled={switching}
+                  onClick={() => handleSwitchRole(r)}
+                  className={`flex flex-col p-2 rounded-lg border text-left transition-all duration-150 cursor-pointer relative ${
+                    isSelected
+                      ? cfg.activeRing
+                      : "bg-muted/20 border-border/60 hover:bg-muted/50 hover:border-border"
+                  }`}
+                >
+                  <div className="flex items-center justify-between w-full mb-1">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-foreground">
+                      {cfg.label}
+                    </span>
+                    <span className={`text-[9px] font-mono font-bold px-1 py-0.2 rounded border ${cfg.badge}`}>
+                      {cfg.level}
+                    </span>
+                  </div>
+                  <span className="text-[9.5px] leading-tight text-muted-foreground line-clamp-1">
+                    {cfg.desc}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Security Footer */}
+        <div className="mt-3 pt-2 border-t border-border/60 flex items-center justify-between text-[10px] font-mono text-muted-foreground">
+          <span className="flex items-center gap-1.5">
+            <Lock className="size-3 opacity-70" />
+            <span>Strict Tenant Isolation</span>
+          </span>
+          <span className="opacity-70">Envelope v1.0</span>
         </div>
       </DropdownMenuContent>
     </DropdownMenu>
   )
 }
+
 
 export function SiteHeader() {
   const { latestTelemetry } = useTelemetry()

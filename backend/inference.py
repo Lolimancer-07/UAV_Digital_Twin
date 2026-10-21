@@ -1,31 +1,3 @@
-"""
-backend/inference.py
-
-This is the main brain of the digital twin — everything connects here.
-We pull in live sensor data over MQTT, run it through the full analysis
-pipeline, and push results out to the GCS dashboard via WebSocket.
-
-Pipeline stages (in order they run per telemetry packet):
-  1.  MQTT ingestion  — 14-channel live engine telemetry at 10 Hz
-  2.  Sensor integrity — catch stuck readings, noise, impossible values
-  3.  Physics engine   — Otto cycle, BHP, BSFC, residual deltas
-  4.  Anomaly detector — Isolation Forest + 8 rule-based fault classifiers
-  5.  RUL prediction   — LSTM with MC Dropout for uncertainty bands
-  6.  Health index     — weighted composite across 5 subsystems
-  7.  Twin consistency — cross-validate AI vs physics (Cases A-D)
-  8.  XAI             — which sensor is actually driving the anomaly?
-  9.  Mission risk     — will we make it back? probability estimate
-  10. What-If cache    — results stored here, triggered by GCS command
-  11. Optimizer        — best RPM/altitude for max mission probability
-  12. Prescriptive     — actual human-readable maintenance actions
-  13. AI Engineer      — answers natural-language questions from operators
-  14. Fleet manager    — keeps track of all 4 UAVs simultaneously
-  15. Telemetry integrity — packet loss, duplicates, replay attacks
-  16. Demo controller  — scripted demo scenario sequencer
-  17. Maintenance advisor — ATA-spec work orders
-  18. WebSocket server — bidirectional GCS link at ws://localhost:8765
-"""
-
 import os
 import sys
 import json
@@ -658,6 +630,7 @@ def _refresh_mission_command_state():
         return
 
     latest_state["fleet_status"] = fleet_manager.get_fleet_status()
+    latest_state["swarm_info"] = fleet_manager.get_swarm_info()
     latest_state["federated_round"] = federated_coordinator.get_status()
     latest_state["edge_profile"] = edge_profile_manager.get_active_profile()
     latest_state["security_status"] = {
@@ -979,7 +952,23 @@ def process_gcs_command(cmd: Dict[str, Any]):
             latest_state["uav_id"] = uav_id
             latest_state["engine_id"] = current_cfg["engine_id"]
             latest_state["fleet_status"] = fleet_manager.get_fleet_status()
+            latest_state["swarm_info"] = fleet_manager.get_swarm_info()
         print(f"[GCS CMD] Active UAV switched → {uav_id} (Engine #{current_cfg['engine_id']})")
+
+    elif action == "set_swarm_formation":
+        formation = cmd.get("formation", "V_WEDGE")
+        if fleet_manager.set_swarm_formation(formation):
+            if latest_state:
+                latest_state["swarm_info"] = fleet_manager.get_swarm_info()
+            print(f"[GCS CMD] Swarm formation changed → {formation}")
+
+    elif action == "trigger_swarm_relief":
+        relieved = cmd.get("relieved_uav_id", "UAV-04")
+        standby = cmd.get("standby_uav_id", "UAV-05")
+        record = fleet_manager.execute_swarm_relief(relieved, standby)
+        if latest_state:
+            latest_state["swarm_info"] = fleet_manager.get_swarm_info()
+        print(f"[GCS CMD] Swarm relief executed: {relieved} <- {standby}")
 
     elif action == "demo_start":
         demo_controller.start()
@@ -1381,9 +1370,10 @@ async def ws_handler(websocket):
 
                 # 10. Execute authorized command
                 process_gcs_command(cmd)
+                latest_payload = json.dumps(latest_state)
 
-                # If this was an AI query, immediately push state to this client
-                if action == "ai_engineer_query" and latest_state.get("ai_engineer_response"):
+                # Immediately push updated state to this client for all interactive commands
+                if action in ("optimize", "whatif", "set_edge_mode", "select_uav", "set_swarm_formation", "trigger_swarm_relief", "ai_engineer_query"):
                     try:
                         filtered = filter_payload_for_subscriber(
                             payload=dict(latest_state),
@@ -1395,6 +1385,10 @@ async def ws_handler(websocket):
                             await websocket.send(json.dumps(filtered))
                     except Exception:
                         pass
+                    if action == "ai_engineer_query":
+                        # One-time delivery: pop response so it does not persist in subsequent telemetry packets
+                        latest_state.pop("ai_engineer_response", None)
+
 
         except websockets.exceptions.ConnectionClosed:
             pass

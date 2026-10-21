@@ -187,6 +187,7 @@ function AutoTextarea({
       onKeyDown={(e) => {
         if (e.key === "Enter" && !e.shiftKey) {
           e.preventDefault()
+          e.stopPropagation()
           if (!disabled && value.trim()) onSubmit()
         }
       }}

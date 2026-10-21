@@ -136,6 +136,8 @@ export interface CanFrame {
   hex?: string
   decoded?: string
   spns?: CanSpnField[]
+  bus?: "CAN-A" | "CAN-B" | "CAN-C" | string
+  frameIndex?: number
 }
 
 export interface MaintenanceAdvisory {
@@ -146,6 +148,9 @@ export interface MaintenanceAdvisory {
   title?: string
   action?: string
   steps?: string[]
+  priority_rank?: number
+  priority_rationale?: string
+  source_fault?: string
 }
 
 export interface PrescriptiveRecommendation {

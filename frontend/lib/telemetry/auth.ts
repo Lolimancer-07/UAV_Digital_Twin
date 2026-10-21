@@ -21,7 +21,7 @@ export interface AuthSession {
   issued_at: number
 }
 
-const DEFAULT_SESSION: AuthSession = {
+export const DEFAULT_SESSION: AuthSession = {
   user_id: "demo-operator",
   tenant_id: "tenant_alpha",
   role: "dispatcher",

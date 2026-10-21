@@ -154,6 +154,8 @@ export function AICopilotProvider({ children }: { children: React.ReactNode }) {
   ])
   const [input, setInput] = React.useState("")
   const [waiting, setWaiting] = React.useState(false)
+  const waitingRef = React.useRef(false)
+  const lastSendTimeRef = React.useRef(0)
   const [isOpen, setIsOpen] = React.useState(false)
   const lastProcessedRef = React.useRef<string | null>(null)
   const fallbackTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -197,6 +199,9 @@ export function AICopilotProvider({ children }: { children: React.ReactNode }) {
     if (lastProcessedRef.current === key) return
     lastProcessedRef.current = key
 
+    waitingRef.current = false
+    setWaiting(false)
+
     if (fallbackTimerRef.current) {
       clearTimeout(fallbackTimerRef.current)
       fallbackTimerRef.current = null
@@ -215,14 +220,30 @@ export function AICopilotProvider({ children }: { children: React.ReactNode }) {
       isStreaming: true,
     }
 
-    setMessages((prev) => [...prev, newMsg])
-    setWaiting(false)
+    setMessages((prev) => {
+      // Deduplicate: ignore if identical assistant reply already added
+      const last = prev[prev.length - 1]
+      if (last && last.role === "assistant" && last.text === (resp.answer || "")) {
+        return prev
+      }
+      return [...prev, newMsg]
+    })
     streamMessage(msgId, resp.answer || "")
   }, [latestTelemetry?.ai_engineer_response, streamMessage])
 
   const handleSend = (textToSend?: string) => {
     const q = (textToSend || input).trim()
     if (!q) return
+
+    // Debounce rapid double-triggers (e.g. Enter key + form submit within 400ms)
+    const now = Date.now()
+    if (now - lastSendTimeRef.current < 400) return
+    lastSendTimeRef.current = now
+
+    // If already waiting for a response, do not allow overlapping submission
+    if (waitingRef.current) return
+    waitingRef.current = true
+    setWaiting(true)
 
     const userMsg: ChatMessage = {
       id: `user-${Date.now()}`,
@@ -235,7 +256,6 @@ export function AICopilotProvider({ children }: { children: React.ReactNode }) {
 
     setMessages((prev) => [...prev, userMsg])
     setInput("")
-    setWaiting(true)
 
     const sent = sendCommand({
       command: "ai_engineer_query",
@@ -249,25 +269,33 @@ export function AICopilotProvider({ children }: { children: React.ReactNode }) {
 
     const delay = sent ? 1800 : 300
     fallbackTimerRef.current = setTimeout(() => {
-      setWaiting((currentWaiting) => {
-        if (!currentWaiting) return false
-        const fallback = generateFallbackResponse(q, latestTelemetryRef.current)
-        const msgId = `resp-fallback-${Date.now()}`
-        const fallbackMsg: ChatMessage = {
-          id: msgId,
-          role: "assistant",
-          text: fallback.answer,
-          displayText: "",
-          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
-          category: fallback.category,
-          confidence: 0.91,
-          follow_ups: fallback.follow_ups,
-          isStreaming: true,
+      // Check waiting ref imperatively outside setState updater to avoid React Strict Mode double-invocation
+      if (!waitingRef.current) return
+      waitingRef.current = false
+      setWaiting(false)
+
+      const fallback = generateFallbackResponse(q, latestTelemetryRef.current)
+      const msgId = `resp-fallback-${Date.now()}`
+      const fallbackMsg: ChatMessage = {
+        id: msgId,
+        role: "assistant",
+        text: fallback.answer,
+        displayText: "",
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+        category: fallback.category,
+        confidence: 0.91,
+        follow_ups: fallback.follow_ups,
+        isStreaming: true,
+      }
+
+      setMessages((prev) => {
+        const last = prev[prev.length - 1]
+        if (last && last.role === "assistant" && last.text === fallback.answer) {
+          return prev
         }
-        setMessages((prev) => [...prev, fallbackMsg])
-        streamMessage(msgId, fallback.answer)
-        return false
+        return [...prev, fallbackMsg]
       })
+      streamMessage(msgId, fallback.answer)
     }, delay)
   }
 

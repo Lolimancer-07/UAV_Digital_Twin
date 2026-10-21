@@ -195,6 +195,10 @@ class AudioAnnunciator {
     return this.isMuted
   }
 
+  public getIsMuted(): boolean {
+    return this.isMuted
+  }
+
   public setMuted(muted: boolean): void {
     this.isMuted = muted
     if (typeof window !== "undefined") {
@@ -236,6 +240,12 @@ class AudioAnnunciator {
     return this.intensityMultiplier
   }
 
+  public getIntensityLevel(): AlarmIntensityLevel {
+    if (this.intensityMultiplier >= 1.8) return "max"
+    if (this.intensityMultiplier >= 1.2) return "high"
+    return "normal"
+  }
+
   public setIntensity(multiplier: number): void {
     this.intensityMultiplier = Math.max(1.0, Math.min(2.0, multiplier))
     if (typeof window !== "undefined") {
@@ -243,6 +253,12 @@ class AudioAnnunciator {
     }
     this.updateMasterGain()
     this.notify()
+  }
+
+  public setIntensityLevel(lvl: AlarmIntensityLevel): void {
+    if (lvl === "max") this.setIntensity(2.0)
+    else if (lvl === "high") this.setIntensity(1.35)
+    else this.setIntensity(1.0)
   }
 
   public silenceAlarm(): void {

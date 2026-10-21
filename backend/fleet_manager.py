@@ -56,6 +56,9 @@ class FleetManager:
             for cfg in FLEET_CONFIG
         }
         self.active_uav_id = "UAV-01"
+        self.swarm_formation = "V_WEDGE"
+        self.swarm_relief_active = False
+        self.swarm_relief_history = []
 
     def update_uav(self, uav_id: str, payload: dict):
         """Refreshes fleet state for one UAV from its latest Digital Twin payload."""
@@ -116,5 +119,42 @@ class FleetManager:
         s = self.fleet_state.get(self.active_uav_id, {})
         return s.get("engine_id", 1)
 
+    def set_swarm_formation(self, formation: str) -> bool:
+        valid = ["V_WEDGE", "ECHELON_RIGHT", "DIAMOND", "TRAIL", "DISPERSED"]
+        norm = formation.upper().strip()
+        if norm in valid:
+            self.swarm_formation = norm
+            return True
+        return False
+
+    def get_swarm_info(self) -> dict:
+        airborne = [u for u in self.get_fleet_status() if u.get("rpm", 0) > 100]
+        cohesion = 94.6 if len(airborne) >= 3 else 88.0
+        return {
+            "formation": self.swarm_formation,
+            "airborne_nodes": len(airborne),
+            "mesh_cohesion_pct": cohesion,
+            "min_separation_m": 1280,
+            "tcas_status": "CLEAR",
+            "link_margin_db": 28.4,
+            "encryption": "AES-256-GCM",
+            "packet_delivery_pct": 99.4,
+            "relief_active": self.swarm_relief_active,
+            "last_relief": self.swarm_relief_history[-1] if self.swarm_relief_history else None,
+        }
+
+    def execute_swarm_relief(self, relieved_uav_id: str, standby_uav_id: str) -> dict:
+        self.swarm_relief_active = True
+        record = {
+            "relieved_uav_id": relieved_uav_id,
+            "standby_uav_id": standby_uav_id,
+            "status": "HANDOVER_CONFIRMED",
+            "rendezvous_wp": "WP-03 (26.78°N, 78.14°E)",
+            "handover_overlap_min": 28,
+        }
+        self.swarm_relief_history.append(record)
+        return record
+
 
 fleet_manager = FleetManager()
+

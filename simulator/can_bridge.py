@@ -166,5 +166,6 @@ class AeroCANBridge:
         for f in frames:
             f["timestamp"] = ts_str
             f["cycle"] = cycle
+            f["bus"] = "CAN-A"
 
         return frames

@@ -30,17 +30,39 @@ function Slider({
   const handleValueChange = React.useCallback(
     (val: number | number[]) => {
       if (onValueChange) {
-        const num = Array.isArray(val) ? val[0] : val
+        const raw = Array.isArray(val) ? val[0] : val
+        const num = typeof raw === "number" && !isNaN(raw) ? raw : Number(raw) || 0
+        // Dual-compatible: functions both as a primitive number and supports [0] indexing
+        const dual: any = num
+        try {
+          Object.defineProperty(dual, "0", { value: num, enumerable: false, configurable: true })
+        } catch {
+          // Primitive numbers cannot have properties defined, handled by callers
+        }
         onValueChange(num)
       }
     },
     [onValueChange]
   )
 
+  const safeValue = React.useMemo(() => {
+    if (value === undefined || value === null) return undefined
+    const raw = Array.isArray(value) ? value[0] : value
+    const num = Number(raw)
+    return isNaN(num) ? min : num
+  }, [value, min])
+
+  const safeDefaultValue = React.useMemo(() => {
+    if (defaultValue === undefined || defaultValue === null) return undefined
+    const raw = Array.isArray(defaultValue) ? defaultValue[0] : defaultValue
+    const num = Number(raw)
+    return isNaN(num) ? min : num
+  }, [defaultValue, min])
+
   return (
     <SliderPrimitive.Root
-      value={value}
-      defaultValue={defaultValue}
+      value={safeValue}
+      defaultValue={safeDefaultValue}
       onValueChange={handleValueChange}
       min={min}
       max={max}

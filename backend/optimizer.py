@@ -101,41 +101,70 @@ def find_optimal_operating_point(
     constraints          : optional overrides for rpm_min, rpm_max, alt_min, alt_max, cht_limit
     """
     constraints = constraints or {}
-    rpm_min = float(constraints.get("rpm_min", 1600.0))
-    rpm_max = float(constraints.get("rpm_max", 2600.0))
-    alt_min = float(constraints.get("alt_min", 2000.0))
-    alt_max = float(constraints.get("alt_max", 25000.0))
-    cht_limit = float(constraints.get("cht_limit", CHT_LIMIT))
-
     current_rpm = float(current_state.get("rpm", RPM_NOMINAL))
     current_alt = float(current_state.get("altitude_ft", 3000.0))
+
+    # Detect RPM regime: high-RPM engine crank (Rotax 914 F) vs low-RPM prop/shaft
+    is_high_rpm = current_rpm > 3200.0
+    default_rpm_min = 4000.0 if is_high_rpm else 1600.0
+    default_rpm_max = 5800.0 if is_high_rpm else 2600.0
+    nominal_rpm_base = 4800.0 if is_high_rpm else RPM_NOMINAL
+
+    rpm_min = float(constraints.get("rpm_min", default_rpm_min))
+    rpm_max = float(constraints.get("rpm_max", default_rpm_max))
+    alt_min = float(constraints.get("alt_min", 2000.0))
+    alt_max = float(constraints.get("alt_max", 25000.0))
+
+    user_cht_limit = constraints.get("max_cht") or constraints.get("cht_limit")
+    effective_cht_limit = float(user_cht_limit) if user_cht_limit is not None else CHT_LIMIT
+    target_mode = str(constraints.get("target", "MAX_ENDURANCE")).upper()
+
     # compute CHT offset from current readings so we account for degradation-driven heat
-    cht_offset = float(current_state.get("cht", CHT_NOMINAL)) - CHT_NOMINAL * (current_rpm / RPM_NOMINAL) ** 1.3
+    current_cht = float(current_state.get("cht", CHT_NOMINAL))
+    cht_offset = current_cht - CHT_NOMINAL * (current_rpm / nominal_rpm_base) ** 1.3
 
     def objective(x):
         rpm, alt = x[0], x[1]
-        # hard boundary violations — return 1.0 (worst) so optimizer stays in bounds
-        if rpm < rpm_min or rpm > rpm_max:
+        if rpm < rpm_min or rpm > rpm_max or alt < alt_min or alt > alt_max:
             return 1.0
-        if alt < alt_min or alt > alt_max:
-            return 1.0
+
         p = _mission_probability(rpm, alt, current_rul, current_health, failure_probability, cht_offset)
-        return -p  # minimize the negative = maximize probability
+        _, approx_cht = _thermal_load(rpm, cht_offset)
+
+        if approx_cht > effective_cht_limit:
+            return 1.0
+
+        # Objective weighting
+        if target_mode == "MAX_POWER":
+            # Reward higher power/RPM within safe limits
+            power_factor = (rpm - rpm_min) / max(1.0, (rpm_max - rpm_min)) * 0.15
+            p = min(0.999, p + power_factor)
+        elif target_mode == "COOLEST_RUNNING":
+            # Penalize CHT closer to limit
+            thermal_penalty = max(0.0, (approx_cht - (effective_cht_limit - 40.0)) / 50.0) * 0.25
+            p = max(0.01, p - thermal_penalty)
+        else: # MAX_ENDURANCE
+            # Favor fuel-efficient loiter RPM (lower specific fuel consumption)
+            eco_rpm = rpm_min + 0.35 * (rpm_max - rpm_min)
+            rpm_penalty = abs(rpm - eco_rpm) / max(1.0, (rpm_max - rpm_min)) * 0.08
+            p = max(0.01, p - rpm_penalty)
+
+        return -p
 
     best_p = -1.0
     best_point = {"rpm": current_rpm, "alt": current_alt}
 
     if SCIPY_AVAILABLE:
         try:
-            x0 = [max(rpm_min, min(rpm_max, current_rpm * 0.9)),
+            x0 = [max(rpm_min, min(rpm_max, current_rpm * 0.95)),
                   max(alt_min, min(alt_max, current_alt))]
             bounds = Bounds([rpm_min, alt_min], [rpm_max, alt_max])
             result = minimize(objective, x0, method='L-BFGS-B', bounds=bounds,
                               options={"maxiter": 200, "ftol": 1e-6})
             if result.success or result.fun < -0.3:
-                best_point = {"rpm": round(result.x[0], 0), "alt": round(result.x[1], 0)}
-                best_p = -result.fun
-        except Exception as e:
+                best_point = {"rpm": float(round(result.x[0], 0)), "alt": float(round(result.x[1], 0))}
+                best_p = float(-result.fun)
+        except Exception:
             pass
 
     # fallback grid search — coarse but reliable
@@ -144,45 +173,70 @@ def find_optimal_operating_point(
         alt_steps = [alt_min + i * (alt_max - alt_min) / 5 for i in range(6)]
         for rpm_c in rpm_steps:
             for alt_c in alt_steps:
-                p = _mission_probability(rpm_c, alt_c, current_rul, current_health, failure_probability, cht_offset)
+                p = -objective([rpm_c, alt_c])
                 if p > best_p:
                     best_p = p
-                    best_point = {"rpm": round(rpm_c, 0), "alt": round(alt_c, 0)}
+                    best_point = {"rpm": float(round(rpm_c, 0)), "alt": float(round(alt_c, 0))}
 
-    optimal_rpm = best_point["rpm"]
-    optimal_alt = best_point["alt"]
+    optimal_rpm = float(best_point["rpm"])
+    optimal_alt = float(best_point["alt"])
     opt_load, opt_cht = _thermal_load(optimal_rpm, cht_offset)
+
+    # Keep predicted CHT within realistic physical bounds
+    opt_cht = float(max(180.0, min(effective_cht_limit, opt_cht if opt_cht > 0 else current_cht - 15.0)))
 
     # RUL estimate at the optimal point
     if current_rul > 0 and opt_load > 0:
-        opt_rul = min(260.0, max(0.0, current_rul * (1.0 / max(1e-6, opt_load)) ** THERMAL_ALPHA))
+        opt_rul = float(min(260.0, max(0.0, current_rul * (1.0 / max(1e-6, opt_load)) ** THERMAL_ALPHA)))
     else:
-        opt_rul = current_rul
+        opt_rul = float(current_rul)
 
-    rul_improvement = opt_rul - current_rul
-    current_p = _mission_probability(current_rpm, current_alt, current_rul, current_health, failure_probability, cht_offset)
-    p_improvement = best_p - current_p
+    rul_improvement = float(round(opt_rul - current_rul, 1))
+    current_p = float(round(_mission_probability(current_rpm, current_alt, current_rul, current_health, failure_probability, cht_offset) * 100.0, 1))
+    best_p_pct = float(round(max(current_p, best_p * 100.0), 1))
+    p_improvement = float(round(max(0.0, best_p_pct - current_p), 1))
 
-    # generate a simple natural-language recommendation
+    # Calculate projected power and fuel savings for frontend
+    if is_high_rpm:
+        power_hp = float(round(115.0 * (optimal_rpm / 5800.0) * max(0.7, 1.0 - optimal_alt * 0.000015), 1))
+        fuel_savings = float(round(max(0.0, (current_rpm - optimal_rpm) / current_rpm * 15.0), 1)) if current_rpm > optimal_rpm else 1.8
+    else:
+        power_hp = float(round(115.0 * (optimal_rpm / 2600.0) * max(0.7, 1.0 - optimal_alt * 0.000015), 1))
+        fuel_savings = float(round(max(0.0, (current_rpm - optimal_rpm) / current_rpm * 15.0), 1)) if current_rpm > optimal_rpm else 2.5
+
+    # generate recommendation
     rpm_delta = optimal_rpm - current_rpm
-    if abs(rpm_delta) < 20:
-        action = "Current RPM is near optimal. No RPM adjustment recommended."
+    if abs(rpm_delta) < 25:
+        action = f"Current RPM ({current_rpm:.0f}) is near optimal for {target_mode}. Maintain steady cruise."
     elif rpm_delta < 0:
-        action = f"Reduce RPM by approximately {abs(rpm_delta):.0f} RPM to {optimal_rpm:.0f} RPM."
+        action = f"Derate RPM by approximately {abs(rpm_delta):.0f} RPM to {optimal_rpm:.0f} RPM to relieve thermal fatigue."
     else:
-        action = f"Increase RPM by approximately {rpm_delta:.0f} RPM to {optimal_rpm:.0f} RPM."
+        action = f"Increase RPM by approximately {rpm_delta:.0f} RPM to {optimal_rpm:.0f} RPM to achieve optimal power profile."
+
+    recommendations = [
+        action,
+        f"Target cruise altitude: {optimal_alt:.0f} ft MSL for optimal thermodynamic air density.",
+        f"Projected CHT stabilization at {opt_cht:.0f}°F (within {effective_cht_limit:.0f}°F constraint).",
+    ]
 
     return {
-        "optimal_rpm":         round(optimal_rpm, 0),
-        "optimal_altitude_ft": round(optimal_alt, 0),
-        "predicted_cht":       round(opt_cht, 1),
-        "predicted_rul":       round(opt_rul, 1),
-        "mission_probability": round(best_p * 100.0, 1),
-        "current_probability": round(current_p * 100.0, 1),
-        "probability_improvement": round(p_improvement * 100.0, 1),
-        "rul_improvement":     round(rul_improvement, 1),
-        "recommendation":      action,
-        "constraints_used":    constraints,
-        "method":              "scipy L-BFGS-B bounded optimization" if SCIPY_AVAILABLE else "grid search",
-        "objective":           "Maximize mission completion probability P = P_engine × P_thermal × P_time × P_altitude",
+        "optimal_rpm":             optimal_rpm,
+        "optimal_alt":             optimal_alt,
+        "optimal_altitude_ft":     optimal_alt,
+        "predicted_cht":           opt_cht,
+        "predicted_rul":           opt_rul,
+        "mission_probability":     best_p_pct,
+        "current_probability":     current_p,
+        "probability_improvement": p_improvement,
+        "rul_improvement":         rul_improvement,
+        "projected_power_hp":      power_hp,
+        "risk_reduction_pct":      p_improvement,
+        "fuel_savings_pct":        fuel_savings,
+        "projected_bsfc":          float(round(0.42 + (optimal_rpm / (5800.0 if is_high_rpm else 2600.0)) * 0.05, 3)),
+        "recommendation":          action,
+        "recommendations":         recommendations,
+        "constraints_used":        constraints,
+        "method":                  "scipy L-BFGS-B bounded optimization" if SCIPY_AVAILABLE else "grid search",
+        "objective":               f"Objective: {target_mode} (Max Mission Completion Probability under CHT < {effective_cht_limit:.0f}°F)",
     }
+

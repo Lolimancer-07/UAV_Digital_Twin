@@ -48,15 +48,29 @@ export function EdgeSwapDialog() {
     description: "Full-precision unconstrained model with 30-sample Monte Carlo Dropout uncertainty heads.",
   }
 
-  const isEdge = activeProfile.mode_id === "EDGE_INT8"
+  const [isSwitching, setIsSwitching] = React.useState(false)
+  const [localMode, setLocalMode] = React.useState<string | null>(null)
+
+  const effectiveModeId = localMode ?? activeProfile.mode_id
+  const isEdge = effectiveModeId === "EDGE_INT8"
+
+  React.useEffect(() => {
+    if (activeProfile.mode_id) {
+      setLocalMode(activeProfile.mode_id)
+    }
+  }, [activeProfile.mode_id])
 
   const handleToggleMode = () => {
     const nextMode = isEdge ? "GCS_FLOAT32" : "EDGE_INT8"
+    setLocalMode(nextMode)
+    setIsSwitching(true)
     sendCommand({
       command: "set_edge_mode",
       mode: nextMode,
     })
+    setTimeout(() => setIsSwitching(false), 400)
   }
+
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

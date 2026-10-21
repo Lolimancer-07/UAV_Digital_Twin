@@ -398,13 +398,16 @@ function AudioToggle() {
 }
 
 import { Users, ChevronDown, Check, ShieldCheck, Lock, Loader2 } from "lucide-react"
-import { getActiveSession, fetchSessionToken, UserRole, subscribeToSessionChanges } from "@/lib/telemetry/auth"
+import { getActiveSession, fetchSessionToken, UserRole, subscribeToSessionChanges, DEFAULT_SESSION } from "@/lib/telemetry/auth"
 
 function TenantRoleSwitcher() {
-  const [session, setSession] = React.useState(() => getActiveSession())
+  const [mounted, setMounted] = React.useState(false)
+  const [session, setSession] = React.useState(() => DEFAULT_SESSION)
   const [switching, setSwitching] = React.useState(false)
 
   React.useEffect(() => {
+    setMounted(true)
+    setSession(getActiveSession())
     return subscribeToSessionChanges((newSession) => {
       setSession(newSession)
     })
@@ -428,7 +431,9 @@ function TenantRoleSwitcher() {
     }
   }
 
-  const tenantLabel = session.tenant_id === "tenant_bravo" ? "Bravo Fleet" : "Alpha Fleet"
+  const activeTenantId = mounted ? session.tenant_id : "tenant_alpha"
+  const activeRole = mounted ? session.role : "dispatcher"
+  const tenantLabel = activeTenantId === "tenant_bravo" ? "Bravo Fleet" : "Alpha Fleet"
 
   const roleConfig: Record<
     UserRole,
@@ -480,7 +485,7 @@ function TenantRoleSwitcher() {
     },
   }
 
-  const currentRole = roleConfig[session.role] || roleConfig.dispatcher
+  const currentRole = roleConfig[activeRole] || roleConfig.dispatcher
 
   return (
     <DropdownMenu>
@@ -490,12 +495,15 @@ function TenantRoleSwitcher() {
       >
         <div className="flex items-center gap-1.5">
           <Users className="size-3.5 text-muted-foreground group-hover:text-foreground transition-colors" />
-          <span className="font-semibold text-foreground tracking-tight">{tenantLabel}</span>
+          <span suppressHydrationWarning className="font-semibold text-foreground tracking-tight">
+            {tenantLabel}
+          </span>
         </div>
         <span
+          suppressHydrationWarning
           className={`inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-bold tracking-wider uppercase border ${currentRole.badge}`}
         >
-          {session.role}
+          {activeRole}
         </span>
         <ChevronDown className="size-3 text-muted-foreground/70 group-hover:text-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
       </DropdownMenuTrigger>

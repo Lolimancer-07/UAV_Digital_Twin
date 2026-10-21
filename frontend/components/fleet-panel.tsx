@@ -569,7 +569,7 @@ export function FleetPanel() {
                 <p className="text-[10px] text-muted-foreground mb-1 font-mono">Airspeed (knots)</p>
                 <div className="h-[110px] w-full">
                   {mounted ? (
-                    <ResponsiveContainer width="100%" height={110}>
+                    <ResponsiveContainer width="100%" height={110} minWidth={0} minHeight={0}>
                       <BarChart
                         data={fleetList.map((u) => ({
                           name: u.uav_id,
@@ -599,7 +599,7 @@ export function FleetPanel() {
                 <p className="text-[10px] text-muted-foreground mb-1 font-mono">Altitude (ft MSL)</p>
                 <div className="h-[110px] w-full">
                   {mounted ? (
-                    <ResponsiveContainer width="100%" height={110}>
+                    <ResponsiveContainer width="100%" height={110} minWidth={0} minHeight={0}>
                       <BarChart
                         data={fleetList.map((u) => ({
                           name: u.uav_id,
@@ -629,7 +629,7 @@ export function FleetPanel() {
                 <p className="text-[10px] text-muted-foreground mb-1 font-mono">True Heading (degrees °)</p>
                 <div className="h-[110px] w-full">
                   {mounted ? (
-                    <ResponsiveContainer width="100%" height={110}>
+                    <ResponsiveContainer width="100%" height={110} minWidth={0} minHeight={0}>
                       <BarChart
                         data={fleetList.map((u) => ({
                           name: u.uav_id,
@@ -702,7 +702,7 @@ export function FleetPanel() {
         </CardHeader>
         <CardContent className="pt-0">
           {mounted ? (
-            <ResponsiveContainer width="100%" height={280}>
+            <ResponsiveContainer width="100%" height={280} minWidth={0} minHeight={0}>
               {trendType === "line" ? (
                 <LineChart data={trendData} margin={{ top: 8, right: 16, left: 4, bottom: 4 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.4} />
@@ -839,7 +839,7 @@ export function FleetPanel() {
                 <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2">Engine Health Index (%)</p>
                 <div className="h-[160px] w-full">
                   {mounted ? (
-                    <ResponsiveContainer width="100%" height={160}>
+                    <ResponsiveContainer width="100%" height={160} minWidth={0} minHeight={0}>
                       <BarChart data={barData} barSize={32} margin={{ top:4, right:8, left:4, bottom:4 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
                         <XAxis dataKey="name" tick={{ fontSize:10, fontFamily:"monospace", fill:"hsl(var(--muted-foreground))" }} />
@@ -859,7 +859,7 @@ export function FleetPanel() {
                 <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2">Predicted RUL (cycles) vs Mission Completion Probability (%)</p>
                 <div className="h-[180px] w-full">
                   {mounted ? (
-                    <ResponsiveContainer width="100%" height={180}>
+                    <ResponsiveContainer width="100%" height={180} minWidth={0} minHeight={0}>
                       <BarChart data={barData} barGap={4} barCategoryGap="30%" margin={{ top:4, right:8, left:4, bottom:4 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
                         <XAxis dataKey="name" tick={{ fontSize:10, fontFamily:"monospace", fill:"hsl(var(--muted-foreground))" }} />
@@ -899,7 +899,7 @@ export function FleetPanel() {
               </p>
               <div className="h-[340px] w-full">
                 {mounted ? (
-                  <ResponsiveContainer width="100%" height={340}>
+                  <ResponsiveContainer width="100%" height={340} minWidth={0} minHeight={0}>
                     <RadarChart data={radarData} margin={{ top:10, right:30, left:30, bottom:10 }}>
                       <PolarGrid stroke="hsl(var(--border))" strokeOpacity={0.6} />
                       <PolarAngleAxis dataKey="metric" tick={{ fontSize:10, fontFamily:"monospace", fill:"hsl(var(--muted-foreground))" }} />

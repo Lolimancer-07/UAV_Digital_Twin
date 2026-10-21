@@ -552,7 +552,7 @@ export function ReplayPlayer() {
                       if (chartData[idx]) seekToCycle(chartData[idx].cycle)
                     }}
                   >
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                       <AreaChart data={chartData} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
                         <defs>
                           <linearGradient id="rp-rul-fill" x1="0" y1="0" x2="0" y2="1">

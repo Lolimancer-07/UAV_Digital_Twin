@@ -204,7 +204,7 @@ export function ReliabilityHazardPanel() {
           </div>
 
           <div className="h-64 w-full border border-border/50 rounded-lg p-2 bg-card/60">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <AreaChart data={bathtubData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="hazardGrad" x1="0" y1="0" x2="0" y2="1">

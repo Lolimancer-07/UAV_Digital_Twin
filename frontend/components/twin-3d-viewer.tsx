@@ -4,6 +4,15 @@ import * as React from "react"
 import { Canvas, useFrame, useThree } from "@react-three/fiber"
 import { OrbitControls, Html, Sparkles } from "@react-three/drei"
 import * as THREE from "three"
+
+// Suppress THREE.Clock deprecation log from internal @react-three/fiber useFrame loop
+if (typeof window !== "undefined") {
+  const _warn = console.warn
+  console.warn = (...args: unknown[]) => {
+    if (typeof args[0] === "string" && args[0].includes("THREE.Clock: This module has been deprecated")) return
+    _warn(...args)
+  }
+}
 import { useTheme } from "next-themes"
 import { useTelemetry } from "@/components/telemetry-provider"
 import {

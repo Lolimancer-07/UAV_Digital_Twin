@@ -88,7 +88,7 @@ function UserMessageRow({ m }: { m: ChatMessage }) {
         <div className="flex items-center gap-2 text-[10px] font-mono text-muted-foreground">
           <span>Flight Commander</span>
           <span>·</span>
-          <span>{m.timestamp}</span>
+          <span suppressHydrationWarning>{m.timestamp}</span>
         </div>
         <div className="rounded-2xl rounded-tr-xs bg-primary text-primary-foreground px-4 py-2.5 text-sm leading-relaxed shadow-sm font-sans">
           <p className="whitespace-pre-wrap">{m.displayText}</p>
@@ -149,7 +149,7 @@ function AssistantMessageRow({
           <span className="hidden sm:inline text-muted-foreground">
             · Grounded in Rotax 914 F
           </span>
-          <span className="ml-auto text-muted-foreground">{m.timestamp}</span>
+          <span className="ml-auto text-muted-foreground" suppressHydrationWarning>{m.timestamp}</span>
         </div>
 
         {/* Message Content Bubble */}

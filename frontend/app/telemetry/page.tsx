@@ -1,3 +1,4 @@
+import * as React from "react"
 import { Activity, Radio } from "lucide-react"
 import { AppSidebar } from "@/components/app-sidebar"
 import { ChartAreaInteractive } from "@/components/chart-area-interactive"

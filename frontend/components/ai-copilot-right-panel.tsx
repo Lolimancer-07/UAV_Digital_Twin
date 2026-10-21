@@ -106,7 +106,7 @@ function MessageBubble({ m, onFollowUp }: { m: ChatMessage; onFollowUp: (q: stri
         </div>
         <div className="flex max-w-[80%] flex-col rounded-2xl rounded-tr-sm px-4 py-2.5 leading-relaxed bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-md">
           <span className="text-xs font-medium whitespace-pre-wrap">{m.displayText}</span>
-          <span className="mt-1 self-end text-[9px] font-mono text-primary-foreground/70">{m.timestamp}</span>
+          <span className="mt-1 self-end text-[9px] font-mono text-primary-foreground/70" suppressHydrationWarning>{m.timestamp}</span>
         </div>
       </div>
     )
@@ -130,7 +130,7 @@ function MessageBubble({ m, onFollowUp }: { m: ChatMessage; onFollowUp: (q: stri
             {m.displayText}
             {m.isStreaming && <span className="ml-0.5 inline-block w-0.5 h-3 bg-primary/80 animate-pulse align-middle" />}
           </span>
-          <span className="mt-1.5 text-[9px] font-mono text-muted-foreground block text-right">{m.timestamp}</span>
+          <span className="mt-1.5 text-[9px] font-mono text-muted-foreground block text-right" suppressHydrationWarning>{m.timestamp}</span>
           {/* Action bar on hover */}
           <div className={`absolute -bottom-5 right-1 flex items-center gap-1 transition-all ${hovered && !m.isStreaming ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
             <CopyButton text={m.text} />

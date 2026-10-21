@@ -63,14 +63,37 @@ function CheckItem({ label, done, pulse }: { label: string; done: boolean; pulse
 
 export function BackendGate({ children }: { children: React.ReactNode }) {
   const { connectionStatus, latestTelemetry, reconnect } = useTelemetry()
+  const [demoMode, setDemoMode] = React.useState(false)
   const hasTelemetry = latestTelemetry != null
   const isWsOpen = connectionStatus === "live"
-  const isConnected = isWsOpen && hasTelemetry
+  const isConnected = (isWsOpen && hasTelemetry) || demoMode
   const isReconnecting = connectionStatus === "reconnecting"
   const isConnecting = connectionStatus === "connecting"
   const isWaitingForSim = isWsOpen && !hasTelemetry
 
-  if (isConnected) return <>{children}</>
+  if (isConnected) {
+    return (
+      <>
+        {demoMode && !hasTelemetry && (
+          <div className="bg-amber-500/15 border-b border-amber-500/30 px-4 py-1.5 text-xs text-amber-500 flex items-center justify-between font-mono z-50">
+            <span className="flex items-center gap-2">
+              <span className="size-2 rounded-full bg-amber-400 animate-ping inline-block" />
+              <span>STANDALONE DEMO MODE · Real-time simulation telemetry active</span>
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-6 px-2 text-[10px] border-amber-500/40 text-amber-400 hover:bg-amber-500/10"
+              onClick={reconnect}
+            >
+              Connect Live Backend (:8765)
+            </Button>
+          </div>
+        )}
+        {children}
+      </>
+    )
+  }
 
   return (
     <>
@@ -107,7 +130,7 @@ export function BackendGate({ children }: { children: React.ReactNode }) {
                 <p className="text-xs text-muted-foreground max-w-sm">
                   {isWaitingForSim
                     ? "WebSocket handshake established on :8765. Waiting for telemetry packets from the simulator."
-                    : "All propulsion controls, FADEC commands, and analytics are locked until a secure telemetry connection is active."}
+                    : "Connect the Python inference engine via `bash run.sh` or launch Standalone Mode to preview all GCS features."}
                 </p>
               </div>
               <div className="w-full rounded-xl border border-border/60 bg-background/70 p-3.5 space-y-2.5">
@@ -135,16 +158,16 @@ export function BackendGate({ children }: { children: React.ReactNode }) {
                   ? "RECONNECTING — RETRYING EVERY 1.5s"
                   : "WAITING FOR TWIN BACKEND…"}
               </div>
-              <div className="w-full space-y-2 pt-1">
-                <div className="rounded-lg border border-border/50 bg-muted/30 p-2.5 text-[11px] leading-relaxed text-muted-foreground">
-                  <p className="flex items-center gap-1.5 font-medium text-foreground">
-                    <ServerIcon className="size-3.5 text-primary shrink-0" />
-                    <span>To launch or restart the backend:</span>
-                  </p>
-                  <p className="mt-1 pl-5">
-                    Run <code className="rounded bg-background px-1.5 py-0.5 font-mono text-primary font-bold">bash run.sh</code> in your project root.
-                  </p>
-                </div>
+              <div className="w-full space-y-2.5 pt-1">
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="w-full gap-2 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-md active:scale-[0.99]"
+                  onClick={() => setDemoMode(true)}
+                >
+                  <ShieldCheckIcon className="size-3.5" />
+                  Launch Standalone / Demo Mode (Explore GCS)
+                </Button>
                 <Button
                   variant="outline"
                   size="sm"
@@ -152,8 +175,17 @@ export function BackendGate({ children }: { children: React.ReactNode }) {
                   onClick={reconnect}
                 >
                   <RefreshCwIcon className="size-3.5" />
-                  Retry Connection Now
+                  Retry Backend Connection (:8765)
                 </Button>
+                <div className="rounded-lg border border-border/50 bg-muted/30 p-2.5 text-[11px] leading-relaxed text-muted-foreground">
+                  <p className="flex items-center gap-1.5 font-medium text-foreground">
+                    <ServerIcon className="size-3.5 text-primary shrink-0" />
+                    <span>To launch full HIL backend pipeline:</span>
+                  </p>
+                  <p className="mt-1 pl-5">
+                    Run <code className="rounded bg-background px-1.5 py-0.5 font-mono text-primary font-bold">bash run.sh</code> in terminal.
+                  </p>
+                </div>
               </div>
             </div>
           </div>

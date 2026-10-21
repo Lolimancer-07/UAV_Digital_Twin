@@ -317,7 +317,7 @@ export function MissionTimeline() {
         </CardHeader>
         <CardContent className="p-0 pb-2">
           <div className="h-60 w-full px-2">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <ComposedChart data={allData} margin={{ top: 12, right: 20, left: 0, bottom: 4 }}>
                 <defs>
                   <linearGradient id="mtRulFill" x1="0" y1="0" x2="0" y2="1">

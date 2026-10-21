@@ -254,6 +254,87 @@ export function useTelemetrySocket(endpoint = DEFAULT_WS_ENDPOINT) {
     return () => window.clearInterval(freshnessTimer)
   }, [])
 
+  // Simulated fallback generator when offline / demo mode
+  React.useEffect(() => {
+    let cycle = 120
+    const simTimer = window.setInterval(() => {
+      // Only generate simulated telemetry if no live WebSocket packets have arrived
+      if (connectionStatusRef.current === "live" && Date.now() - lastPacketTimeRef.current < 4000) {
+        return
+      }
+      cycle += 1
+      const rpm = 2400 + Math.sin(cycle * 0.1) * 35
+      const cht = 382 + Math.sin(cycle * 0.05) * 4
+      const egt = 1465 + Math.cos(cycle * 0.08) * 15
+      const oilP = 48.5 + Math.sin(cycle * 0.12) * 1.2
+      const rul = Math.max(20, 142 - Math.floor((cycle - 120) * 0.1))
+
+      const simPayload: TelemetryPayload = {
+        cycle,
+        engine_id: 1,
+        uav_id: "UAV-01",
+        rpm: Math.round(rpm * 10) / 10,
+        cht: Math.round(cht * 10) / 10,
+        cht_cyl: [Math.round(cht - 4), Math.round(cht - 1), Math.round(cht + 2), Math.round(cht + 5)],
+        egt: Math.round(egt * 10) / 10,
+        egt_cyl: [Math.round(egt - 8), Math.round(egt - 2), Math.round(egt + 5), Math.round(egt + 10)],
+        oil_pressure: Math.round(oilP * 10) / 10,
+        oil_temp: 92.4,
+        fuel_flow: 22.8,
+        fuel_rail_pressure_bar: 3.2,
+        vibration: 1.45 + (cycle % 7 === 0 ? 0.08 : 0),
+        vibration_kurtosis: 3.1,
+        battery_v: 28.2,
+        bus_current_a: 14.6,
+        inj_timing: 18.0,
+        map_kpa: 96.0,
+        altitude_ft: 3000,
+        oat_c: 15.0,
+        mission_mode: "NORMAL",
+        paused: false,
+        alert: "NOMINAL",
+        true_rul: rul,
+        predicted_rul: rul,
+        rul_ci_lower: Math.round(rul * 0.88),
+        rul_ci_upper: Math.round(rul * 1.12),
+        rul_mc_std: 4.1,
+        buffer_pct: 100,
+        is_anomaly: false,
+        anomaly_score: 0.082,
+        failure_probability: 0.04,
+        fault_events: [],
+        active_faults: [],
+        injected_faults: [],
+        latitude: 26.756 + Math.sin(cycle * 0.02) * 0.01,
+        longitude: 78.118 + Math.cos(cycle * 0.02) * 0.01,
+        heading_deg: Math.round((64 + Math.sin(cycle * 0.03) * 10 + 360) % 360),
+        ground_speed_kts: 58,
+        mission_progress_pct: Math.min(100, Math.round(31 + (cycle - 120) * 0.1)),
+        health: {
+          health_index: 94,
+          condition: "NOMINAL",
+          sub_scores: { thermal: 96, lubrication: 94, mechanical: 92, electrical: 95 },
+        },
+        physics: {
+          brake_power_hp: 94.5,
+          thermal_efficiency: 0.32,
+          volumetric_eff: 0.88,
+          air_fuel_ratio: 14.7,
+          expected_baselines: { egt: 1465, cht: 382, oil_p: 48, fuel_flow: 23 },
+          residuals: { delta_egt: 0, delta_cht: 0, delta_oil_p: 0, delta_fuel: 0 },
+        },
+        sensor_integrity: { integrity_score: 1.0 },
+        twin_consistency: { case: "A", consistency_score: 0.96, narrative: "Physics and sensor models consistent" },
+        mission_risk: { risk_level: "LOW", mission_completion_probability: 94 },
+      }
+
+      ingestRef.current(simPayload)
+      setLatestTelemetry((prev) => (connectionStatusRef.current === "live" ? prev : simPayload))
+    }, 1000)
+
+    return () => window.clearInterval(simTimer)
+  }, [])
+
   const reconnect = React.useCallback(() => {
     connect()
   }, [connect])

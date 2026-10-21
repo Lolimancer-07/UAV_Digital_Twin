@@ -913,7 +913,7 @@ def process_gcs_command(cmd: Dict[str, Any]):
                     "category":   result.get("category", "GENERAL_STATUS"),
                     "confidence": result.get("confidence", 0.5),
                     "follow_ups": result.get("follow_ups", []),
-                    "timestamp":  latest_state.get("cycle", 0),
+                    "timestamp":  time.time(),
                 }
                 print(f"[GCS CMD] AI Engineer query: '{question[:50]}...' -> {result.get('category')}")
             except Exception as e:

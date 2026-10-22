@@ -177,9 +177,9 @@ export function TacticalMissionMap({
   const padding = 45
 
   const projectX = (lon: number) =>
-    padding + ((lon - minLon) / lonSpan) * (mapWidth - padding * 2)
+    Number((padding + ((lon - minLon) / lonSpan) * (mapWidth - padding * 2)).toFixed(2))
   const projectY = (lat: number) =>
-    mapHeight - padding - ((lat - minLat) / latSpan) * (mapHeight - padding * 2)
+    Number((mapHeight - padding - ((lat - minLat) / latSpan) * (mapHeight - padding * 2)).toFixed(2))
 
   // Current aircraft projected point
   const uavX = projectX(route.position.longitude)

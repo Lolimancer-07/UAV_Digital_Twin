@@ -13,8 +13,8 @@ function RadarSweep() {
   }, [])
   const spoke = 64
   const rad = (60 * Math.PI) / 180
-  const x2 = 80 + spoke * Math.sin(rad)
-  const y2 = 80 - spoke * Math.cos(rad)
+  const x2 = Number((80 + spoke * Math.sin(rad)).toFixed(2))
+  const y2 = Number((80 - spoke * Math.cos(rad)).toFixed(2))
   return (
     <div className="relative flex items-center justify-center">
       <svg width="160" height="160" viewBox="0 0 160 160">

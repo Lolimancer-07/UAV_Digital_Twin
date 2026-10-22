@@ -21,6 +21,12 @@ export interface AuthSession {
   issued_at: number
 }
 
+export const TENANT_FLEET_MAPPING: Record<string, string[]> = {
+  tenant_alpha: ["UAV-01", "UAV-02", "UAV-03"],
+  tenant_bravo: ["UAV-04", "UAV-05"],
+  default: ["UAV-01", "UAV-02", "UAV-03", "UAV-04", "UAV-05"],
+}
+
 export const DEFAULT_SESSION: AuthSession = {
   user_id: "demo-operator",
   tenant_id: "tenant_alpha",
@@ -85,11 +91,21 @@ export async function fetchSessionToken(options?: {
   aircraft_ids?: string[]
 }): Promise<AuthSession> {
   const current = getActiveSession()
+  const targetTenant = options?.tenant_id || current.tenant_id || "tenant_alpha"
+  const tenantChanged = options?.tenant_id != null && options.tenant_id !== current.tenant_id
+
+  // If tenant changed or aircraft_ids not explicitly provided for this tenant, resolve from tenant fleet mapping
+  const targetAircraft =
+    options?.aircraft_ids ??
+    (tenantChanged ? TENANT_FLEET_MAPPING[targetTenant] : current.aircraft_ids) ??
+    TENANT_FLEET_MAPPING[targetTenant] ??
+    ["*"]
+
   const payload = {
     user_id: options?.user_id || current.user_id || "demo-operator",
-    tenant_id: options?.tenant_id || current.tenant_id || "tenant_alpha",
+    tenant_id: targetTenant,
     role: options?.role || current.role || "dispatcher",
-    aircraft_ids: options?.aircraft_ids || current.aircraft_ids,
+    aircraft_ids: targetAircraft,
     expires_in_seconds: 900,
   }
 

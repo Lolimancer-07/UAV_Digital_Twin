@@ -1146,12 +1146,11 @@ async def ws_handler(websocket):
                 if state_snapshot:
                     payload_to_filter = dict(state_snapshot)
                     sub_tenant = session_subscriber["tenant_id"]
-                    # If subscriber is scoped to tenant_bravo and simulator is emitting UAV-01,
-                    # dynamically adapt telemetry stream to Bravo flagship UAV-04 for seamless streaming
-                    if sub_tenant == "tenant_bravo" and payload_to_filter.get("uav_id", "").startswith("UAV-01"):
-                        payload_to_filter["uav_id"] = "UAV-04"
-                    elif sub_tenant == "tenant_alpha" and payload_to_filter.get("uav_id", "").startswith("UAV-04"):
-                        payload_to_filter["uav_id"] = "UAV-01"
+                    tenant_allowed = TENANT_FLEET_MAPPING.get(sub_tenant, ["*"])
+                    cur_uav = payload_to_filter.get("uav_id", "")
+                    if "*" not in tenant_allowed and cur_uav not in tenant_allowed:
+                        fallback_uav = "UAV-04" if sub_tenant == "tenant_bravo" else "UAV-01"
+                        payload_to_filter["uav_id"] = fallback_uav
 
                     filtered = filter_payload_for_subscriber(
                         payload=payload_to_filter,
@@ -1312,19 +1311,14 @@ async def ws_handler(websocket):
                     session_subscriber["field_groups"] = sub_fields
                     session_subscriber["min_interval_ms"] = min_int
 
-                    # Signal simulator to align with active squadron
+                    # Signal simulator and pipeline to align with active squadron
+                    tenant_allowed = TENANT_FLEET_MAPPING.get(sub_tenant, ["*"])
                     target_uav = "UAV-04" if sub_tenant == "tenant_bravo" else "UAV-01"
                     try:
-                        ctrl_file = "/tmp/sim_control.json"
-                        ctrl = {}
-                        if os.path.exists(ctrl_file):
-                            with open(ctrl_file, "r") as f:
-                                ctrl = json.load(f)
-                        ctrl["uav_id"] = target_uav
-                        with open(ctrl_file, "w") as f:
-                            json.dump(ctrl, f)
-                    except Exception:
-                        pass
+                        if "*" not in tenant_allowed and fleet_manager.active_uav_id not in tenant_allowed:
+                            process_gcs_command({"command": "select_uav", "uav_id": target_uav})
+                    except Exception as e:
+                        print(f"[WS SUB] Alignment error: {e}")
 
                     try:
                         await websocket.send(json.dumps({

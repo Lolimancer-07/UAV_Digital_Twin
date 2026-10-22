@@ -32,6 +32,7 @@ from twin_core.auth import (
     ROLE_DISPATCHER,
     ROLE_VIEWER,
     ROLE_MAINTAINER,
+    TENANT_FLEET_MAPPING,
 )
 from twin_core.drift_detector import drift_detector
 from twin_core.model_governance import model_promotion_gate
@@ -598,6 +599,11 @@ class TwinApiHandler(BaseHTTPRequestHandler):
                 role = str(body.get("role", ROLE_DISPATCHER))
                 aircraft_ids = body.get("aircraft_ids")
                 expires = int(body.get("expires_in_seconds", 900))
+
+                tenant_allowed = TENANT_FLEET_MAPPING.get(tenant_id, ["*"])
+                if not aircraft_ids or ("*" not in tenant_allowed and any(ac not in tenant_allowed for ac in aircraft_ids)):
+                    aircraft_ids = tenant_allowed
+
                 token = create_access_token(
                     user_id=user_id,
                     tenant_id=tenant_id,
@@ -613,6 +619,7 @@ class TwinApiHandler(BaseHTTPRequestHandler):
                     "user_id": user_id,
                     "tenant_id": tenant_id,
                     "role": role,
+                    "aircraft_ids": aircraft_ids,
                 }, 200)
                 return
 

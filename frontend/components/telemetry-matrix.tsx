@@ -589,8 +589,8 @@ function MiniSparkline({
       <path d={d} fill="none" stroke={strokeColor} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
       {/* Live pulse dot at last point */}
       <circle
-        cx={`${xs[xs.length - 1]}`}
-        cy={`${ys[ys.length - 1]}`}
+        cx={xs[xs.length - 1].toFixed(1)}
+        cy={ys[ys.length - 1].toFixed(1)}
         r="2.5"
         fill={strokeColor}
         className="animate-pulse"

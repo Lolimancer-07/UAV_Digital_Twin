@@ -401,6 +401,7 @@ import { Users, ChevronDown, Check, ShieldCheck, Lock, Loader2 } from "lucide-re
 import { getActiveSession, fetchSessionToken, UserRole, subscribeToSessionChanges, DEFAULT_SESSION } from "@/lib/telemetry/auth"
 
 function TenantRoleSwitcher() {
+  const { sendCommand } = useTelemetry()
   const [mounted, setMounted] = React.useState(false)
   const [session, setSession] = React.useState(() => DEFAULT_SESSION)
   const [switching, setSwitching] = React.useState(false)
@@ -417,6 +418,8 @@ function TenantRoleSwitcher() {
     setSwitching(true)
     try {
       await fetchSessionToken({ tenant_id: tenantId, role: session.role })
+      const targetUav = tenantId === "tenant_bravo" ? "UAV-04" : "UAV-01"
+      sendCommand({ command: "select_uav", uav_id: targetUav })
     } finally {
       setSwitching(false)
     }

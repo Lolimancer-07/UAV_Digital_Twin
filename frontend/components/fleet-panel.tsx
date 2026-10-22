@@ -52,6 +52,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useTelemetry } from "@/components/telemetry-provider"
+import { getActiveSession, fetchSessionToken } from "@/lib/telemetry/auth"
 import { FleetTwinComparator } from "@/components/fleet-twin-comparator"
 import { FleetMaintenanceHorizon } from "@/components/fleet-maintenance-horizon"
 import { FleetSwarmRelief } from "@/components/fleet-swarm-relief"
@@ -180,6 +181,55 @@ function ChartTooltipContent({ active, payload, label }: any) {
   )
 }
 
+const roundCoord = (n: number) => Number(n.toFixed(2))
+
+const COMPASS_DIAGONALS = [45, 135, 225, 315].map((deg) => {
+  const r = 140
+  const rad = ((deg - 90) * Math.PI) / 180
+  return {
+    deg,
+    x1: roundCoord(160 + Math.cos(rad) * 20),
+    y1: roundCoord(160 + Math.sin(rad) * 20),
+    x2: roundCoord(160 + Math.cos(rad) * r),
+    y2: roundCoord(160 + Math.sin(rad) * r),
+  }
+})
+
+const COMPASS_TICKS = Array.from({ length: 12 }, (_, i) => i * 30).map((deg) => {
+  const rad = ((deg - 90) * Math.PI) / 180
+  const r1 = 132
+  const r2 = 140
+  return {
+    deg,
+    x1: roundCoord(160 + Math.cos(rad) * r1),
+    y1: roundCoord(160 + Math.sin(rad) * r1),
+    x2: roundCoord(160 + Math.cos(rad) * r2),
+    y2: roundCoord(160 + Math.sin(rad) * r2),
+  }
+})
+
+const COMPASS_LABELS = [
+  { label: "N",   deg: 0   },
+  { label: "NE",  deg: 45  },
+  { label: "E",   deg: 90  },
+  { label: "SE",  deg: 135 },
+  { label: "S",   deg: 180 },
+  { label: "SW",  deg: 225 },
+  { label: "W",   deg: 270 },
+  { label: "NW",  deg: 315 },
+].map(({ label, deg }) => {
+  const rad = ((deg - 90) * Math.PI) / 180
+  const r   = label.length === 1 ? 152 : 150
+  return {
+    label,
+    deg,
+    isCardinal: label.length === 1,
+    x: roundCoord(160 + Math.cos(rad) * r),
+    y: roundCoord(160 + Math.sin(rad) * r + 3),
+  }
+})
+
+
 export function FleetPanel() {
   const { latestTelemetry, sendCommand } = useTelemetry()
   const [mounted, setMounted] = React.useState(false)
@@ -235,11 +285,21 @@ export function FleetPanel() {
   const rawFleet = latestTelemetry?.fleet_status as FleetItem[] | undefined
   const fleetList = rawFleet && rawFleet.length > 0 ? rawFleet : DEFAULT_FLEET
 
-  const activeUavId = latestTelemetry?.uav_id ?? "UAV-01"
+  const session = React.useMemo(() => (mounted ? getActiveSession() : null), [mounted])
+  const fallbackUavId = session?.tenant_id === "tenant_bravo" ? "UAV-04" : "UAV-01"
+  const activeUavId = latestTelemetry?.uav_id ?? fallbackUavId
 
-  const handleSelectUav = (uavId: string) => {
+  const handleSelectUav = async (uavId: string) => {
     if (uavId === activeUavId) return
     setSwitchingToId(uavId)
+
+    const currentSession = getActiveSession()
+    const targetTenant = (uavId === "UAV-04" || uavId === "UAV-05") ? "tenant_bravo" : "tenant_alpha"
+
+    if (currentSession.tenant_id !== targetTenant) {
+      await fetchSessionToken({ tenant_id: targetTenant, role: currentSession.role })
+    }
+
     sendCommand({ command: "select_uav", uav_id: uavId })
     setTimeout(() => setSwitchingToId(null), 600)
   }
@@ -325,8 +385,8 @@ COMMUNICATIONS & SECURITY:
   const minLat = 26.68; const maxLat = 26.85
   const minLon = 78.00; const maxLon = 78.23
   const mapWidth = 600; const mapHeight = 240; const pad = 35
-  const projectX = (lon: number) => pad + ((lon - minLon) / (maxLon - minLon)) * (mapWidth - pad * 2)
-  const projectY = (lat: number) => mapHeight - pad - ((lat - minLat) / (maxLat - minLat)) * (mapHeight - pad * 2)
+  const projectX = (lon: number) => roundCoord(pad + ((lon - minLon) / (maxLon - minLon)) * (mapWidth - pad * 2))
+  const projectY = (lat: number) => roundCoord(mapHeight - pad - ((lat - minLat) / (maxLat - minLat)) * (mapHeight - pad * 2))
 
   // RF Mesh links connecting airborne nodes
   const airborneNodes = fleetList.filter((u) => (activeGeoOffsets[u.uav_id]?.speed ?? 0) > 0)
@@ -770,61 +830,39 @@ COMMUNICATIONS & SECURITY:
 
                       <line x1="160" y1="20"  x2="160" y2="300" stroke="hsl(var(--border)/0.5)" strokeWidth="0.8" />
                       <line x1="20"  y1="160" x2="300" y2="160" stroke="hsl(var(--border)/0.5)" strokeWidth="0.8" />
-                      {[45, 135, 225, 315].map((deg) => {
-                        const r = 140
-                        const rad = (deg - 90) * Math.PI / 180
-                        return (
-                          <line key={deg}
-                            x1={160 + Math.cos(rad) * 20} y1={160 + Math.sin(rad) * 20}
-                            x2={160 + Math.cos(rad) * r}  y2={160 + Math.sin(rad) * r}
-                            stroke="hsl(var(--border)/0.3)" strokeWidth="0.6" strokeDasharray="2 5" />
-                        )
-                      })}
+                      {COMPASS_DIAGONALS.map(({ deg, x1, y1, x2, y2 }) => (
+                        <line key={deg}
+                          x1={x1} y1={y1}
+                          x2={x2} y2={y2}
+                          stroke="hsl(var(--border)/0.3)" strokeWidth="0.6" strokeDasharray="2 5" />
+                      ))}
 
-                      {Array.from({ length: 12 }, (_, i) => i * 30).map((deg) => {
-                        const rad = (deg - 90) * Math.PI / 180
-                        const r1 = 132; const r2 = 140
-                        return (
-                          <line key={`tick-${deg}`}
-                            x1={160 + Math.cos(rad) * r1} y1={160 + Math.sin(rad) * r1}
-                            x2={160 + Math.cos(rad) * r2} y2={160 + Math.sin(rad) * r2}
-                            stroke="hsl(var(--muted-foreground)/0.6)" strokeWidth="1.2" />
-                        )
-                      })}
+                      {COMPASS_TICKS.map(({ deg, x1, y1, x2, y2 }) => (
+                        <line key={`tick-${deg}`}
+                          x1={x1} y1={y1}
+                          x2={x2} y2={y2}
+                          stroke="hsl(var(--muted-foreground)/0.6)" strokeWidth="1.2" />
+                      ))}
 
-                      {[
-                        { label: "N",   deg: 0   },
-                        { label: "NE",  deg: 45  },
-                        { label: "E",   deg: 90  },
-                        { label: "SE",  deg: 135 },
-                        { label: "S",   deg: 180 },
-                        { label: "SW",  deg: 225 },
-                        { label: "W",   deg: 270 },
-                        { label: "NW",  deg: 315 },
-                      ].map(({ label, deg }) => {
-                        const rad = (deg - 90) * Math.PI / 180
-                        const r   = label.length === 1 ? 152 : 150
-                        const isCardinal = label.length === 1
-                        return (
-                          <text key={`cdir-${deg}`}
-                            x={160 + Math.cos(rad) * r}
-                            y={160 + Math.sin(rad) * r + 3}
-                            textAnchor="middle"
-                            fontSize={isCardinal ? 11 : 8}
-                            fontFamily="monospace"
-                            fontWeight={isCardinal ? "bold" : "normal"}
-                            fill={label === "N" ? "#ef4444" : "hsl(var(--muted-foreground))"}
-                          >{label}</text>
-                        )
-                      })}
+                      {COMPASS_LABELS.map(({ label, deg, isCardinal, x, y }) => (
+                        <text key={`cdir-${deg}`}
+                          x={x}
+                          y={y}
+                          textAnchor="middle"
+                          fontSize={isCardinal ? 11 : 8}
+                          fontFamily="monospace"
+                          fontWeight={isCardinal ? "bold" : "normal"}
+                          fill={label === "N" ? "#ef4444" : "hsl(var(--muted-foreground))"}
+                        >{label}</text>
+                      ))}
 
                       {fleetList.map((uav) => {
                         const geo = activeGeoOffsets[uav.uav_id] ?? { hdg: 0, speed: 0 }
-                        const rad    = (geo.hdg - 90) * Math.PI / 180
+                        const rad    = ((geo.hdg - 90) * Math.PI) / 180
                         const speed  = geo.speed ?? 0
                         const vecLen = Math.max(20, Math.min(108, speed * 1.6))
-                        const x2     = 160 + Math.cos(rad) * vecLen
-                        const y2     = 160 + Math.sin(rad) * vecLen
+                        const x2     = roundCoord(160 + Math.cos(rad) * vecLen)
+                        const y2     = roundCoord(160 + Math.sin(rad) * vecLen)
                         const accent = UAV_COLORS[uav.uav_id]
                         const isSelected = uav.uav_id === activeUavId
                         return (
@@ -837,7 +875,7 @@ COMMUNICATIONS & SECURITY:
                               stroke={accent} strokeWidth={isSelected ? 2.5 : 1.8} strokeLinecap="round"
                               markerEnd={`url(#cmp-arrow-${uav.uav_id})`} />
                             <circle cx="160" cy="160" r={isSelected ? 5 : 3.5} fill={accent} fillOpacity="0.9" />
-                            <text x={x2 + Math.cos(rad) * 12} y={y2 + Math.sin(rad) * 12 + 3}
+                            <text x={roundCoord(x2 + Math.cos(rad) * 12)} y={roundCoord(y2 + Math.sin(rad) * 12 + 3)}
                               textAnchor="middle" fontSize="7" fontFamily="monospace" fontWeight="bold"
                               fill={accent}>{uav.uav_id}</text>
                           </g>

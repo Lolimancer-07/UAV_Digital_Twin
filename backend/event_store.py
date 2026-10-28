@@ -1,13 +1,3 @@
-"""
-backend/event_store.py
-
-Convenience accessor for the append-only EventStore in the backend runtime.
-Exposes a shared event store instance initialized at data/event_store.db,
-or in-memory if running in ephemeral test mode.
-
-Also re-exports the EventStore class directly so tests and other modules can use:
-    from backend.event_store import EventStore
-"""
 
 import os
 import sys

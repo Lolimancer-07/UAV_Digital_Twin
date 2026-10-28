@@ -134,7 +134,7 @@ function AssistantMessageRow({
       <div className="flex flex-1 min-w-0 max-w-[85%] md:max-w-[80%] flex-col gap-2">
         {/* Metadata Bar */}
         <div className="flex flex-wrap items-center gap-2 text-[10px] font-mono">
-          <span className="font-semibold text-foreground">PropulsionX Engine</span>
+          <span className="font-semibold text-foreground">Agent 37 Hermes</span>
           {meta && (
             <span
               className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.2 font-medium ${meta.color}`}
@@ -147,7 +147,7 @@ function AssistantMessageRow({
             {confidencePct}% confidence
           </span>
           <span className="hidden sm:inline text-muted-foreground">
-            · Grounded in Rotax 914 F
+            · Agent 37 Instance c1iy0ok07a
           </span>
           <span className="ml-auto text-muted-foreground" suppressHydrationWarning>{m.timestamp}</span>
         </div>
@@ -320,22 +320,26 @@ function TelemetrySideDrawer({
 
       {/* Model Spec */}
       <div className="rounded-xl border border-border/70 bg-card p-3 text-xs flex flex-col gap-1.5 font-mono">
-        <span className="text-[10px] font-bold text-muted-foreground uppercase">AI Architecture</span>
+        <span className="text-[10px] font-bold text-cyan-400 uppercase">Agent 37 AI Architecture</span>
         <div className="flex justify-between text-muted-foreground">
-          <span>Intent Classification:</span>
-          <span className="text-foreground font-semibold">TF-IDF + LogReg</span>
+          <span>Cognitive Engine:</span>
+          <span className="text-cyan-400 font-semibold">Agent 37 Hermes</span>
+        </div>
+        <div className="flex justify-between text-muted-foreground">
+          <span>Agent 37 Instance:</span>
+          <span className="text-foreground font-semibold">c1iy0ok07a</span>
         </div>
         <div className="flex justify-between text-muted-foreground">
           <span>Prognostics (RUL):</span>
           <span className="text-foreground font-semibold">Bi-LSTM (95% CI)</span>
         </div>
         <div className="flex justify-between text-muted-foreground">
-          <span>Anomaly Attributions:</span>
+          <span>Anomaly Drivers:</span>
           <span className="text-foreground font-semibold">Isolation Forest</span>
         </div>
         <div className="flex justify-between text-muted-foreground">
-          <span>Telemetry Sample Rate:</span>
-          <span className="text-emerald-500 font-semibold">10 Hz Synchronized</span>
+          <span>Telemetry Rate:</span>
+          <span className="text-emerald-500 font-semibold">10 Hz Live</span>
         </div>
       </div>
     </aside>
@@ -379,10 +383,10 @@ export function NeuralEnginePage() {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="font-heading text-sm font-bold tracking-tight text-foreground">
-                  PropulsionX Neural Engine
+                  Agent 37 Neural Engine
                 </h1>
-                <Badge variant="outline" className="border-border text-[9px] font-mono px-1.5 py-0">
-                  ML Core 4.2
+                <Badge variant="outline" className="border-cyan-500/40 bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 text-[9px] font-mono px-1.5 py-0">
+                  Agent 37 Hermes · c1iy0ok07a
                 </Badge>
                 <Badge
                   variant="outline"
@@ -392,7 +396,7 @@ export function NeuralEnginePage() {
                 </Badge>
               </div>
               <p className="text-[10px] text-muted-foreground">
-                UAV-07 Rotax 914 F Digital Twin · Grounded in Live Telemetry
+                Powered by Agent 37 Cloud Intelligence · Grounded in Live UAV-07 Telemetry
               </p>
             </div>
           </div>
@@ -455,10 +459,10 @@ export function NeuralEnginePage() {
                     <Brain className="size-7" />
                   </div>
                   <h2 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">
-                    PropulsionX AI Engine
+                    Agent 37 Neural Engine
                   </h2>
                   <p className="max-w-md text-xs sm:text-sm text-muted-foreground mt-1 mb-6 leading-relaxed">
-                    Directly synchronized with UAV-07 propulsion digital twin telemetry. Ask a question or select a scenario below to begin diagnostics.
+                    Powered by Agent 37 Hermes cloud intelligence and directly synchronized with UAV-07 propulsion digital twin telemetry. Ask Agent 37 a tactical query or select a scenario below.
                   </p>
 
                   {/* 2x3 Starter Scenario Grid - Clean & Standard */}
@@ -504,9 +508,9 @@ export function NeuralEnginePage() {
                   </div>
                   <div className="flex flex-col gap-1 max-w-[80%]">
                     <div className="flex items-center gap-2 text-[10px] font-mono text-muted-foreground">
-                      <span>PropulsionX Engine</span>
+                      <span>Agent 37 Hermes</span>
                       <span>·</span>
-                      <span className="text-primary animate-pulse">Reasoning...</span>
+                      <span className="text-primary animate-pulse">Agent 37 Reasoning...</span>
                     </div>
                     <div className="rounded-2xl rounded-tl-xs border border-border/80 bg-card p-4 text-sm text-muted-foreground shadow-xs flex items-center gap-2">
                       <div className="flex gap-1.5">
@@ -514,7 +518,7 @@ export function NeuralEnginePage() {
                         <span className="size-2 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: "150ms" }} />
                         <span className="size-2 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: "300ms" }} />
                       </div>
-                      <span className="text-xs font-mono ml-1">Analyzing digital twin telemetry vectors…</span>
+                      <span className="text-xs font-mono ml-1">Agent 37 is reasoning over live digital twin telemetry…</span>
                     </div>
                   </div>
                 </div>
@@ -557,7 +561,7 @@ export function NeuralEnginePage() {
                       if (!waiting && input.trim()) handleSend()
                     }
                   }}
-                  placeholder="Ask PropulsionX about health, anomalies, RUL, CHT, or mission risk... (Enter to send)"
+                  placeholder="Ask Agent 37 about propulsion health, anomalies, RUL, CHT, or mission risk... (Enter to send)"
                   disabled={waiting}
                   className="flex-1 resize-none bg-transparent px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none max-h-32"
                 />
@@ -573,7 +577,7 @@ export function NeuralEnginePage() {
               </form>
 
               <div className="flex items-center justify-between px-1 text-[10px] text-muted-foreground">
-                <span>PropulsionX Neural Engine · Grounded in live UAV-07 digital twin</span>
+                <span>Agent 37 Neural Engine · Powered by Agent 37 Hermes (Instance: c1iy0ok07a)</span>
                 <span>Shift + Enter for new line</span>
               </div>
             </div>

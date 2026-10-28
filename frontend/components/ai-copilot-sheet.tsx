@@ -117,7 +117,7 @@ export function AICopilotSheet() {
         render={
           <Button variant="outline" size="sm" className="gap-1.5 text-xs text-primary border-primary bg-background hover:bg-primary hover:text-primary-foreground font-semibold">
             <BotIcon className="size-3.5 text-current" />
-            <span>NEXUS</span>
+            <span>AGENT 37</span>
           </Button>
         }
       />
@@ -129,14 +129,14 @@ export function AICopilotSheet() {
                 <BotIcon className="size-3.5" />
                 <span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-emerald-400 ring-2 ring-background animate-pulse" />
               </div>
-              <span>Nexus</span>
+              <span>Agent 37 Neural Engine</span>
             </SheetTitle>
-            <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/10 text-emerald-400 text-[9px] font-bold tracking-wider uppercase">
-              LIVE
+            <Badge variant="outline" className="border-cyan-500/40 bg-cyan-500/10 text-cyan-400 text-[9px] font-bold tracking-wider uppercase">
+              AGENT 37 LIVE
             </Badge>
           </div>
           <SheetDescription className="text-xs text-muted-foreground">
-            Reasoning grounded in real-time engine physics, LSTM predictions, and fault telemetry.
+            Agent 37 Hermes cloud reasoning grounded in live UAV-07 propulsion digital twin telemetry.
           </SheetDescription>
         </SheetHeader>
 
@@ -184,7 +184,7 @@ export function AICopilotSheet() {
             <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask about health, RUL, anomalies, mission risk…"
+              placeholder="Ask Agent 37 about health, RUL, anomalies, mission risk…"
               className="h-9 text-xs bg-background border-border text-foreground"
             />
             <Button type="submit" size="sm" disabled={!input.trim() || waiting} className="h-9 px-3 gap-1 bg-primary text-primary-foreground hover:bg-primary/90">

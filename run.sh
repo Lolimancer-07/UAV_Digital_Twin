@@ -2,6 +2,13 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 SIM_SRC="$ROOT/simulator/ecu_sim.c"
 SIM_BIN="$ROOT/simulator/ecu_sim"
 
+# Load local environment variables if .env exists
+if [ -f "$ROOT/.env" ]; then
+    set -a
+    source "$ROOT/.env"
+    set +a
+fi
+
 # Resolve python interpreter portably
 find_python() {
     # 1. Local repository virtual environment takes priority — it has all the
@@ -90,8 +97,11 @@ graceful_stop() {
 graceful_stop "backend/inference.py"
 graceful_stop "simulator/mission_sim.py"
 graceful_stop "simulator/ecu_sim"
+graceful_stop "next dev"
+graceful_stop "next-server"
 # Release TCP ports — fuser -k sends SIGKILL to the port owner;
 # we accept this only for ports, not for named processes.
+fuser -k 3000/tcp 2>/dev/null || true
 fuser -k 8765/tcp 2>/dev/null || true
 fuser -k 8080/tcp 2>/dev/null || true
 
@@ -150,16 +160,8 @@ else
     ok "Anomaly model already exists (skip training)"
 fi
 
-# step 3b: train the ML intent classifier on first run (~3s, only once)
-ML_MODEL="$ROOT/backend/ml_chatbot/intent_clf.joblib"
-if [ ! -f "$ML_MODEL" ]; then
-    echo "  → Training AI Copilot ML intent classifier (one-time, ~3s)..."
-    $PYTHON "$ROOT/backend/ml_chatbot/train_intent_clf.py" \
-        && ok "ML intent classifier trained and saved" \
-        || warn "ML classifier training failed — AI Copilot will use fallback keyword matching"
-else
-    ok "ML intent classifier already trained (skip)"
-fi
+# step 3b: Agent 37 Neural Engine
+ok "Agent 37 Neural Engine active (instance: c1iy0ok07a)"
 
 # step 4: start the inference engine and wait for the WebSocket to come up
 hdr "4/5" "AI Inference Engine"
@@ -204,6 +206,10 @@ fi
 hdr "6/6" "Primary Next.js GCS Dashboard"
 echo "  → Starting Next.js frontend (port 3000)..."
 if ! ss -tlnp 2>/dev/null | grep -q ':3000'; then
+    if [ ! -d "$ROOT/frontend/node_modules" ]; then
+        echo "  → Installing frontend dependencies (pnpm install)..."
+        (cd "$ROOT/frontend" && pnpm install)
+    fi
     cd "$ROOT/frontend"
     pnpm dev > /tmp/uav_nextjs.log 2>&1 &
     NEXT_PID=$!
@@ -216,7 +222,11 @@ if ! ss -tlnp 2>/dev/null | grep -q ':3000'; then
         sleep 1
     done
     if ! ss -tlnp 2>/dev/null | grep -q ':3000'; then
-        ok "Next.js dev server starting (PID $NEXT_PID) → http://127.0.0.1:3000"
+        if kill -0 $NEXT_PID 2>/dev/null; then
+            ok "Next.js dev server starting (PID $NEXT_PID) → http://127.0.0.1:3000"
+        else
+            warn "Next.js dev server exited unexpectedly. Check /tmp/uav_nextjs.log"
+        fi
     fi
 else
     ok "Next.js GCS Dashboard already active on port 3000"

@@ -140,12 +140,14 @@ export function AICopilotProvider({ children }: { children: React.ReactNode }) {
     latestTelemetryRef.current = latestTelemetry
   }, [latestTelemetry])
 
+  const sessionIdRef = React.useRef<string | null>(null)
+
   const [messages, setMessages] = React.useState<ChatMessage[]>([
     {
       id: "initial",
       role: "assistant",
-      text: "PropulsionX Neural Engine online. Digital Twin telemetry link synchronized (UAV-07 Rotax 914 F @ 10 Hz). Ingesting thermodynamics, Bi-LSTM RUL prognostics, and Isolation Forest anomaly drivers. Standing by for tactical queries.",
-      displayText: "PropulsionX Neural Engine online. Digital Twin telemetry link synchronized (UAV-07 Rotax 914 F @ 10 Hz). Ingesting thermodynamics, Bi-LSTM RUL prognostics, and Isolation Forest anomaly drivers. Standing by for tactical queries.",
+      text: "Agent 37 Neural Engine online (Instance: c1iy0ok07a · Hermes). Digital Twin telemetry link synchronized (UAV-07 Rotax 914 F @ 10 Hz). Ingesting thermodynamics, Bi-LSTM RUL prognostics, and Isolation Forest anomaly drivers. Standing by for tactical queries.",
+      displayText: "Agent 37 Neural Engine online (Instance: c1iy0ok07a · Hermes). Digital Twin telemetry link synchronized (UAV-07 Rotax 914 F @ 10 Hz). Ingesting thermodynamics, Bi-LSTM RUL prognostics, and Isolation Forest anomaly drivers. Standing by for tactical queries.",
       timestamp: "ONLINE",
       category: "GENERAL_STATUS",
       follow_ups: QUICK_PROMPTS.slice(0, 3),
@@ -190,7 +192,7 @@ export function AICopilotProvider({ children }: { children: React.ReactNode }) {
     }
   }, [latestTelemetry?.ai_engineer_response])
 
-  // Ingest answers from backend WebSocket
+  // Ingest answers from backend WebSocket (fallback sync)
   React.useEffect(() => {
     const resp = latestTelemetry?.ai_engineer_response
     if (!resp || !resp.answer) return
@@ -231,7 +233,7 @@ export function AICopilotProvider({ children }: { children: React.ReactNode }) {
     streamMessage(msgId, resp.answer || "")
   }, [latestTelemetry?.ai_engineer_response, streamMessage])
 
-  const handleSend = (textToSend?: string) => {
+  const handleSend = async (textToSend?: string) => {
     const q = (textToSend || input).trim()
     if (!q) return
 
@@ -257,19 +259,63 @@ export function AICopilotProvider({ children }: { children: React.ReactNode }) {
     setMessages((prev) => [...prev, userMsg])
     setInput("")
 
-    const sent = sendCommand({
+    // Send through WebSocket to maintain backend audit logs and telemetry snapshot
+    sendCommand({
       command: "ai_engineer_query",
       question: q,
     })
 
-    // If socket is disconnected, or if backend takes > 1.8s, provide immediate intelligent answer
+    // Query Agent 37 Hermes directly via Next.js API route
+    try {
+      const res = await fetch("/api/neural-engine", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: q,
+          telemetry: latestTelemetryRef.current,
+          sessionId: sessionIdRef.current,
+        }),
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        if (data.session_id) {
+          sessionIdRef.current = data.session_id
+        }
+
+        waitingRef.current = false
+        setWaiting(false)
+
+        const msgId = `resp-agent37-${Date.now()}`
+        const answerText = data.answer || "No response received from Agent 37."
+        lastProcessedRef.current = `${q}_${data.timestamp || ""}_${answerText.slice(0, 20)}`
+
+        const newMsg: ChatMessage = {
+          id: msgId,
+          role: "assistant",
+          text: answerText,
+          displayText: "",
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+          category: data.category || "GENERAL_STATUS",
+          confidence: data.confidence ?? 1.0,
+          follow_ups: data.follow_ups || QUICK_PROMPTS.slice(0, 3),
+          isStreaming: true,
+        }
+
+        setMessages((prev) => [...prev, newMsg])
+        streamMessage(msgId, answerText)
+        return
+      }
+    } catch (err) {
+      console.warn("Direct Agent 37 API call failed, awaiting WebSocket response or fallback:", err)
+    }
+
+    // Fallback: If Agent 37 API call fails or times out after 45s, generate fallback
     if (fallbackTimerRef.current) {
       clearTimeout(fallbackTimerRef.current)
     }
 
-    const delay = sent ? 1800 : 300
     fallbackTimerRef.current = setTimeout(() => {
-      // Check waiting ref imperatively outside setState updater to avoid React Strict Mode double-invocation
       if (!waitingRef.current) return
       waitingRef.current = false
       setWaiting(false)
@@ -296,14 +342,15 @@ export function AICopilotProvider({ children }: { children: React.ReactNode }) {
         return [...prev, fallbackMsg]
       })
       streamMessage(msgId, fallback.answer)
-    }, delay)
+    }, 45000)
   }
 
   const clearMessages = () => {
     if (fallbackTimerRef.current) {
       clearTimeout(fallbackTimerRef.current)
     }
-    const resetText = "Nexus re-initialized. Live telemetry monitoring active. Ask me anything about propulsion health, RUL, faults, or mission risk."
+    sessionIdRef.current = null
+    const resetText = "Agent 37 Neural Engine re-initialized. Live telemetry monitoring active (Rotax 914 F). Ask me anything about propulsion health, RUL, faults, or mission risk."
     setMessages([
       {
         id: `init-${Date.now()}`,

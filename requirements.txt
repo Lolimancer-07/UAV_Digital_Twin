@@ -24,3 +24,6 @@ onnxruntime==1.31.0
 # Configuration & Contracts
 PyYAML==6.0.3
 jsonschema==4.26.0
+
+# Agent 37 cloud agent HTTP client
+requests==2.32.3

@@ -413,7 +413,7 @@ aside{grid-area:side;background:var(--bg-surface);border-right:1px solid var(--b
   <button class="tab-btn" onclick="switchTab('pane-mission',this)" id="tab-mission">⑦ MISSION RISK</button>
   <button class="tab-btn" onclick="switchTab('pane-maint',this)" id="tab-maint">⑧ MAINTENANCE</button>
   <button class="tab-btn" onclick="switchTab('pane-fleet',this)" id="tab-fleet">⑨ FLEET</button>
-  <button class="tab-btn" onclick="switchTab('pane-aie',this)" id="tab-aie">⑩ AI ENGINEER</button>
+  <button class="tab-btn" onclick="switchTab('pane-aie',this)" id="tab-aie">⑩ AGENT 37</button>
 </nav>
 
 <!-- SIDEBAR -->
@@ -820,8 +820,8 @@ aside{grid-area:side;background:var(--bg-surface);border-right:1px solid var(--b
 <div id="pane-aie" class="tab-pane" style="gap:0">
   <div class="panel-card" style="flex:1;display:flex;flex-direction:column;">
     <div class="panel-hdr">
-      <span class="panel-title">AI Mission Engineer — Grounded Digital Twin Explanation</span>
-      <span class="panel-meta" style="color:var(--ok)">GROUNDED IN LIVE STATE · NO FABRICATION</span>
+      <span class="panel-title">Agent 37 Neural Engine — Hermes Cloud Intelligence (c1iy0ok07a)</span>
+      <span class="panel-meta" style="color:var(--ok)">POWERED BY AGENT 37 · LIVE TELEMETRY</span>
     </div>
     <div class="quick-q">
       <span style="font-size:9px;font-weight:800;letter-spacing:.1em;color:var(--text-label);text-transform:uppercase;align-self:center">QUICK:</span>
@@ -835,12 +835,12 @@ aside{grid-area:side;background:var(--bg-surface);border-right:1px solid var(--b
       <button class="quick-q-btn" onclick="askAI('What is the overall status?')">Status summary</button>
     </div>
     <div class="ai-chat-messages" id="ai-messages">
-      <div class="ai-msg system">AI Mission Engineer ready. Grounded in live Digital Twin state.</div>
-      <div class="ai-msg assistant">Hello. I'm your AI Mission Engineer, operating on live Digital Twin data. I can explain engine health, RUL predictions, anomalies, fault events, physics residuals, and mission risk — all grounded in actual model outputs. How can I assist you?</div>
+      <div class="ai-msg system">Agent 37 Neural Engine ready (Hermes · c1iy0ok07a). Grounded in live Digital Twin state.</div>
+      <div class="ai-msg assistant">Hello. I am Agent 37 Hermes, operating on live Digital Twin telemetry. I can explain engine health, RUL predictions, anomalies, fault events, physics residuals, and mission risk — all grounded in actual model outputs. How can I assist you?</div>
     </div>
     <div class="ai-input-row">
-      <input class="ai-input" id="ai-input" placeholder="Ask about engine health, anomalies, RUL, mission risk..." onkeydown="if(event.key==='Enter')sendAIQuery()">
-      <button class="dock-btn accent" onclick="sendAIQuery()" style="height:34px;padding:0 14px">ASK</button>
+      <input class="ai-input" id="ai-input" placeholder="Ask Agent 37 about engine health, anomalies, RUL, mission risk..." onkeydown="if(event.key==='Enter')sendAIQuery()">
+      <button class="dock-btn accent" onclick="sendAIQuery()" style="height:34px;padding:0 14px">ASK AGENT 37</button>
     </div>
   </div>
 </div>
@@ -1498,7 +1498,7 @@ function askAI(q){const inp=el('ai-input');if(inp)inp.value=q;sendAIQuery();el('
 function sendAIQuery(){
   const inp=el('ai-input');if(!inp)return;
   const q=inp.value.trim();if(!q)return;
-  inp.value='';appendAIMsg('user',q);appendAIMsg('system','AI Mission Engineer processing...');
+  inp.value='';appendAIMsg('user',q);appendAIMsg('system','Agent 37 Hermes processing...');
   window._pendingAIQ=q;
   sendCmd({command:'ai_engineer_query',question:q});
   setTimeout(()=>{if(window._pendingAIQ===q){window._pendingAIQ=null;removeSysMsg();appendAIMsg('assistant','Processing... if backend is connected the response will arrive shortly.');}},3000);

@@ -191,7 +191,7 @@ function AutoTextarea({
           if (!disabled && value.trim()) onSubmit()
         }
       }}
-      placeholder="Ask about health, RUL, anomalies, mission risk… (Enter to send)"
+      placeholder="Ask Agent 37 about health, RUL, anomalies, mission risk… (Enter to send)"
       className="flex-1 resize-none overflow-hidden rounded-xl border border-border bg-background/90 px-3.5 py-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/60 transition-all"
     />
   )
@@ -236,7 +236,7 @@ export function AICopilotRightPanel() {
   return (
     <aside
       ref={panelRef}
-      aria-label="PropulsionX Neural Engine"
+      aria-label="Agent 37 Neural Engine"
       className="relative z-20 flex h-full w-[400px] md:w-[440px] xl:w-[480px] shrink-0 flex-col border-l border-border/60 bg-card/95 text-card-foreground shadow-2xl backdrop-blur-md transition-all duration-200 overflow-hidden overscroll-contain"
     >
       {/* ── Gradient top header ───────────────────────────────────────── */}
@@ -246,9 +246,9 @@ export function AICopilotRightPanel() {
             <AIAvatar size={9} />
             <div className="flex flex-col">
               <span className="font-heading text-sm font-semibold tracking-wide text-foreground leading-tight">
-                PropulsionX Neural Engine
+                Agent 37 Neural Engine
               </span>
-              <span className="text-[10px] font-mono text-cyan-400">AERO-ML Intelligence Core</span>
+              <span className="text-[10px] font-mono text-cyan-400">Agent 37 Hermes · Instance c1iy0ok07a</span>
             </div>
           </div>
           <div className="flex items-center gap-1.5">
@@ -271,7 +271,7 @@ export function AICopilotRightPanel() {
               variant="ghost"
               size="icon-xs"
               onClick={() => setIsOpen(false)}
-              title="Close Neural Console"
+              title="Close Agent 37 Console"
               className="size-7 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"
             >
               <XIcon className="size-4" />
@@ -279,7 +279,7 @@ export function AICopilotRightPanel() {
           </div>
         </div>
         <p className="mt-2 text-[11px] text-muted-foreground leading-relaxed">
-          PropulsionX real-time reasoning grounded in UAV-07 thermodynamics, Bi-LSTM degradation models, and Isolation Forest anomaly drivers.
+          Agent 37 Hermes cloud reasoning grounded in UAV-07 thermodynamics, Bi-LSTM degradation models, and Isolation Forest anomaly drivers.
         </p>
       </div>
 
@@ -345,7 +345,7 @@ export function AICopilotRightPanel() {
           </Button>
         </form>
         <p className="mt-1.5 text-[9px] text-muted-foreground text-center">
-          Enter to send · Shift+Enter for new line · Grounded in live telemetry
+          Agent 37 Hermes Intelligence · Enter to send · Grounded in live telemetry
         </p>
       </div>
     </aside>

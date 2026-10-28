@@ -31,8 +31,8 @@ export function AICopilotSidebar() {
             <span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-emerald-400 ring-2 ring-background animate-pulse" />
           </div>
           <div className="flex flex-col">
-            <span className="text-[11px] font-bold tracking-tight text-foreground">NEXUS</span>
-            <span className="text-[9px] font-mono text-emerald-400 font-medium">PROPULSIONX</span>
+            <span className="text-[11px] font-bold tracking-tight text-foreground">AGENT 37</span>
+            <span className="text-[9px] font-mono text-cyan-400 font-medium">HERMES CLOUD</span>
           </div>
           {/* Last response category badge */}
           {catMeta && (
@@ -100,7 +100,7 @@ export function AICopilotSidebar() {
         {waiting && (
           <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground bg-muted/40 p-1.5 rounded-md border border-border/40">
             <SparklesIcon className="size-3 animate-spin text-primary" />
-            <span className="italic">AI reasoning over live telemetry…</span>
+            <span className="italic">Agent 37 reasoning over live telemetry…</span>
           </div>
         )}
       </div>
@@ -127,7 +127,7 @@ export function AICopilotSidebar() {
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask AI Engineer…"
+          placeholder="Ask Agent 37…"
           className="flex-1 h-7 rounded-lg border border-border/70 bg-background/90 px-2 text-[11px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/60"
         />
         <Button

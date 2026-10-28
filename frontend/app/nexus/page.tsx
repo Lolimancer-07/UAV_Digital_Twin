@@ -5,8 +5,8 @@ import { NexusPage } from "@/components/nexus-page"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 
 export const metadata = {
-  title: "PropulsionX Nexus | AI Mission Engineer",
-  description: "PropulsionX Nexus — AI-powered propulsion intelligence engine grounded in live Digital Twin telemetry.",
+  title: "Agent 37 Neural Engine | AI Aero-Propulsion Core",
+  description: "Agent 37 Neural Engine — Hermes cloud intelligence grounded in live UAV-07 digital twin telemetry.",
 }
 
 export default function NexusRoute() {

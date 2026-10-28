@@ -77,15 +77,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarContent>
         <NavMain items={navMain} />
 
-        {/* ── PropulsionX Neural Engine — Dedicated AI Command Page ─────────── */}
+        {/* ── Agent 37 Neural Engine — Dedicated AI Command Page ─────────── */}
         <SidebarGroup className="px-3 py-2">
           <SidebarMenu>
             <SidebarMenuItem>
-              {/* Full-page PropulsionX Neural Engine link */}
+              {/* Full-page Agent 37 Neural Engine link */}
               <SidebarMenuButton
                 render={<Link href="/neural-engine" />}
                 isActive={isAiActive}
-                tooltip="Open PropulsionX Neural Engine HUD"
+                tooltip="Open Agent 37 Neural Engine HUD"
                 size="lg"
                 className={`h-11 rounded-xl px-3 text-[0.92rem] font-medium tracking-[-0.01em] transition-all duration-150 ease-out active:scale-[0.99] border ${
                   isAiActive
@@ -96,13 +96,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 <div className="relative flex size-5 items-center justify-center text-cyan-400">
                   <BrainIcon className="size-4 animate-pulse" />
                 </div>
-                <span className="font-semibold tracking-wide">Neural Engine</span>
+                <span className="font-semibold tracking-wide">Agent 37 Engine</span>
                 <span className={`ml-auto rounded-full px-2 py-0.5 text-[9px] font-mono font-bold ${
                   isAiActive
                     ? "bg-cyan-500 text-black shadow-xs"
-                    : "bg-emerald-500/15 border border-emerald-500/30 text-emerald-400"
+                    : "bg-cyan-500/15 border border-cyan-500/30 text-cyan-400"
                 }`}>
-                  {isAiActive ? "LIVE HUD" : "AERO-AI"}
+                  {isAiActive ? "LIVE HUD" : "AGENT 37"}
                 </span>
               </SidebarMenuButton>
             </SidebarMenuItem>
@@ -112,7 +112,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               <SidebarMenuButton
                 onClick={() => setIsOpen(!isOpen)}
                 isActive={isOpen}
-                tooltip={isOpen ? "Close Side Console" : "Open Side Console"}
+                tooltip={isOpen ? "Close Agent 37 Console" : "Open Agent 37 Console"}
                 size="sm"
                 className={`h-7.5 rounded-lg px-3 text-[0.8rem] font-mono transition-all duration-150 ease-out active:scale-[0.99] ${
                   isOpen
@@ -120,7 +120,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     : "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent"
                 }`}
               >
-                <span className="ml-5 text-[10px]">↗ Open Side Console</span>
+                <span className="ml-5 text-[10px]">↗ Agent 37 Console</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>

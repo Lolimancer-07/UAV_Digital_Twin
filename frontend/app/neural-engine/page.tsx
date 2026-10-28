@@ -5,8 +5,8 @@ import { NeuralEnginePage } from "@/components/neural-engine-page"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 
 export const metadata = {
-  title: "PropulsionX Neural Engine | AI Aero-Propulsion Core",
-  description: "PropulsionX Neural Engine — Cyber-Aerospace digital twin intelligence grounded in live UAV-07 telemetry.",
+  title: "Agent 37 Neural Engine | AI Aero-Propulsion Core",
+  description: "Agent 37 Neural Engine — Hermes cloud intelligence grounded in live UAV-07 digital twin telemetry.",
 }
 
 export default function NeuralEngineRoute() {

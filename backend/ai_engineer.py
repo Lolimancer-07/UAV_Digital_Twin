@@ -1,526 +1,411 @@
 """
 backend/ai_engineer.py
 
-Answers operator questions in plain English using actual Digital Twin state.
-No external LLM, no API calls — everything is grounded in real telemetry values.
+Answers operator questions in plain English using the Agent 37 cloud agent
+(Hermes), with the live Digital Twin state injected as context on every turn.
 
-Intent classification is performed by a trained TF-IDF + Logistic Regression
-model (backend/ml_chatbot/intent_clf.joblib) that generalises to paraphrased,
-abbreviated, and novel questions across 12 intent classes.
+No local LLM — all inference runs on the Agent 37 sandboxed instance:
+  https://c1iy0ok07a.agent37.app/v1/responses
 
-Supports:
-  WHY_UNHEALTHY | WHY_ANOMALY | RUL_STATUS | MISSION_RISK | RPM_ADVICE
-  MAINTENANCE   | RECOMMENDATION | SENSOR_STATUS | THERMAL | OIL
-  VIBRATION     | GENERAL_STATUS
+Session continuity is maintained per-process so follow-up questions carry
+conversation history automatically.
+
+Configuration (env vars override the compiled-in defaults):
+  AGENT37_API_KEY      – Agent 37 secret key  (sk_live_... or AQ....)
+  AGENT37_INSTANCE_ID  – 10-char instance id  (c1iy0ok07a)
 """
 
-import os
-import sys
+import json
 import logging
-from typing import Dict, Any, List, Tuple
+import os
+from typing import Any, Dict, List, Optional
+
+import requests as _requests
 
 logger = logging.getLogger(__name__)
 
-# ── ML Intent Classifier ─────────────────────────────────────────────────────
-# Add ml_chatbot to path so it can be imported from the backend directory.
-_here = os.path.dirname(os.path.abspath(__file__))
-if _here not in sys.path:
-    sys.path.insert(0, _here)
+# ── Agent 37 connection ───────────────────────────────────────────────────────
+AGENT37_API_KEY: str = os.environ.get("AGENT37_API_KEY", "")
+AGENT37_INSTANCE_ID: str = os.environ.get("AGENT37_INSTANCE_ID", "c1iy0ok07a")
+_BASE_URL: str = f"https://{AGENT37_INSTANCE_ID}.agent37.app"
+_HEADERS: Dict[str, str] = {
+    "X-Agent37-Key": AGENT37_API_KEY,
+    "Content-Type": "application/json",
+}
 
-try:
-    from ml_chatbot.intent_classifier import classify as _ml_classify, is_model_available
-    _USE_ML = True
-    if is_model_available():
-        logger.info("[AI Engineer] ML intent classifier loaded (TF-IDF + Logistic Regression)")
-    else:
-        logger.warning("[AI Engineer] ML model not found — run train_intent_clf.py. Using fallback classifier.")
-except ImportError as e:
-    logger.warning("[AI Engineer] ml_chatbot import failed (%s) — using fallback classifier.", e)
-    _USE_ML = False
+# Session ID is preserved across turns within the same backend process so
+# the agent carries conversation history automatically.
+_session_id: Optional[str] = None
 
+logger.info(
+    "[Agent37] Configured — instance=%s  session=new",
+    AGENT37_INSTANCE_ID,
+)
 
-def _classify_question(question: str) -> Tuple[str, float]:
-    """Classify question intent using the trained ML model (with keyword fallback)."""
-    if _USE_ML:
-        return _ml_classify(question)
-    # Hard fallback — should only trigger if joblib/sklearn not available
-    q = question.lower()
-    pairs = [
-        ("WHY_UNHEALTHY",  ["unhealthy", "degraded", "wrong", "failing", "health"]),
-        ("WHY_ANOMALY",    ["anomaly", "fault", "detect", "root cause"]),
-        ("RUL_STATUS",     ["rul", "remaining", "life", "cycles", "prognostic"]),
-        ("MISSION_RISK",   ["mission", "safe to fly", "sortie", "abort"]),
-        ("RPM_ADVICE",     ["rpm", "throttle", "derate", "reduce"]),
-        ("MAINTENANCE",    ["inspect", "maintenance", "service", "repair"]),
-        ("RECOMMENDATION", ["recommend", "suggest", "advise", "should"]),
-        ("SENSOR_STATUS",  ["sensor", "integrity", "channel", "reading"]),
-        ("THERMAL",        ["cht", "egt", "temperature", "thermal", "hot"]),
-        ("OIL",            ["oil", "lubrication", "psi"]),
-        ("VIBRATION",      ["vibration", "shake", "bearing", "mechanical"]),
-        ("GENERAL_STATUS", ["status", "overview", "summary"]),
-    ]
-    for intent, kws in pairs:
-        if any(kw in q for kw in kws):
-            return intent, 0.6
-    return "GENERAL_STATUS", 0.4
+# ── System / persona prompt ───────────────────────────────────────────────────
+_PERSONA = (
+    "You are Agent 37, the AI Mission Engineer embedded in a UAV (Unmanned Aerial Vehicle) "
+    "Digital Twin system, powered by the Agent 37 Hermes cloud platform. You have direct access to live propulsion telemetry, "
+    "LSTM prognostics, anomaly detection, mission risk data, and prescriptive "
+    "maintenance advisories.\n\n"
+    "Your role as Agent 37: answer operator questions concisely and precisely, grounded in "
+    "the telemetry snapshot provided. Do not speculate beyond the data.\n\n"
+    "IMPORTANT - respond ONLY with a single valid JSON object, no other text:\n"
+    "{\n"
+    '  "answer": "<detailed plain-English answer grounded in the telemetry>",\n'
+    '  "category": "<one of: WHY_UNHEALTHY | WHY_ANOMALY | RUL_STATUS | '
+    "MISSION_RISK | RPM_ADVICE | MAINTENANCE | RECOMMENDATION | "
+    'SENSOR_STATUS | THERMAL | OIL | VIBRATION | GENERAL_STATUS | GREETING>",\n'
+    '  "follow_ups": ["<follow-up 1>", "<follow-up 2>", "<follow-up 3>"]\n'
+    "}\n\n"
+    "Rules:\n"
+    "- answer: reference the actual numeric values from the telemetry snapshot.\n"
+    "- category: pick the intent that best matches the operator's question.\n"
+    "- follow_ups: 2-3 questions the operator is most likely to ask next.\n"
+    "- No markdown, no prose outside the JSON object."
+)
 
-
-def _fmt_pct(v: float) -> str:  return f"{v:.0f}%"
-def _fmt_temp(v: float) -> str: return f"{v:.1f}°F"
-def _fmt_rul(v: float) -> str:  return f"{v:.0f} cycles"
-
-
-# ---------------------------------------------------------------------------
-# Answer builders — each returns (answer_str, follow_ups_list)
-# ---------------------------------------------------------------------------
-
-def _ans_why_unhealthy(state):
-    health = state.get("health", {})
-    hi = health.get("health_index", 0)
-    condition = health.get("condition", "UNKNOWN")
-    sub = health.get("sub_scores", {})
-    rul = state.get("predicted_rul", 0)
-    rul_lo = state.get("rul_ci_lower", 0)
-    rul_hi = state.get("rul_ci_upper", 0)
-    cht = state.get("cht", 0)
-    egt = state.get("egt", 0)
-    oil = state.get("oil_pressure", 0)
-    vib = state.get("vibration", 0)
-    fault_events = state.get("fault_events", [])
-    fault_names = [f.get("name", "").replace("_", " ") for f in fault_events]
-    fault_count = len(fault_events)
-    xai = state.get("xai", {})
-    top_driver = xai.get("top_driver", "UNKNOWN")
-    follow_ups = [
-        "What is the top driver for the current anomaly?",
+# ── Default follow-ups (fallback when agent returns plain text) ───────────────
+_FOLLOWUPS: Dict[str, List[str]] = {
+    "WHY_UNHEALTHY": [
         "What maintenance action is recommended right now?",
+        "What is the predicted RUL?",
         "Can this engine complete the planned mission safely?",
-    ]
-    if hi >= 80:
-        return (
-            f"The engine is currently in {condition} condition with a Health Index of {hi:.0f}/100. "
-            f"All subsystems are operating within acceptable bounds. "
-            f"Predicted RUL is {_fmt_rul(rul)} (95% CI: {_fmt_rul(rul_lo)}\u2013{_fmt_rul(rul_hi)}).",
-            ["What is the predicted RUL?", "Can this engine complete the planned mission safely?"]
-        )
-    reasons = []
-    if sub.get("thermal", 100) < 70:
-        reasons.append(f"thermal subsystem degradation (CHT={_fmt_temp(cht)}, EGT={_fmt_temp(egt)})")
-    if sub.get("lubrication", 100) < 70:
-        reasons.append(f"lubrication system concern (Oil={oil:.1f} PSI)")
-    if sub.get("mechanical", 100) < 70:
-        reasons.append(f"elevated mechanical vibration ({vib:.3f}g RMS)")
-    if fault_count > 0:
-        reasons.append(f"{fault_count} active fault code(s): {', '.join(fault_names[:3])}")
-    if not reasons:
-        reasons.append(f"RUL reduction to {_fmt_rul(rul)} cycles")
-    text = (
-        f"The engine Health Index is {hi:.0f}/100 ({condition}), degraded by: "
-        + "; ".join(reasons)
-        + f". The primary contributing subsystem is {top_driver.replace('_',' ').title()}."
-    )
-    return text, follow_ups
-
-
-def _ans_why_anomaly(state):
-    fault_events = state.get("fault_events", [])
-    xai = state.get("xai", {})
-    twin = state.get("twin_consistency", {})
-    attributions = xai.get("attributions", [])
-    follow_ups = [
+    ],
+    "WHY_ANOMALY": [
         "What maintenance action is recommended right now?",
         "What is the engine health index?",
         "What are the sensor integrity scores?",
-    ]
-    if not fault_events and not xai.get("is_anomaly"):
-        return (
-            "No anomalies are currently detected. The engine is operating within the "
-            "3-sigma multivariate learned normal operational envelope.",
-            ["What is the predicted RUL?", "What is the current engine health status?"]
-        )
-    response = "The anomaly detection system has identified the following:\n"
-    if fault_events:
-        for f in fault_events[:3]:
-            response += f"  \u2022 {f['name'].replace('_',' ').title()} [{f['severity']}]\n"
-    if attributions:
-        response += "\nRoot cause attribution (ranked by contribution):\n"
-        for a in attributions[:4]:
-            response += (
-                f"  {a['label'].title()}: {a['attribution']:.1f}% \u2014 "
-                f"value={a['value']}{a['unit']}, nominal={a['nominal']}{a['unit']}\n"
-            )
-    if twin:
-        response += f"\nTwin Consistency: Case {twin.get('case','?')} \u2014 {twin.get('case_label','')}"
-    return response.strip(), follow_ups
-
-
-def _ans_rul_status(state):
-    rul = state.get("predicted_rul", 0)
-    rul_lo = state.get("rul_ci_lower", 0)
-    rul_hi = state.get("rul_ci_upper", 0)
-    true_rul = state.get("true_rul", 0)
-    buf_pct = state.get("buffer_pct", 0)
-    follow_ups = [
+    ],
+    "RUL_STATUS": [
         "Can this engine complete the planned mission safely?",
         "What maintenance action is recommended right now?",
         "Why is the engine health degraded?",
-    ]
-    if rul <= 0:
-        return (
-            f"RUL prediction is warming up. The LSTM model requires 50 telemetry cycles to produce "
-            f"a stable prediction. Current sequence buffer: {buf_pct:.0f}% full.",
-            ["What is the current engine health status?"]
-        )
-    urgency = ""
-    if rul < 20:
-        urgency = " \u26a0\ufe0f CRITICAL \u2014 immediate overhaul required."
-    elif rul < 50:
-        urgency = " \u26a0\ufe0f WARNING \u2014 plan maintenance within the next few flights."
-    elif rul < 100:
-        urgency = " Plan a 50-hour inspection."
-    text = (
-        f"The Deep LSTM prognostics model predicts {_fmt_rul(rul)} of remaining service life.{urgency}\n"
-        f"95% confidence interval: {_fmt_rul(rul_lo)} to {_fmt_rul(rul_hi)}.\n"
-        f"True reference RUL (from dataset): {_fmt_rul(true_rul)}."
-    )
-    return text, follow_ups
-
-
-def _ans_mission_risk(state):
-    mission = state.get("mission_risk", {})
-    follow_ups = [
+    ],
+    "MISSION_RISK": [
         "What maintenance action is recommended right now?",
         "What is the predicted RUL?",
         "What happens to CHT if I derate RPM by 200?",
-    ]
-    if not mission:
-        return (
-            "Mission risk assessment is not yet available. Ensure telemetry is flowing and RUL has been predicted.",
-            ["What is the current engine health status?"]
-        )
-    prob = mission.get("mission_completion_probability", 0)
-    risk = mission.get("risk_level", "UNKNOWN")
-    safe_h = mission.get("safe_operating_time_h", 0)
-    req_h = mission.get("required_mission_duration_h", 4.5)
-    at_risk = mission.get("mission_at_risk", False)
-    if at_risk:
-        text = (
-            f"Mission completion probability is {_fmt_pct(prob)} \u2014 risk level: {risk}.\n"
-            f"Predicted safe operating time: {safe_h:.1f}h vs required {req_h:.1f}h.\n"
-            f"The mission is AT RISK. {mission.get('risk_narrative', '')}"
-        )
-    else:
-        text = (
-            f"Mission completion probability is {_fmt_pct(prob)} \u2014 risk level: {risk}.\n"
-            f"Estimated safe operating time: {safe_h:.1f}h. Mission is within acceptable risk bounds."
-        )
-    return text, follow_ups
-
-
-def _ans_rpm_advice(state):
-    rpm = state.get("rpm", 0)
-    cht = state.get("cht", 0)
-    egt = state.get("egt", 0)
-    mission = state.get("mission_risk", {})
-    follow_ups = [
+    ],
+    "RPM_ADVICE": [
         "What happens to CHT if I derate RPM by 200?",
         "Can this engine complete the planned mission safely?",
         "What is the predicted RUL?",
-    ]
-    if not mission:
-        return (
-            f"Reducing RPM reduces thermal load on cylinders and bearings. "
-            f"Current RPM is {rpm:.0f}. At nominal cruise (1400 RPM), thermal load is minimised. "
-            "Use the What-If tab to simulate a specific RPM reduction.",
-            follow_ups
-        )
-    cur_prob = mission.get("mission_completion_probability", 0)
-    text = (
-        f"At current RPM of {rpm:.0f}, CHT={_fmt_temp(cht)} and EGT={_fmt_temp(egt)}.\n"
-        f"Reducing RPM lowers thermal load (CHT scales with RPM^1.3), which extends predicted RUL.\n"
-        f"Current mission completion probability: {_fmt_pct(cur_prob)}.\n"
-        "Use the What-If Simulation tab to model a specific RPM reduction and see the predicted effect on RUL and health."
-    )
-    return text, follow_ups
-
-
-def _ans_maintenance(state):
-    prescriptive = state.get("prescriptive", [])
-    follow_ups = [
+    ],
+    "MAINTENANCE": [
         "Why is the engine health degraded?",
         "Can this engine complete the planned mission safely?",
         "What is the predicted RUL?",
-    ]
-    if prescriptive:
-        top = prescriptive[0]
-        text = (
-            f"Top maintenance advisory [{top['severity']}]:\n"
-            f"{top['action']}\n\n"
-            f"Operational restriction: {top.get('operational','')}\n"
-            f"Required maintenance: {top.get('maintenance','')}\n"
-            f"Expected benefit: {top.get('expected_benefit','')}"
-        )
-    else:
-        text = "No active maintenance advisories. Engine is within airworthiness limits."
-    return text, follow_ups
-
-
-def _ans_recommendation(state):
-    prescriptive = state.get("prescriptive", [])
-    rul = state.get("predicted_rul", 0)
-    mission = state.get("mission_risk", {})
-    follow_ups = [
+    ],
+    "RECOMMENDATION": [
         "Why is the engine health degraded?",
         "What is the predicted RUL?",
         "Can this engine complete the planned mission safely?",
-    ]
-    if prescriptive:
-        top = prescriptive[0]
-        source = top.get("source", "")
-        if "FAULT" in source:
-            reason = f"Based on detected fault: {source.split(':')[-1].replace('_',' ').title()}"
-        elif "RUL" in source:
-            reason = f"Based on RUL prognostic: {_fmt_rul(rul)} remaining"
-        elif "MISSION" in source:
-            reason = f"Based on mission risk level: {mission.get('risk_level','?')}"
-        else:
-            reason = "Based on overall system health assessment"
-        text = (
-            f"The recommendation is grounded in: {reason}.\n\n"
-            f"Recommendation: {top['action']}\n"
-            f"Expected outcome: {top.get('expected_benefit','')}"
-        )
-    else:
-        text = "No active recommendations. System is nominal."
-    return text, follow_ups
-
-
-def _ans_sensor_status(state):
-    sensors = state.get("sensor_integrity", {})
-    follow_ups = [
+    ],
+    "SENSOR_STATUS": [
         "Why is the engine health degraded?",
         "What is the current engine health status?",
         "What is the top driver for the current anomaly?",
-    ]
-    if not sensors:
-        return "Sensor integrity data is not yet available.", follow_ups
-    score = sensors.get("integrity_score", 100)
-    suspects = sensors.get("suspect_channels", [])
-    if not suspects:
-        return f"All sensor channels are healthy. Overall sensor integrity score: {score:.1f}%.", follow_ups
-    resp = f"Sensor integrity score: {score:.1f}%.\n\nSuspect channels:\n"
-    for s in suspects[:4]:
-        resp += f"  \u2022 {s['channel'].upper()}: {s['confidence']:.0f}% confidence \u2014 {', '.join(s['issues'][:2])}\n"
-    return resp.strip(), follow_ups
-
-
-def _ans_thermal(state):
-    cht = state.get("cht", 0)
-    egt = state.get("egt", 0)
-    health = state.get("health", {})
-    sub = health.get("sub_scores", {})
-    thermal_score = sub.get("thermal", 100)
-    follow_ups = [
+    ],
+    "THERMAL": [
         "What happens to CHT if I derate RPM by 200?",
         "Why is the engine health degraded?",
         "What maintenance action is recommended right now?",
-    ]
-    if cht > 420:
-        status = "CRITICAL \u2014 CHT exceeds TBO limit"
-    elif cht > 400:
-        status = "WARNING \u2014 CHT approaching limit"
-    elif cht > 380:
-        status = "ELEVATED \u2014 monitor closely"
-    else:
-        status = "NORMAL"
-    text = (
-        f"Thermal Status: {status}\n"
-        f"  Cylinder Head Temperature (CHT): {_fmt_temp(cht)}\n"
-        f"  Exhaust Gas Temperature (EGT):   {_fmt_temp(egt)}\n"
-        f"  Thermal subsystem health score:  {thermal_score:.0f}/100\n\n"
-        f"CHT above 400\u00b0F accelerates valve seat wear and increases thermal fatigue crack risk. "
-        f"EGT provides a window into combustion efficiency \u2014 deviation beyond \u00b150\u00b0F from nominal suggests mixture or ignition issues."
-    )
-    return text, follow_ups
-
-
-def _ans_oil(state):
-    oil = state.get("oil_pressure", 0)
-    health = state.get("health", {})
-    sub = health.get("sub_scores", {})
-    lub_score = sub.get("lubrication", 100)
-    follow_ups = [
+    ],
+    "OIL": [
         "What maintenance action is recommended right now?",
         "Why is the engine health degraded?",
         "What is the predicted RUL?",
-    ]
-    if oil < 45:
-        oil_status = "\u26a0\ufe0f CRITICAL LOW \u2014 risk of bearing failure"
-    elif oil < 52:
-        oil_status = "\u26a0\ufe0f LOW \u2014 monitor closely"
-    elif oil < 60:
-        oil_status = "NORMAL"
-    else:
-        oil_status = "HIGH \u2014 check for blockage"
-    text = (
-        f"Oil Pressure: {oil:.1f} PSI \u2014 {oil_status}\n"
-        f"Lubrication subsystem health score: {lub_score:.0f}/100\n\n"
-        f"Nominal oil pressure range is 52\u201360 PSI at cruise power. "
-        f"Sustained pressure below 45 PSI risks crankshaft bearing damage. "
-        f"Inspect oil filter and pump on next maintenance cycle."
-    )
-    return text, follow_ups
-
-
-def _ans_vibration(state):
-    vib = state.get("vibration", 0)
-    health = state.get("health", {})
-    sub = health.get("sub_scores", {})
-    mech_score = sub.get("mechanical", 100)
-    follow_ups = [
+    ],
+    "VIBRATION": [
         "What maintenance action is recommended right now?",
         "What is the top driver for the current anomaly?",
         "Why is the engine health degraded?",
-    ]
-    if vib > 3.0:
-        vib_status = "\u26a0\ufe0f CRITICAL \u2014 structural integrity risk"
-    elif vib > 2.5:
-        vib_status = "\u26a0\ufe0f HIGH \u2014 inspect immediately"
-    elif vib > 1.5:
-        vib_status = "ELEVATED \u2014 monitor trend"
-    else:
-        vib_status = "NORMAL"
-    text = (
-        f"Vibration (RMS): {vib:.3f}g \u2014 {vib_status}\n"
-        f"Mechanical subsystem health score: {mech_score:.0f}/100\n\n"
-        f"Elevated vibration above 1.5g suggests propeller imbalance, bearing wear, or loose mounts. "
-        f"Above 2.5g, risk of structural fatigue in engine mounts and airframe attachments increases significantly. "
-        f"Inspect spinner and propeller balance at next opportunity."
-    )
-    return text, follow_ups
-
-
-def _ans_general(state):
-    health = state.get("health", {})
-    hi = health.get("health_index", 0)
-    condition = health.get("condition", "UNKNOWN")
-    rul = state.get("predicted_rul", 0)
-    rul_lo = state.get("rul_ci_lower", 0)
-    rul_hi = state.get("rul_ci_upper", 0)
-    fault_events = state.get("fault_events", [])
-    fault_names = [f.get("name", "").replace("_", " ") for f in fault_events]
-    twin = state.get("twin_consistency", {})
-    mission = state.get("mission_risk", {})
-    sensors = state.get("sensor_integrity", {})
-    integrity = sensors.get("integrity_score", 100.0)
-    rpm = state.get("rpm", 0)
-    cht = state.get("cht", 0)
-    egt = state.get("egt", 0)
-    oil = state.get("oil_pressure", 0)
-    faults_str = ", ".join(fault_names) if fault_names else "none"
-    twin_str = twin.get("case_label", "NORMAL") if twin else "awaiting data"
-    text = (
-        f"UAV Digital Twin Status Summary:\n"
-        f"  Engine Health: {hi:.0f}/100 ({condition})\n"
-        f"  Predicted RUL: {_fmt_rul(rul)} (CI: {_fmt_rul(rul_lo)}\u2013{_fmt_rul(rul_hi)})\n"
-        f"  Active Faults: {faults_str}\n"
-        f"  Twin Consistency: {twin_str}\n"
-        f"  Mission Risk: {mission.get('risk_level','UNKNOWN') if mission else 'awaiting data'} "
-        f"({mission.get('mission_completion_probability',0):.0f}% completion probability)\n"
-        f"  Sensor Integrity: {integrity:.1f}%\n"
-        f"  RPM: {rpm:.0f} | CHT: {_fmt_temp(cht)} | EGT: {_fmt_temp(egt)} | Oil: {oil:.1f} PSI"
-    )
-    follow_ups = [
-        "Why is the engine health degraded?",
-        "What is the predicted RUL?",
-        "Can this engine complete the planned mission safely?",
-    ]
-    return text, follow_ups
-
-
-
-# ---------------------------------------------------------------------------
-# Greeting / small-talk handler (added for GREETING intent)
-# ---------------------------------------------------------------------------
-
-def _ans_greeting(state: Dict[str, Any]):
-    health = state.get("health", {})
-    hi_val = health.get("health_index", 0)
-    condition = health.get("condition", "UNKNOWN")
-    rul = state.get("predicted_rul", 0)
-    follow_ups = [
+    ],
+    "GREETING": [
         "What is the current engine health status?",
         "What is the predicted RUL?",
         "Can this engine complete the planned mission safely?",
-    ]
-    if hi_val > 0:
-        text = (
-            f"Hello, Commander. Ready to assist. \u2014 Quick snapshot: "
-            f"Engine is {condition} (HI {hi_val:.0f}/100), "
-            f"RUL {rul:.0f} cycles remaining. "
-            f"Ask me anything about health, faults, RUL, thermal, or mission risk."
-        )
-    else:
-        text = (
-            "Hello, Commander. I am your Digital Twin AI Mission Engineer. "
-            "I have direct access to live propulsion telemetry, LSTM prognostics, "
-            "and anomaly detection. Ask me anything."
-        )
-    return text, follow_ups
-
-# ---------------------------------------------------------------------------
-# Dispatch table
-# ---------------------------------------------------------------------------
-
-_DISPATCH = {
-    "GREETING":       _ans_greeting,
-    "WHY_UNHEALTHY":  _ans_why_unhealthy,
-    "WHY_ANOMALY":    _ans_why_anomaly,
-    "RUL_STATUS":     _ans_rul_status,
-    "MISSION_RISK":   _ans_mission_risk,
-    "RPM_ADVICE":     _ans_rpm_advice,
-    "MAINTENANCE":    _ans_maintenance,
-    "RECOMMENDATION": _ans_recommendation,
-    "SENSOR_STATUS":  _ans_sensor_status,
-    "THERMAL":        _ans_thermal,
-    "OIL":            _ans_oil,
-    "VIBRATION":      _ans_vibration,
-    "GENERAL_STATUS": _ans_general,
+    ],
+    "GENERAL_STATUS": [
+        "Why is the engine health degraded?",
+        "What is the predicted RUL?",
+        "Can this engine complete the planned mission safely?",
+    ],
 }
 
 
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
+# ── Telemetry state formatter ─────────────────────────────────────────────────
+
+def _format_state(state: Dict[str, Any]) -> str:
+    """
+    Render the Digital Twin state dict as a compact, human-readable block
+    that the Hermes agent can reason over.
+    """
+    health       = state.get("health", {})
+    sub          = health.get("sub_scores", {})
+    mission      = state.get("mission_risk", {})
+    sensors      = state.get("sensor_integrity", {})
+    xai          = state.get("xai", {})
+    twin         = state.get("twin_consistency", {})
+    prescriptive = state.get("prescriptive", [])
+    fault_events = state.get("fault_events", [])
+
+    lines = [
+        "=== UAV DIGITAL TWIN - LIVE TELEMETRY SNAPSHOT ===",
+        f"Health Index : {health.get('health_index', 0):.0f}/100   "
+        f"Condition: {health.get('condition', 'UNKNOWN')}",
+    ]
+
+    if sub:
+        lines.append(
+            f"Sub-scores   - Thermal: {sub.get('thermal', 100):.0f}  "
+            f"Lubrication: {sub.get('lubrication', 100):.0f}  "
+            f"Mechanical: {sub.get('mechanical', 100):.0f}"
+        )
+
+    rul    = state.get("predicted_rul", 0)
+    rul_lo = state.get("rul_ci_lower", 0)
+    rul_hi = state.get("rul_ci_upper", 0)
+    lines += [
+        f"Predicted RUL: {rul:.0f} cycles  "
+        f"(95% CI: {rul_lo:.0f}-{rul_hi:.0f})  "
+        f"True RUL: {state.get('true_rul', 0):.0f} cycles",
+        f"RPM: {state.get('rpm', 0):.0f}",
+        f"CHT: {state.get('cht', 0):.1f}F   "
+        f"EGT: {state.get('egt', 0):.1f}F   "
+        f"Oil: {state.get('oil_pressure', 0):.1f} PSI   "
+        f"Vibration: {state.get('vibration', 0):.3f}g RMS",
+    ]
+
+    if mission:
+        lines.append(
+            f"Mission Risk : {mission.get('risk_level', 'UNKNOWN')}   "
+            f"Completion: {mission.get('mission_completion_probability', 0):.0f}%   "
+            f"Safe time: {mission.get('safe_operating_time_h', 0):.1f}h"
+        )
+
+    if sensors:
+        suspect = [s["channel"] for s in sensors.get("suspect_channels", [])]
+        lines.append(
+            f"Sensor Integrity: {sensors.get('integrity_score', 100):.1f}%   "
+            f"Suspect: {suspect if suspect else 'none'}"
+        )
+
+    if xai:
+        attrs = xai.get("attributions", [])
+        lines.append(
+            f"Anomaly: {xai.get('is_anomaly', False)}   "
+            f"Top driver: {xai.get('top_driver', 'N/A')}"
+        )
+        if attrs:
+            top3 = ", ".join(
+                f"{a['label']}={a['attribution']:.1f}% "
+                f"(val={a['value']}{a['unit']}, nom={a['nominal']}{a['unit']})"
+                for a in attrs[:3]
+            )
+            lines.append(f"Attributions: {top3}")
+
+    if twin:
+        lines.append(
+            f"Twin Consistency: Case {twin.get('case', '?')} - "
+            f"{twin.get('case_label', '')}"
+        )
+
+    if fault_events:
+        faults_str = ", ".join(
+            f"{f['name'].replace('_', ' ')} [{f['severity']}]"
+            for f in fault_events[:5]
+        )
+        lines.append(f"Active Faults: {faults_str}")
+
+    if prescriptive:
+        top = prescriptive[0]
+        lines.append(
+            f"Top Advisory [{top['severity']}]: {top['action'][:160]}"
+        )
+
+    lines.append("===================================================")
+    return "\n".join(lines)
+
+
+# ── Agent 37 REST call ────────────────────────────────────────────────────────
+
+def _call_agent37(message: str) -> str:
+    """
+    POST a turn to the Agent 37 Hermes instance.
+
+    Maintains ``_session_id`` across calls so the agent carries conversation
+    history (follow-up questions work naturally without resending transcripts).
+
+    Returns the raw ``output_text`` string from the response.
+    Raises on network error, non-200 HTTP status, or a failed agent turn.
+    """
+    global _session_id
+
+    body: Dict[str, Any] = {
+        "input":  message,
+        "stream": False,
+    }
+    if _session_id:
+        body["session_id"] = _session_id
+
+    resp = _requests.post(
+        f"{_BASE_URL}/v1/responses",
+        headers=_HEADERS,
+        json=body,
+        timeout=60,   # Agent 37 long-polls; 60 s is conservative
+    )
+    resp.raise_for_status()
+    data: Dict[str, Any] = resp.json()
+
+    # Persist the session for subsequent turns
+    new_sid = data.get("session_id")
+    if new_sid and new_sid != _session_id:
+        _session_id = new_sid
+        logger.info("[Agent37] New session started: %s", _session_id)
+
+    status = data.get("status", "unknown")
+    if status == "failed":
+        err = data.get("error") or {}
+        raise RuntimeError(
+            f"Agent37 turn failed - {err.get('code', '?')}: "
+            f"{err.get('message', 'unknown error')}"
+        )
+
+    output_text: str = (data.get("output_text") or "").strip()
+    usage = data.get("usage") or {}
+    logger.debug(
+        "[Agent37] status=%s  tokens_in=%s  tokens_out=%s  cost=$%.4f",
+        status,
+        usage.get("input_tokens", "?"),
+        usage.get("output_tokens", "?"),
+        usage.get("cost_usd") or 0.0,
+    )
+    return output_text
+
+
+# ── Response parser ───────────────────────────────────────────────────────────
+
+def _parse_response(raw: str) -> Dict[str, Any]:
+    """
+    Parse the agent's JSON response into the canonical answer dict.
+
+    Handles:
+    - Clean JSON
+    - JSON wrapped in ```json ... ``` markdown fences
+    - Plain-text fallback (no JSON detected)
+    """
+    text = raw
+
+    # Strip markdown code fences if present
+    if "```" in text:
+        parts = text.split("```")
+        for part in parts[1::2]:          # every odd segment is inside fences
+            candidate = part.strip()
+            if candidate.startswith("json"):
+                candidate = candidate[4:].strip()
+            try:
+                return json.loads(candidate)
+            except json.JSONDecodeError:
+                continue
+
+    # Try direct parse
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    # Last resort: return raw text as the answer
+    logger.warning("[Agent37] Could not parse JSON from response - using raw text")
+    return {
+        "answer":     text or "No response from the Agent 37 AI Engineer.",
+        "category":   "GENERAL_STATUS",
+        "follow_ups": _FOLLOWUPS["GENERAL_STATUS"],
+    }
+
+
+# ── Public API ────────────────────────────────────────────────────────────────
 
 def answer(question: str, state: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Generates a grounded natural-language answer to an operator question.
+    Generate a grounded natural-language answer to an operator question using
+    the Agent 37 Hermes cloud agent.
 
     Parameters
     ----------
     question : the operator's question in natural language
     state    : full Digital Twin state dict from the latest WebSocket payload
 
-    Returns a dict with:
-      answer     : str   -- plain-text response
-      category   : str   -- intent label for badge rendering on the frontend
-      confidence : float -- 0-1 confidence in intent classification
-      follow_ups : list  -- 2-3 contextual next questions
+    Returns
+    -------
+    dict with:
+      answer     : str   - plain-text response grounded in live telemetry
+      category   : str   - intent label for badge rendering on the frontend
+      confidence : float - 1.0 for Agent 37 responses, 0.0 on error
+      follow_ups : list  - 2-3 contextual next questions
     """
-    intent, confidence = _classify_question(question)
-    # Low-confidence guard: if model is unsure and it's not a greeting,
-    # fall back to general status rather than risk misclassification.
-    if confidence < 0.25 and intent not in ("GREETING", "GENERAL_STATUS"):
-        intent = "GENERAL_STATUS"
-        confidence = 0.25
+    state_block = _format_state(state)
+    full_prompt  = f"{_PERSONA}\n\n{state_block}\n\nOperator: {question}"
 
-    builder = _DISPATCH.get(intent, _ans_general)
-    ans_text, follow_ups = builder(state)
-    return {
-        "answer":     ans_text,
-        "category":   intent,
-        "confidence": confidence,
-        "follow_ups": follow_ups,
-    }
+    try:
+        raw      = _call_agent37(full_prompt)
+        parsed   = _parse_response(raw)
+
+        ans_text   = str(parsed.get("answer", raw))
+        category   = str(parsed.get("category", "GENERAL_STATUS")).upper()
+        follow_ups = parsed.get("follow_ups") or _FOLLOWUPS.get(
+            category, _FOLLOWUPS["GENERAL_STATUS"]
+        )
+
+        # Validate category falls within known set
+        if category not in _FOLLOWUPS:
+            category = "GENERAL_STATUS"
+
+        logger.info(
+            "[Agent37] answered - category=%s  session=%s",
+            category, _session_id,
+        )
+
+        return {
+            "answer":     ans_text,
+            "category":   category,
+            "confidence": 1.0,
+            "follow_ups": list(follow_ups)[:3],
+        }
+
+    except _requests.exceptions.Timeout:
+        logger.error("[Agent37] Request timed out after 60 s")
+        return {
+            "answer": (
+                "The Agent 37 AI Engineer did not respond in time. "
+                "The instance may be waking from sleep - please retry in a moment."
+            ),
+            "category":   "GENERAL_STATUS",
+            "confidence": 0.0,
+            "follow_ups": _FOLLOWUPS["GENERAL_STATUS"],
+        }
+
+    except _requests.exceptions.RequestException as exc:
+        logger.error("[Agent37] Network error: %s", exc)
+        return {
+            "answer": (
+                f"Agent 37 is currently unreachable ({exc}). "
+                "Check your network connection and instance status."
+            ),
+            "category":   "GENERAL_STATUS",
+            "confidence": 0.0,
+            "follow_ups": _FOLLOWUPS["GENERAL_STATUS"],
+        }
+
+    except Exception as exc:                     # noqa: BLE001
+        logger.error("[Agent37] Unexpected error: %s", exc, exc_info=True)
+        return {
+            "answer": (
+                f"An unexpected error occurred while consulting the AI Engineer: {exc}"
+            ),
+            "category":   "GENERAL_STATUS",
+            "confidence": 0.0,
+            "follow_ups": _FOLLOWUPS["GENERAL_STATUS"],
+        }
 

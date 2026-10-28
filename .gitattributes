@@ -1,0 +1,28 @@
+# Set default behavior to automatically normalize text files to LF
+* text=auto eol=lf
+
+# Explicit LF normalization for shell scripts and source code
+*.sh text eol=lf
+*.py text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.jsx text eol=lf
+*.json text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.tar.gz binary
+*.zip binary
+*.db binary
+*.pkl binary

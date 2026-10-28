@@ -3,16 +3,26 @@ node_modules/
 **/node_modules/
 dist/
 .env*
+!.env.example
+!.env*.example
 .vercel/
 .next/
 *.tsbuildinfo
 
 # Python & Caching
+.venv/
+venv/
+env/
+ENV/
 __pycache__/
 *.py[cod]
 *$py.class
 .pytest_cache/
 *.pkl.tmp
+*.log
+.coverage
+coverage/
+htmlcov/
 
 # Agent Tooling & Cache (IDE local skills/artifacts)
 .agents/

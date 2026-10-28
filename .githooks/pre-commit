@@ -1,0 +1,25 @@
+#!/bin/bash
+# Git Pre-Commit Hook: Guard against accidental secret leaks
+# Prevents committing API keys (e.g. sk_live_..., ghp_..., private keys)
+
+SECRET_PATTERN="(sk_live_[0-9a-zA-Z_]{16,}|ghp_[0-9a-zA-Z]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)"
+
+# Inspect staged additions
+MATCHES=$(git diff --cached --unified=0 | grep -E "^\+" | grep -vE "^\+\+\+" | grep -E "$SECRET_PATTERN")
+
+if [ -n "$MATCHES" ]; then
+    echo ""
+    echo "======================================================================"
+    echo "❌ [GIT HOOK ERROR] Sensitive secret or live API key detected!"
+    echo "======================================================================"
+    echo "Matches found in staged changes:"
+    echo "$MATCHES"
+    echo ""
+    echo "Please keep sensitive keys in untracked '.env' or 'frontend/.env.local'."
+    echo "Commit has been blocked for repository security."
+    echo "======================================================================"
+    echo ""
+    exit 1
+fi
+
+exit 0
